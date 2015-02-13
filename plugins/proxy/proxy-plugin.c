@@ -434,6 +434,8 @@ static network_mysqld_lua_stmt_ret proxy_lua_read_handshake(network_mysqld_con *
 
 	lua_State *L;
 
+	if (st == NULL && con->proxy_state == CON_STATE_PROXY_QUIT) return CON_STATE_SEND_ERROR;
+
 	/* call the lua script to pick a backend
 	   ignore the return code from network_mysqld_con_lua_register_callback, because we cannot do anything about it,
 	   it would always show up as ERROR 2013, which is not helpful.
@@ -1319,6 +1321,8 @@ NETWORK_MYSQLD_PLUGIN_PROTO(proxy_read_query) {
 	int proxy_query = 1;
 	network_mysqld_lua_stmt_ret ret;
 	
+    if (st == NULL) return NETWORK_SOCKET_ERROR;
+
 	NETWORK_MYSQLD_CON_TRACK_TIME(con, "proxy::ready_query::enter");
 
 	send_sock = NULL;
@@ -1971,8 +1975,6 @@ NETWORK_MYSQLD_PLUGIN_PROTO(proxy_init) {
 		timeval_from_double(&con->write_timeout, config->write_timeout_dbl);
 	}
 
-
-
 	return NETWORK_SOCKET_SUCCESS;
 }
 
@@ -2056,7 +2058,6 @@ static network_mysqld_lua_stmt_ret proxy_lua_disconnect_client(network_mysqld_co
 NETWORK_MYSQLD_PLUGIN_PROTO(proxy_disconnect_client) {
 	network_mysqld_con_lua_t *st = con->plugin_con_state;
 	lua_scope  *sc = con->srv->priv->sc;
-	gboolean use_pooled_connection = FALSE;
 
 	if (st == NULL) return NETWORK_SOCKET_SUCCESS;
 	
@@ -2080,8 +2081,7 @@ NETWORK_MYSQLD_PLUGIN_PROTO(proxy_disconnect_client) {
 	 * check if one of the backends has to many open connections
 	 */
 
-	if (use_pooled_connection &&
-	    con->state == CON_STATE_CLOSE_CLIENT) {
+	if (con->state == CON_STATE_CLOSE_CLIENT) {
 		/* move the connection to the connection pool
 		 *
 		 * this disconnects con->server and safes it from getting free()ed later
@@ -2103,6 +2103,8 @@ NETWORK_MYSQLD_PLUGIN_PROTO(proxy_disconnect_client) {
 	network_mysqld_con_lua_free(st);
 
 	con->plugin_con_state = NULL;
+
+    g_debug("%s.%d: set plugin_con_state null:%p", __FILE__, __LINE__, con);
 
 	/**
 	 * walk all pools and clean them up

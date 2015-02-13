@@ -141,7 +141,6 @@ void chassis_free(chassis *chas) {
 
 	/* init the shutdown, without freeing share structures */	
 	if (chas->priv_shutdown) chas->priv_shutdown(chas, chas->priv);
-	
 
 	/* call the destructor for all plugins */
 	for (i = 0; i < chas->modules->len; i++) {
@@ -161,10 +160,7 @@ void chassis_free(chassis *chas) {
 	
 	g_ptr_array_free(chas->modules, TRUE);
 
-	/* free the pointers _AFTER_ the modules are shutdown */
-	if (chas->priv_free) chas->priv_free(chas, chas->priv);
-
-
+	
 	if (chas->base_dir) g_free(chas->base_dir);
 	if (chas->user) g_free(chas->user);
 	
@@ -189,7 +185,13 @@ void chassis_free(chassis *chas) {
 	g_free(chas->event_hdr_version);
 
 	chassis_shutdown_hooks_free(chas->shutdown_hooks);
-	
+
+	/* init the shutdown, without freeing share structures */	
+	if (chas->priv_finally_free_shared) chas->priv_finally_free_shared(chas, chas->priv);
+
+    /* free the pointers _AFTER_ the modules are shutdown */
+	if (chas->priv_free) chas->priv_free(chas, chas->priv);
+
 	g_free(chas);
 }
 
@@ -328,7 +330,7 @@ int chassis_mainloop(void *_chas) {
 	}
 #endif
 
-	if (chas->event_thread_count < 1) chas->event_thread_count = 1;
+	chas->event_thread_count = 1;
 
 	/* create the event-threads
 	 *

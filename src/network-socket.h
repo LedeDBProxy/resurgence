@@ -72,7 +72,14 @@ typedef struct network_mysqld_auth_challenge network_mysqld_auth_challenge;
 typedef struct network_mysqld_auth_response network_mysqld_auth_response;
 
 typedef struct {
+    guint64  key;
+    guint32  last_visit_time;
+    guint32  special_type;
+} conn_ctl_info;
+
+typedef struct {
 	int fd;             /**< socket-fd */
+    guint32 last_visit_time;
 	struct event event; /**< events for this fd */
 
 	network_address *src; /**< getsockname() */

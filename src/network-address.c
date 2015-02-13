@@ -533,10 +533,14 @@ gint network_address_refresh_name(network_address *addr) {
 		g_string_printf(addr->name, "%s:%d",
 				buf, 
 				ntohs(addr->addr.ipv4.sin_port));
+        addr->key = addr->addr.ipv4.sin_addr.s_addr;
+        addr->key = (addr->key << 16) + addr->addr.ipv4.sin_port;
+
 	} else if (addr->addr.common.sa_family == AF_INET6) {
 		g_string_printf(addr->name, "[%s]:%d",
 				buf, 
 				ntohs(addr->addr.ipv6.sin6_port));
+        /* TODO set key for ipv6 */
 	} else {
 		g_string_assign(addr->name, buf);
 	}

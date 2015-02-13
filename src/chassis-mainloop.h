@@ -65,6 +65,7 @@ struct chassis {
 
 	chassis_private *priv;
 	void (*priv_shutdown)(chassis *chas, chassis_private *priv);
+	void (*priv_finally_free_shared)(chassis *chas, chassis_private *priv);
 	void (*priv_free)(chassis *chas, chassis_private *priv);
 
 	chassis_log *log;

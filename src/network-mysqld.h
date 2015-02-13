@@ -230,6 +230,11 @@ typedef enum {
 	CON_STATE_SEND_LOCAL_INFILE_RESULT = 21
 } network_mysqld_con_state_t;
 
+typedef enum { 
+	CON_STATE_PROXY_OK = 0,      
+	CON_STATE_PROXY_QUIT = 1   
+} proxy_session_state_t;
+
 /**
  * get the name of a connection state
  */
@@ -263,6 +268,7 @@ struct network_mysqld_con {
 	 * @see network_mysqld_con_handle
 	 */
 	network_mysqld_con_state_t state;
+	proxy_session_state_t proxy_state;
 
 	/**
 	 * The server side of the connection as it pertains to the low-level network implementation.

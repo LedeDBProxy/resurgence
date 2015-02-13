@@ -214,7 +214,7 @@ int network_connection_pool_lua_add_connection(network_mysqld_con *con) {
 	con->server->is_authed = 1;
 
 	/* insert the server socket into the connection pool */
-	pool_entry = network_connection_pool_add(st->backend->pool, con->server);
+	pool_entry = network_connection_pool_add(st->backend->pool, con->server, con->client->src->key);
 
 	event_set(&(con->server->event), con->server->fd, EV_READ, network_mysqld_con_idle_handle, pool_entry);
 	chassis_event_add_local(con->srv, &(con->server->event)); /* add a event, but stay in the same thread */
@@ -243,6 +243,7 @@ network_socket *network_connection_pool_lua_swap(network_mysqld_con *con, int ba
 	network_mysqld_con_lua_t *st = con->plugin_con_state;
 	chassis_private *g = con->srv->priv;
 	GString empty_username = { "", 0, 0 };
+    conn_ctl_info info = {0, 0, 0};
 
 	/*
 	 * we can only change to another backend if the backend is already
@@ -262,9 +263,13 @@ network_socket *network_connection_pool_lua_swap(network_mysqld_con *con, int ba
 #ifdef DEBUG_CONN_POOL
 	g_debug("%s: (swap) check if we have a connection for this user in the pool '%s'", G_STRLOC, con->client->username->str);
 #endif
+
+    info.key = con->client->src->key;
+    info.last_visit_time = con->client->last_visit_time;
+
 	if (NULL == (send_sock = network_connection_pool_get(backend->pool, 
 					con->client->response ? con->client->response->username : &empty_username,
-					con->client->default_db))) {
+					con->client->default_db, &info))) {
 		/**
 		 * no connections in the pool
 		 */
@@ -274,9 +279,9 @@ network_socket *network_connection_pool_lua_swap(network_mysqld_con *con, int ba
 
 	/* the backend is up and cool, take and move the current backend into the pool */
 #ifdef DEBUG_CONN_POOL
-	g_debug("%s: (swap) added the previous connection to the pool", G_STRLOC);
+	/* g_debug("%s: (swap) added the previous connection to the pool", G_STRLOC); */
 #endif
-	network_connection_pool_lua_add_connection(con);
+	/* network_connection_pool_lua_add_connection(con); */
 
 	/* connect to the new backend */
 	st->backend = backend;

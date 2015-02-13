@@ -128,6 +128,8 @@ network_socket_retval_t plugin_call_cleanup(chassis *srv, network_mysqld_con *co
 	NETWORK_MYSQLD_PLUGIN_FUNC(func) = NULL;
 	network_socket_retval_t retval = NETWORK_SOCKET_SUCCESS;
 
+    if (!con->plugin_con_state && con->proxy_state == CON_STATE_PROXY_QUIT) return retval;
+
 	func = con->plugins.con_cleanup;
 	
 	if (!func) return retval;
@@ -164,6 +166,12 @@ plugin_call_timeout(chassis *srv, network_mysqld_con *con) {
 		return NETWORK_SOCKET_SUCCESS;
 	}
 
+    if (!con->plugin_con_state && con->proxy_state == CON_STATE_PROXY_QUIT) {
+        g_critical("%s.%d: %p quit because of proxy state, thread:%u ", __FILE__, __LINE__, 
+                con, (unsigned int)pthread_self());
+        return NETWORK_SOCKET_SUCCESS; 
+    }
+
 	LOCK_LUA(srv->priv->sc);
 	retval = (*func)(srv, con);
 	UNLOCK_LUA(srv->priv->sc);
@@ -185,17 +193,31 @@ chassis_private *network_mysqld_priv_init(void) {
 }
 
 void network_mysqld_priv_shutdown(chassis *chas, chassis_private *priv) {
+    int i, len;
+
 	if (!priv) return;
 
-	/* network_mysqld_con_free() changes the priv->cons directly
-	 *
-	 * always free the first element until all are gone 
-	 */
-	while (0 != priv->cons->len) {
-		network_mysqld_con *con = priv->cons->pdata[0];
-
+    len = priv->cons->len;
+    for (i = 0; i < len; i++) {
+		network_mysqld_con *con = priv->cons->pdata[i];
 		plugin_call_cleanup(chas, con);
-		network_mysqld_con_free(con);
+        con->proxy_state = CON_STATE_PROXY_QUIT;
+        g_critical("%s.%d: %p set proxy state CON_STATE_PROXY_QUIT, thread:%u ", __FILE__, __LINE__, 
+                con, (unsigned int)pthread_self());
+	}
+}
+
+void network_mysqld_priv_finally_free_shared(chassis *chas, chassis_private *priv) {
+    int i, len;
+
+	if (!priv) return;
+
+    len = priv->cons->len;
+    for (i = 0; i < len; i++) {
+		network_mysqld_con *con = priv->cons->pdata[i];
+        g_critical("%s.%d: %p finally release, thread:%u ", __FILE__, __LINE__, 
+                con, (unsigned int)pthread_self());
+        network_mysqld_con_free(con);
 	}
 }
 
@@ -215,6 +237,7 @@ int network_mysqld_init(chassis *srv) {
 	lua_State *L;
 	srv->priv_free = network_mysqld_priv_free;
 	srv->priv_shutdown = network_mysqld_priv_shutdown;
+	srv->priv_finally_free_shared = network_mysqld_priv_finally_free_shared;
 	srv->priv      = network_mysqld_priv_init();
 
 	/* store the pointer to the chassis in the Lua registry */
@@ -668,6 +691,12 @@ network_socket_retval_t plugin_call(chassis *srv, network_mysqld_con *con, int s
 	network_socket_retval_t ret;
 	NETWORK_MYSQLD_PLUGIN_FUNC(func) = NULL;
 
+    if (con->plugin_con_state == NULL && con->proxy_state == CON_STATE_PROXY_QUIT) {
+        g_critical("%s.%d: %p quit because of proxy, thread:%u ", __FILE__, __LINE__, 
+                con, (unsigned int)pthread_self());
+        return; 
+    }
+
 	switch (state) {
 	case CON_STATE_INIT:
 		func = con->plugins.con_init;
@@ -887,6 +916,15 @@ network_socket_retval_t plugin_call(chassis *srv, network_mysqld_con *con, int s
 				state);
 	}
 	if (!func) return NETWORK_SOCKET_SUCCESS;
+
+    if (!con->plugin_con_state && con->proxy_state == CON_STATE_PROXY_QUIT) {
+        g_critical("%s.%d: %p quit because of proxy state not zero, thread:%u ", __FILE__, __LINE__, 
+                con, (unsigned int)pthread_self());
+        return NETWORK_SOCKET_SUCCESS; 
+    } else {
+        g_critical("%s.%d: %p quit because of proxy state:%d, thread:%u ", __FILE__, __LINE__, 
+                con, con->proxy_state, (unsigned int)pthread_self());
+    }
 
 	LOCK_LUA(srv->priv->sc);
 	ret = (*func)(srv, con);

@@ -76,6 +76,7 @@ typedef struct {
 	} addr;
 
 	GString *name; 
+    guint64 key;
 	network_socklen_t len;
 	gboolean can_unlink_socket; /* set TRUE *only* after successful bind */
 } network_address;

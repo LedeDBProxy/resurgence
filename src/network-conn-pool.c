@@ -174,10 +174,12 @@ GQueue *network_connection_pool_get_conns(network_connection_pool *pool, GString
  */
 network_socket *network_connection_pool_get(network_connection_pool *pool,
 		GString *username,
-		GString *UNUSED_PARAM(default_db)) {
+		GString *UNUSED_PARAM(default_db), conn_ctl_info *info) {
 
-	network_connection_pool_entry *entry = NULL;
+    guint32  cur;
+    guint    len, i, diff, reuse;
 	network_socket *sock = NULL;
+	network_connection_pool_entry *entry, *found_entry = NULL;
 
 	GQueue *conns = network_connection_pool_get_conns(pool, username, NULL);
 
@@ -185,7 +187,39 @@ network_socket *network_connection_pool_get(network_connection_pool *pool,
 	 * if we know this use, return a authed connection 
 	 */
 	if (conns) {
-		entry = g_queue_pop_head(conns);
+        cur = time(0);
+        len = g_queue_get_length(conns);
+        for (i = 0; i < len; i++) {
+            entry = g_queue_peek_nth(conns, i);
+            if (entry->key == info->key) {
+                if (!entry->shared) {
+                    found_entry = entry;
+                    g_queue_pop_nth (conns, i);
+                    break;
+                }
+            }
+        }
+
+        if (!found_entry && len > 0) {
+            entry = g_queue_peek_nth(conns, 0);
+            reuse = 1;
+            if (entry->special) {
+                diff = cur - entry->sock->last_visit_time;
+                if (diff < 120) {
+                    reuse = 0;
+                }
+            }
+
+            if (reuse) {
+                found_entry = entry;
+                g_queue_pop_nth (conns, 0);
+#ifdef DEBUG_CONN_POOL
+                g_debug("%s: (get) entry for user '%s' -> %p, cur:%u, last visit:%u",
+                        G_STRLOC, username ? username->str : "", entry,
+                        cur, entry->sock->last_visit_time);
+#endif
+            }
+        }
 
 		if (conns->length == 0) {
 			/**
@@ -195,16 +229,16 @@ network_socket *network_connection_pool_get(network_connection_pool *pool,
 		}
 	}
 
-	if (!entry) {
+    if (!found_entry) {
 #ifdef DEBUG_CONN_POOL
 		g_debug("%s: (get) no entry for user '%s' -> %p", G_STRLOC, username ? username->str : "", conns);
 #endif
 		return NULL;
 	}
 
-	sock = entry->sock;
+	sock = found_entry->sock;
 
-	network_connection_pool_entry_free(entry, FALSE);
+	network_connection_pool_entry_free(found_entry, FALSE);
 
 	/* remove the idle handler from the socket */	
 	event_del(&(sock->event));
@@ -220,13 +254,17 @@ network_socket *network_connection_pool_get(network_connection_pool *pool,
  * add a connection to the connection pool
  *
  */
-network_connection_pool_entry *network_connection_pool_add(network_connection_pool *pool, network_socket *sock) {
+network_connection_pool_entry *network_connection_pool_add(network_connection_pool *pool, 
+        network_socket *sock, guint64 key) 
+{
 	network_connection_pool_entry *entry;
 	GQueue *conns = NULL;
 
 	entry = network_connection_pool_entry_new();
 	entry->sock = sock;
 	entry->pool = pool;
+    entry->key = key;
+    entry->sock->last_visit_time = time(0);
 
 	g_get_current_time(&(entry->added_ts));
 	

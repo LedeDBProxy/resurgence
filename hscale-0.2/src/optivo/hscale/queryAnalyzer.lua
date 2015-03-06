@@ -255,7 +255,8 @@ function QueryAnalyzer:analyze()
 
     -- NO_DEBUG utils.debug("BEGIN analyze ----------------------------------------------------------------------------")
     self:_normalizeQueryAndParseHints()
-	for pos, token in ipairs(self._tokens) do
+    for i = 1, #self._tokens do
+        local token = self._tokens[i]
 		tokenName = token.token_name
 		tokenText = token.text
 		tokenTextLc = tokenText:lower()
@@ -276,7 +277,7 @@ function QueryAnalyzer:analyze()
 		elseif (tokenName == "TK_SQL_OUTFILE") then
             self._hasIntoOutFile = true
 		elseif (tokenName == "TK_SQL_LIMIT") then
-		    self:_parseLimit(pos)
+		    self:_parseLimit(i)
 		end
 		if (not self._statementType and tokenName == "TK_SQL_SHOW") then
 		    self:_parseShow()
@@ -341,7 +342,7 @@ function QueryAnalyzer:analyze()
         			    self:_setTableFound(tokenTextLc, tokenTextLc)
 
         			    -- Test for short alias notation "SELECT * FROM table alias WHERE ..."
-        			    local nextToken = self._tokens[pos + 1]
+        			    local nextToken = self._tokens[i + 1]
         			    if (nextToken and nextToken.token_name == "TK_LITERAL") then
         			        self:_setTableFound(tokenTextLc, nextToken.text:lower())
         			    end
@@ -358,44 +359,44 @@ function QueryAnalyzer:analyze()
                         -- NO_DEBUG utils.debug("Testing table/column " .. tableName .. "/" .. column, 2)
         		        if (tokenTextLc == column and self._tableToAlias[tableName]) then
         		            -- We have found a partition key if the next token is TK_EQ and the following is TK_LITERAL
-                            -- NO_DEBUG utils.debug("#self._tokens = " .. pos .. "/" .. #self._tokens, 3)
-                            assert(#self._tokens >= pos + 2, "Invalid query near '" .. tokenText .. "' - too few tokens.")
-                            local valueToken = self._tokens[pos + 2]
-                            -- NO_DEBUG utils.debug("Next two tokens: " .. self._tokens[pos + 1].token_name .. " - " .. valueToken.token_name, 3)
-                            if (self._tokens[pos + 1].token_name == "TK_EQ") then
+                            -- NO_DEBUG utils.debug("#self._tokens = " .. i .. "/" .. #self._tokens, 3)
+                            assert(#self._tokens >= i + 2, "Invalid query near '" .. tokenText .. "' - too few tokens.")
+                            local valueToken = self._tokens[i + 2]
+                            -- NO_DEBUG utils.debug("Next two tokens: " .. self._tokens[i + 1].token_name .. " - " .. valueToken.token_name, 3)
+                            if (self._tokens[i + 1].token_name == "TK_EQ") then
                                 -- NO_DEBUG utils.debug("Found partition key '" .. valueToken.text .. "' for table '" .. tableName .. "'", 4)
-                                self:_setPartitionTableKey(tableName, valueToken, self._tokens[pos + 3])
+                                self:_setPartitionTableKey(tableName, valueToken, self._tokens[i + 3])
                             end
         		        end
         		    end
         	    end
             elseif (tokenName == "TK_SQL_AS") then
                 -- Handle table alias by doin a forward lookup
-                assert(#self._tokens >= pos + 2 and #self._tokens > 1, "Invalid query - too few tokens.")
+                assert(#self._tokens >= i + 2 and #self._tokens > 1, "Invalid query - too few tokens.")
                 if (self._tableKeyColumns[lastTokenTextLc]) then
                     -- This is a table we know
-                    local tableAlias = self._tokens[pos + 1].text
+                    local tableAlias = self._tokens[i + 1].text
                     self:_setTableFound(lastTokenTextLc, tableAlias)
                     -- NO_DEBUG utils.debug("Table alias found for table '" .. lastTokenText .. "' = '" .. tableAlias .. "'", 1)
                 end
             elseif (tokenName == "TK_DOT" and lastTokenName == "TK_LITERAL") then
                 -- A dot might mean that we are accessing an aliased column
                 -- NO_DEBUG utils.debug("Found a dot - testing for alias.keyColumn = keyValue", 1)
-                if (#self._tokens >= pos + 3 and #self._tokens > 1) then
+                if (#self._tokens >= i + 3 and #self._tokens > 1) then
                     local possibleTable = self._aliasToTable[lastTokenTextLc]
-                    local valueToken = self._tokens[pos + 3]
-                    local columnToken = self._tokens[pos + 1]
+                    local valueToken = self._tokens[i + 3]
+                    local columnToken = self._tokens[i + 1]
                     -- NO_DEBUG utils.debug("Examining possible table alias/name '" .. lastTokenText .. "/" .. (possibleTable or "") .. "'", 1)
                     -- NO_DEBUG utils.debug("Possible column '" .. columnToken.text .. "'", 1)
                     if (
                         lastTokenName == "TK_LITERAL"
                         and possibleTable
                         and self._tableKeyColumns[possibleTable] == columnToken.text:lower()
-                        and self._tokens[pos + 2].token_name == "TK_EQ"
+                        and self._tokens[i + 2].token_name == "TK_EQ"
                     ) then
                         -- The last token was a valid alias / table name and the next one is an equals sign - we have a key
                         -- NO_DEBUG utils.debug("Found partition key '" .. valueToken.text .. "' for table '" .. possibleTable .. "' (by alias)", 1)
-                        self:_setPartitionTableKey(possibleTable, valueToken, self._tokens[pos + 3])
+                        self:_setPartitionTableKey(possibleTable, valueToken, self._tokens[i + 3])
                     end
                 end
 			elseif (tokenName ~= "TK_COMMA") then
@@ -439,10 +440,10 @@ function QueryAnalyzer:_verifyResult()
 end
 
 -- Parse a limit clause.
-function QueryAnalyzer:_parseLimit(pos)
-    local limitToken = self._tokens[pos + 1]
-    local middleToken = self._tokens[pos + 2]
-    local limit2Token = self._tokens[pos + 3]
+function QueryAnalyzer:_parseLimit(i)
+    local limitToken = self._tokens[i + 1]
+    local middleToken = self._tokens[i + 2]
+    local limit2Token = self._tokens[i + 3]
     assert(limitToken, "Invalid query. Not enough tokens to parse LIMIT clause.")
     assert(limitToken.token_name == "TK_INTEGER", "Invalid query. LIMIT must be followed by an integer.")
     self._limitRows = tonumber(limitToken.text)
@@ -467,7 +468,8 @@ function QueryAnalyzer:_parseDdl()
     local tableName
 
     -- NO_DEBUG utils.debug("Parsing ddl")
-	for pos, token in ipairs(self._tokens) do
+    for i = 1, #self._tokens do
+        local token = self._tokens[i]
 		tokenName = token.token_name
 		tokenText = token.text
 		tokenTextLc = tokenText:lower()
@@ -484,15 +486,15 @@ function QueryAnalyzer:_parseDdl()
             if (self._statementType == "RENAME TABLE") then
                 -- Handle RENAME t1 TO t2 [, t3 TO t4 ...]
                 repeat
-                    local token = self._tokens[pos]
-                    local nextToken = self._tokens[pos + 1]
-                    local nextTableToken = self._tokens[pos + 2]
-                    local commaToken = self._tokens[pos + 3]
+                    local token = self._tokens[i]
+                    local nextToken = self._tokens[i + 1]
+                    local nextTableToken = self._tokens[i + 2]
+                    local commaToken = self._tokens[i + 3]
                     if (nextToken and nextToken.token_name == "TK_SQL_TO" and nextTableToken and nextTableToken.token_name == "TK_LITERAL") then
                         self:_setTableFound(token.text, token.text)
                         self:_setTableFound(nextTableToken.text, nextTableToken.text)
                     end
-                    pos = pos + 4
+                    i = i + 4
                 until not (commaToken and commaToken.token_name == "TK_COMMA")
             end
 		    -- NO_DEBUG utils.debug("Found table " .. tableName, 2)
@@ -527,7 +529,8 @@ function QueryAnalyzer:_parseShow()
     local tableName
 
     -- NO_DEBUG utils.debug("Parsing show")
-	for pos, token in ipairs(self._tokens) do
+    for i = 1, #self._tokens do
+        local token = self._tokens[i]
 		tokenName = token.token_name
 		tokenText = token.text
 		tokenTextLc = tokenText:lower()
@@ -538,7 +541,7 @@ function QueryAnalyzer:_parseShow()
 		    or (lastTokenName == "TK_SQL_INDEX" and tokenName == "TK_SQL_FROM") -- SHOW INDEX FROM
 		    or (lastTokenName == "TK_SQL_KEYS" and tokenName == "TK_SQL_FROM") -- SHOW KEYS FROM
 		) then
-		    local nextToken = self._tokens[pos + 1]
+		    local nextToken = self._tokens[i + 1]
 		    if (nextToken and nextToken.token_name == "TK_LITERAL") then
                 self:_setTableFound(nextToken.text, nextToken.text)
                 self._statementType =  "SHOW " .. lastTokenText:upper()
@@ -589,7 +592,8 @@ function QueryAnalyzer:_parseInsert()
 
 	local success = false
 
-	for pos, token in ipairs(self._tokens) do
+    for i = 1, #self._tokens do
+        local token = self._tokens[i]
 		tokenName = token.token_name
 		tokenText = token.text
 		tokenTextLc = tokenText:lower()
@@ -614,7 +618,7 @@ function QueryAnalyzer:_parseInsert()
             -- We are at the value position
             -- NO_DEBUG utils.debug("Testing value '" .. tokenText .. "'", 1)
             assert(tableName, "No table specified")
-            self:_setPartitionTableKey(tableName, token, self._tokens[pos + 1])
+            self:_setPartitionTableKey(tableName, token, self._tokens[i + 1])
             self:_setTableFound(tableName, tableName)
             -- We are done
             success = true
@@ -677,7 +681,8 @@ function QueryAnalyzer:_normalizeQueryAndParseHints()
     local result = {}
     local tokenName = nil
     -- NO_DEBUG utils.debug("Parsing tokens for comments and hints...")
-	for pos, token in ipairs(self._tokens) do
+    for i = 1, #self._tokens do
+        local token = self._tokens[i]
 	    tokenName = token.token_name
 		-- NO_DEBUG utils.debug("Token: " .. tokenName .. " = '" .. token.text .. "'", 1)
 		if (tokenName == "TK_COMMENT") then

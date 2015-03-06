@@ -210,6 +210,8 @@ int network_connection_pool_lua_add_connection(network_mysqld_con *con) {
 	/* con-server is already disconnected, got out */
 	if (!con->server) return 0;
 
+    if (!con->server->response) return 0;
+
 	/* the server connection is still authed */
 	con->server->is_authed = 1;
 

@@ -67,7 +67,8 @@ function QueryRewriter:rewriteQuery()
 	-- This table holds the resulting query
 	local newQuery = {}
 
-	for pos, token in ipairs(self._tokens) do
+    for i = 1, #(self._tokens) do
+        local token = self._tokens[i]
 		tokenName = token.token_name
 		tokenText = token.text
 		tokenTextLc = tokenText:lower()
@@ -88,9 +89,9 @@ function QueryRewriter:rewriteQuery()
 		)
         if (tokenName == "TK_SQL_LIMIT" and self._stripLimitClause) then
             skipTokens = 2
-            local limitToken = self._tokens[pos + 1]
-            local middleToken = self._tokens[pos + 2]
-            local limit2Token = self._tokens[pos + 3]
+            local limitToken = self._tokens[i + 1]
+            local middleToken = self._tokens[i + 2]
+            local limit2Token = self._tokens[i + 3]
             if (
                 middleToken
                 and (
@@ -115,6 +116,7 @@ function QueryRewriter:rewriteQuery()
 		) then
 		    isValidStatementType = true
 		    -- NO_DEBUG utils.debug("Statement type is " .. tokenName, 1)
+		    print("Statement type is " .. tokenName)
 		elseif (
             (tokenName == "TK_SQL_TABLE" or tokenName == "TK_SQL_INDEX")
             and (
@@ -160,6 +162,7 @@ function QueryRewriter:rewriteQuery()
 			    inTableList = false
 			end
 		end
+		print("here we go ")
 		if (skipTokens == 0) then
             if (
                 #newQuery > 0

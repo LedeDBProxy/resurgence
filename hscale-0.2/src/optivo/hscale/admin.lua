@@ -93,7 +93,8 @@ function execAdmin(tokens)
     local isShow = false
 
     local tokenName = nil
-	for pos, token in ipairs(tokens) do
+    for i = 1, #tokens do
+        local token = tokens[i]
 	    tokenName = token.token_name
 	    tokenText = token.text:upper()
 		-- NO_DEBUG utils.debug("Token: " .. tokenName .. " = '" .. token.text .. "'")

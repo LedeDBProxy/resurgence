@@ -28,6 +28,7 @@ local tokenizer = require("proxy.tokenizer")
 function read_query(packet) 
 	if packet:byte() == proxy.COM_QUERY then
 		local tokens = tokenizer.tokenize(packet:sub(2))
+        print (packet:sub(2));
 
 		-- just for debug
 		for i = 1, #tokens do

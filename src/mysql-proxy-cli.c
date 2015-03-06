@@ -226,9 +226,6 @@ int chassis_frontend_set_chassis_options(chassis_frontend_t *frontend, chassis_o
 		"max-open-files",           0, 0, G_OPTION_ARG_INT, &(frontend->max_files_number), "maximum number of open files (ulimit -n)", NULL);
 
 	chassis_options_add(opts,
-		"event-threads",            0, 0, G_OPTION_ARG_INT, &(frontend->event_thread_count), "number of event-handling threads (default: 1)", NULL);
-
-	chassis_options_add(opts,
 		"lua-path",                 0, 0, G_OPTION_ARG_STRING, &(frontend->lua_path), "set the LUA_PATH", "<...>");
 
 	chassis_options_add(opts,

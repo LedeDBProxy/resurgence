@@ -110,7 +110,7 @@ function read_query(packet)
                             local partitionTable = partitionLookup.getAllPartitionTables(tableName)[1]
                             local rewriter = optivo.hscale.queryRewriter.QueryRewriter.create(tokens, {[tableName] = partitionTable})
                             local rewrittenQuery = rewriter:rewriteQuery()
-                            proxy.queries:append(1, string.char(proxy.COM_QUERY) .. rewrittenQuery)
+                            proxy.queries:append(1, string.char(proxy.COM_QUERY) .. rewrittenQuery, {resultset_is_needed = true})
                             if (_queryAnalyzer:getStatementType() == "SHOW CREATE TABLE") then
                                 _resultSetReplace = {
                                     {[partitionTable] = tableName},
@@ -132,7 +132,7 @@ function read_query(packet)
                                 local rewrittenQuery = rewriter:rewriteQuery()
                                 -- NO_DEBUG utils.debug("<<< Rewritten query #" .. _combinedNumberOfQueries .. ": '" .. rewrittenQuery .. "'")
                                 _combinedNumberOfQueries = _combinedNumberOfQueries + 1
-                                proxy.queries:append(_combinedNumberOfQueries, string.char(proxy.COM_QUERY) .. rewrittenQuery)
+                                proxy.queries:append(_combinedNumberOfQueries, string.char(proxy.COM_QUERY) .. rewrittenQuery, {resultset_is_needed = true})
                              end
                         end
                     else
@@ -152,13 +152,13 @@ function read_query(packet)
                                 local rewrittenQuery = rewriter:rewriteQuery()
                                 -- NO_DEBUG utils.debug("<<< Full partition scan: rewritten query #" .. _combinedNumberOfQueries .. ": '" .. rewrittenQuery .. "'")
                                 _combinedNumberOfQueries = _combinedNumberOfQueries + 1
-                                proxy.queries:append(_combinedNumberOfQueries, string.char(proxy.COM_QUERY) .. rewrittenQuery)
+                                proxy.queries:append(_combinedNumberOfQueries, string.char(proxy.COM_QUERY) .. rewrittenQuery, {resultset_is_needed = true})
                              end
                         else
                             local rewriter = optivo.hscale.queryRewriter.QueryRewriter.create(tokens, tableMapping)
                             local rewrittenQuery = rewriter:rewriteQuery()
                             -- NO_DEBUG utils.debug("<<< Rewritten query: '" .. rewrittenQuery .. "'")
-                            proxy.queries:append(1, string.char(proxy.COM_QUERY) .. rewrittenQuery)
+                            proxy.queries:append(1, string.char(proxy.COM_QUERY) .. rewrittenQuery, {resultset_is_needed = true})
                         end
                     end
                     return proxy.PROXY_SEND_QUERY

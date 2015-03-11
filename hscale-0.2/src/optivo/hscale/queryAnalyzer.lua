@@ -206,6 +206,9 @@ end
 -- no ORDER BY and no GROUP BY and no "INTO OUTFILE" and no function and it is a SELECT or an UPDATE or DELETE with no LIMIT clause.
 -- @return true if the query needs to be run against all partitions.
 function QueryAnalyzer:isFullPartitionScanNeeded()
+    if (not self._isForceFullPartitionScan) then
+        utils.debug("_isForceFullPartitionScan false" )
+    end
     return
         not self._hasOrderBy
         and
@@ -253,14 +256,14 @@ function QueryAnalyzer:analyze()
 	local tokenTextLc
     local isPastFromOrInto = false
 
-    -- NO_DEBUG utils.debug("BEGIN analyze ----------------------------------------------------------------------------")
+     utils.debug("BEGIN analyze ----------------------------------------------------------------------------")
     self:_normalizeQueryAndParseHints()
     for i = 1, #self._tokens do
         local token = self._tokens[i]
 		tokenName = token.token_name
 		tokenText = token.text
 		tokenTextLc = tokenText:lower()
-		-- NO_DEBUG utils.debug("Token: " .. tokenName .. " = '" .. tokenText .. "'")
+		 utils.debug("Token: " .. tokenName .. " = '" .. tokenText .. "'")
 
         -- Find out comments and unknown tokens
 		if (tokenName == "TK_SQL_JOIN" or tokenName == "TK_SQL_WHERE") then
@@ -353,18 +356,18 @@ function QueryAnalyzer:analyze()
         			-- Multiple tables may follow separated by TK_COMMA
         			self._inTableList = true
         		elseif (lastTokenName ~= "TK_DOT") then
-        		    -- NO_DEBUG utils.debug("Possible column w/o prefix: " .. tokenText, 1)
+        		     utils.debug("Possible column w/o prefix: " .. tokenText, 1)
         		    -- We must have a column here that is not prefixed by a table alias
         		    for tableName, column in pairs(self._tableKeyColumns) do
-                        -- NO_DEBUG utils.debug("Testing table/column " .. tableName .. "/" .. column, 2)
+                         utils.debug("Testing table/column " .. tableName .. "/" .. column, 2)
         		        if (tokenTextLc == column and self._tableToAlias[tableName]) then
         		            -- We have found a partition key if the next token is TK_EQ and the following is TK_LITERAL
-                            -- NO_DEBUG utils.debug("#self._tokens = " .. i .. "/" .. #self._tokens, 3)
+                             utils.debug("#self._tokens = " .. i .. "/" .. #self._tokens, 3)
                             assert(#self._tokens >= i + 2, "Invalid query near '" .. tokenText .. "' - too few tokens.")
                             local valueToken = self._tokens[i + 2]
-                            -- NO_DEBUG utils.debug("Next two tokens: " .. self._tokens[i + 1].token_name .. " - " .. valueToken.token_name, 3)
+                             utils.debug("Next two tokens: " .. self._tokens[i + 1].token_name .. " - " .. valueToken.token_name, 3)
                             if (self._tokens[i + 1].token_name == "TK_EQ") then
-                                -- NO_DEBUG utils.debug("Found partition key '" .. valueToken.text .. "' for table '" .. tableName .. "'", 4)
+                                 utils.debug("Found partition key '" .. valueToken.text .. "' for table '" .. tableName .. "'", 4)
                                 self:_setPartitionTableKey(tableName, valueToken, self._tokens[i + 3])
                             end
         		        end
@@ -377,17 +380,17 @@ function QueryAnalyzer:analyze()
                     -- This is a table we know
                     local tableAlias = self._tokens[i + 1].text
                     self:_setTableFound(lastTokenTextLc, tableAlias)
-                    -- NO_DEBUG utils.debug("Table alias found for table '" .. lastTokenText .. "' = '" .. tableAlias .. "'", 1)
+                     utils.debug("Table alias found for table '" .. lastTokenText .. "' = '" .. tableAlias .. "'", 1)
                 end
             elseif (tokenName == "TK_DOT" and lastTokenName == "TK_LITERAL") then
                 -- A dot might mean that we are accessing an aliased column
-                -- NO_DEBUG utils.debug("Found a dot - testing for alias.keyColumn = keyValue", 1)
+                 utils.debug("Found a dot - testing for alias.keyColumn = keyValue", 1)
                 if (#self._tokens >= i + 3 and #self._tokens > 1) then
                     local possibleTable = self._aliasToTable[lastTokenTextLc]
                     local valueToken = self._tokens[i + 3]
                     local columnToken = self._tokens[i + 1]
-                    -- NO_DEBUG utils.debug("Examining possible table alias/name '" .. lastTokenText .. "/" .. (possibleTable or "") .. "'", 1)
-                    -- NO_DEBUG utils.debug("Possible column '" .. columnToken.text .. "'", 1)
+                     utils.debug("Examining possible table alias/name '" .. lastTokenText .. "/" .. (possibleTable or "") .. "'", 1)
+                     utils.debug("Possible column '" .. columnToken.text .. "'", 1)
                     if (
                         lastTokenName == "TK_LITERAL"
                         and possibleTable
@@ -395,7 +398,7 @@ function QueryAnalyzer:analyze()
                         and self._tokens[i + 2].token_name == "TK_EQ"
                     ) then
                         -- The last token was a valid alias / table name and the next one is an equals sign - we have a key
-                        -- NO_DEBUG utils.debug("Found partition key '" .. valueToken.text .. "' for table '" .. possibleTable .. "' (by alias)", 1)
+                         utils.debug("Found partition key '" .. valueToken.text .. "' for table '" .. possibleTable .. "' (by alias)", 1)
                         self:_setPartitionTableKey(possibleTable, valueToken, self._tokens[i + 3])
                     end
                 end
@@ -409,11 +412,12 @@ function QueryAnalyzer:analyze()
             lastTokenTextLc = tokenTextLc
         end
 
-    -- NO_DEBUG utils.debug("END analyze ----------------------------------------------------------------------------")
+     utils.debug("END analyze ----------------------------------------------------------------------------")
 
     -- Hints take precedence
     for tableName, partitionKey in pairs(self._tableHints) do
         self._tableKeyValues[tableName] = partitionKey
+        utils.debug("hints,table name:" .. tableName .. ", value:" .. partitionKey)
     end
 
     self:_verifyResult()
@@ -467,13 +471,13 @@ function QueryAnalyzer:_parseDdl()
 
     local tableName
 
-    -- NO_DEBUG utils.debug("Parsing ddl")
+     utils.debug("Parsing ddl")
     for i = 1, #self._tokens do
         local token = self._tokens[i]
 		tokenName = token.token_name
 		tokenText = token.text
 		tokenTextLc = tokenText:lower()
-		-- NO_DEBUG utils.debug("Token: " .. tokenName .. " = '" .. tokenText .. "'", 1)
+		 utils.debug("Token: " .. tokenName .. " = '" .. tokenText .. "'", 1)
         if (
             (lastTokenName == "TK_SQL_TABLE")
             or
@@ -497,7 +501,7 @@ function QueryAnalyzer:_parseDdl()
                     i = i + 4
                 until not (commaToken and commaToken.token_name == "TK_COMMA")
             end
-		    -- NO_DEBUG utils.debug("Found table " .. tableName, 2)
+		     utils.debug("Found table " .. tableName, 2)
             break
         elseif (
             (tokenName == "TK_SQL_TABLE" or tokenName == "TK_SQL_INDEX")
@@ -509,7 +513,7 @@ function QueryAnalyzer:_parseDdl()
             )
         ) then
             self._statementType =  string.sub(lastTokenName, 8) .. " " .. tokenText:upper()
-		    -- NO_DEBUG utils.debug("Statement type = '" .. self._statementType .. "'", 2)
+		     utils.debug("Statement type = '" .. self._statementType .. "'", 2)
         end
         lastTokenName = tokenName
         lastTokenText = tokenText
@@ -528,13 +532,13 @@ function QueryAnalyzer:_parseShow()
 
     local tableName
 
-    -- NO_DEBUG utils.debug("Parsing show")
+     utils.debug("Parsing show")
     for i = 1, #self._tokens do
         local token = self._tokens[i]
 		tokenName = token.token_name
 		tokenText = token.text
 		tokenTextLc = tokenText:lower()
-		-- NO_DEBUG utils.debug("Token: " .. tokenName .. " = '" .. tokenText .. "'", 1)
+		 utils.debug("Token: " .. tokenName .. " = '" .. tokenText .. "'", 1)
 		if (
 		    (lastTokenName == "TK_SQL_CREATE" and tokenName == "TK_SQL_TABLE") -- SHOW CREATE TABLE
 		    or (lastTokenName == "TK_LITERAL" and lastTokenTextLc == "columns" and tokenName == "TK_SQL_FROM") -- SHOW COLUMNS FROM
@@ -597,7 +601,7 @@ function QueryAnalyzer:_parseInsert()
 		tokenName = token.token_name
 		tokenText = token.text
 		tokenTextLc = tokenText:lower()
-		-- NO_DEBUG utils.debug("Token: " .. tokenName .. " = '" .. tokenText .. "'")
+		 utils.debug("Token: " .. tokenName .. " = '" .. tokenText .. "'")
         if (lastTokenName == "TK_SQL_INTO") then
             tableName = tokenTextLc
         elseif (tokenName == "TK_OBRACE") then
@@ -616,7 +620,7 @@ function QueryAnalyzer:_parseInsert()
             end
         elseif (isInValues and partitionColumnPos == currentColumn and tableName) then
             -- We are at the value position
-            -- NO_DEBUG utils.debug("Testing value '" .. tokenText .. "'", 1)
+             utils.debug("Testing value '" .. tokenText .. "'", 1)
             assert(tableName, "No table specified")
             self:_setPartitionTableKey(tableName, token, self._tokens[i + 1])
             self:_setTableFound(tableName, tableName)
@@ -662,6 +666,7 @@ function QueryAnalyzer:_setPartitionTableKey(tableName, valueToken, nextToken)
                 "Partition value for table '" .. tableName .. "' is an expression. Only scalar values are supported"
             )
         end
+        utils.debug("table name:" .. tableName .. ", value:" .. valueToken.text)
         self._tableKeyValues[tableName] = valueToken.text
     end
 end
@@ -680,15 +685,15 @@ end
 function QueryAnalyzer:_normalizeQueryAndParseHints()
     local result = {}
     local tokenName = nil
-    -- NO_DEBUG utils.debug("Parsing tokens for comments and hints...")
+     utils.debug("Parsing tokens for comments and hints...")
     for i = 1, #self._tokens do
         local token = self._tokens[i]
 	    tokenName = token.token_name
-		-- NO_DEBUG utils.debug("Token: " .. tokenName .. " = '" .. token.text .. "'", 1)
+		 utils.debug("Token: " .. tokenName .. " = '" .. token.text .. "'", 1)
 		if (tokenName == "TK_COMMENT") then
             local _, _, tableName, partitionKey = string.find(token.text, "hscale.partitionKey%s*%(%s*(.-)%s*%)%s*=%s'(.*)'")
             if (tableName and partitionKey) then
-                -- NO_DEBUG utils.debug("Found hint for table '" .. tableName .. "': '" .. partitionKey .. "'", 2)
+                 utils.debug("Found hint for table '" .. tableName .. "': '" .. partitionKey .. "'", 2)
                 self._tableHints[tableName:lower()] = partitionKey
             end
             if (string.match(token.text, "hscale.forceFullPartitionScan%(%)")) then

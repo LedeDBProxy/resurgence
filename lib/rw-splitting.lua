@@ -66,7 +66,6 @@ function connect_server()
 	-- on read_query we can switch the backends again to another backend
 
 	if is_debug then
-		print()
 		print("[connect_server] " .. proxy.connection.client.src.name)
 	end
 

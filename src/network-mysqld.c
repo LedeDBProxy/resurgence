@@ -921,9 +921,6 @@ network_socket_retval_t plugin_call(chassis *srv, network_mysqld_con *con, int s
         g_critical("%s.%d: %p quit because of proxy state not zero, thread:%u ", __FILE__, __LINE__, 
                 con, (unsigned int)pthread_self());
         return NETWORK_SOCKET_SUCCESS; 
-    } else {
-        g_critical("%s.%d: %p quit because of proxy state:%d, thread:%u ", __FILE__, __LINE__, 
-                con, con->proxy_state, (unsigned int)pthread_self());
     }
 
 	LOCK_LUA(srv->priv->sc);

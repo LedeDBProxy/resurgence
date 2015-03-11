@@ -68,10 +68,10 @@ function _load()
     if (not configFile) then
         configFile = "/etc/hscale.lua"
     end
-    -- NO_DEBUG utils.debug("Using config file '" .. configFile .. "'")
+     utils.debug("Using config file '" .. configFile .. "'")
     local success, result = pcall(loadfile, configFile)
     assert(success and result ~= nil, "Error loading configuration file '" .. configFile .. "': " .. (tostring(result) or ""))
-    -- NO_DEBUG utils.debug("Configuration '" .. configFile .. "' loaded.")
+     utils.debug("Configuration '" .. configFile .. "' loaded.")
     _values = result()
     assert(_values, "Invalid configuration format in file '" .. configFile .."'.")
 end

@@ -53,7 +53,7 @@ stats = require("optivo.hscale.stats")
 admin = require("optivo.hscale.admin")
 admin.init(config)
 
--- NO_DEBUG utils.debug("NEW CONNECTION")
+ utils.debug("NEW CONNECTION")
 
 -- Local variable to hold result for multiple queries
 local _combinedResultSet = {}
@@ -85,7 +85,7 @@ function read_query(packet)
     if packet:byte() == proxy.COM_QUERY then
         _query = packet:sub(2)
         stats.inc("queries")
-        -- NO_DEBUG utils.debug(">>> Analyzing query '" .. _query .. "'")
+         utils.debug(">>> Analyzing query '" .. _query .. "'")
         -- Quick test if the query contains partitioned tables - if not - don't parse it (HSCALE-31)
         local queryLower = _query:lower()
         local doScan = string.find(queryLower, "hscale") ~= nil
@@ -130,7 +130,7 @@ function read_query(packet)
                             for _, partitionTable in pairs(partitionLookup.getAllPartitionTables(tableName)) do
                                 local rewriter = optivo.hscale.queryRewriter.QueryRewriter.create(tokens, {[tableName] = partitionTable})
                                 local rewrittenQuery = rewriter:rewriteQuery()
-                                -- NO_DEBUG utils.debug("<<< Rewritten query #" .. _combinedNumberOfQueries .. ": '" .. rewrittenQuery .. "'")
+                                 utils.debug("<<< Rewritten query #" .. _combinedNumberOfQueries .. ": '" .. rewrittenQuery .. "'")
                                 _combinedNumberOfQueries = _combinedNumberOfQueries + 1
                                 proxy.queries:append(_combinedNumberOfQueries, string.char(proxy.COM_QUERY) .. rewrittenQuery, {resultset_is_needed = true})
                              end
@@ -140,24 +140,25 @@ function read_query(packet)
                         local tableMapping = {}
                         for tableName, partitionValue in pairs(_queryAnalyzer:getTableKeyValues()) do
                             tableMapping[tableName] = partitionLookup.getPartitionTable(tableName, partitionValue)
+                            utils.debug("--- table '" .. tableName .. "' and partitionValue '" .. partitionValue .. "'")
                         end
                         if (_queryAnalyzer:isFullPartitionScanNeeded()) then
                             local tableName = _queryAnalyzer:getAffectedTables()[1]
                             stats.incFullPartitionScans(tableName)
-                            -- NO_DEBUG utils.debug("--- Full partition scan needed for table '" .. tableName .. "' and query '" .. _query .. "'")
+                             utils.debug("--- Full partition scan needed for table '" .. tableName .. "' and query '" .. _query .. "'")
                             _combinedLimit.from, _combinedLimit.rows = _queryAnalyzer:getLimit()
                             for _, partitionTable in pairs(partitionLookup.getAllPartitionTables(tableName)) do
                                 local rewriter = optivo.hscale.queryRewriter.QueryRewriter.create(tokens, {[tableName] = partitionTable})
                                 rewriter:setStripLimitClause(true)
                                 local rewrittenQuery = rewriter:rewriteQuery()
-                                -- NO_DEBUG utils.debug("<<< Full partition scan: rewritten query #" .. _combinedNumberOfQueries .. ": '" .. rewrittenQuery .. "'")
+                                 utils.debug("<<< Full partition scan: rewritten query #" .. _combinedNumberOfQueries .. ": '" .. rewrittenQuery .. "'")
                                 _combinedNumberOfQueries = _combinedNumberOfQueries + 1
                                 proxy.queries:append(_combinedNumberOfQueries, string.char(proxy.COM_QUERY) .. rewrittenQuery, {resultset_is_needed = true})
                              end
                         else
                             local rewriter = optivo.hscale.queryRewriter.QueryRewriter.create(tokens, tableMapping)
                             local rewrittenQuery = rewriter:rewriteQuery()
-                            -- NO_DEBUG utils.debug("<<< Rewritten query: '" .. rewrittenQuery .. "'")
+                             utils.debug("<<< Rewritten query: '" .. rewrittenQuery .. "'")
                             proxy.queries:append(1, string.char(proxy.COM_QUERY) .. rewrittenQuery, {resultset_is_needed = true})
                         end
                     end
@@ -189,7 +190,7 @@ end
 
 --- Send the result back to the client.
 function read_query_result(inj)
-    -- NO_DEBUG utils.debug("Got result for query '" .. _query .. "'")
+     utils.debug("Got result for query '" .. _query .. "'")
     local success, result = pcall(_buildUpCombinedResultSet, inj)
     if (not success) then
         stats.inc("invalidResults")
@@ -201,7 +202,7 @@ function read_query_result(inj)
         return proxy.PROXY_SEND_RESULT
     elseif (_resultSetReplace or _resultSetRemove) then
         -- Rewrite the result set if needed
-        -- NO_DEBUG utils.debug("Rewriting result for query '" .. _query .. "'", 1)
+         utils.debug("Rewriting result for query '" .. _query .. "'", 1)
         local resultSet = proxy.response.resultset
         if (not resultSet) then
             resultSet = inj.resultset
@@ -218,14 +219,14 @@ function read_query_result(inj)
                     if (value ~= nil) then
                         if (_resultSetReplace and col <= #_resultSetReplace) then
                             for expr, repl in pairs(_resultSetReplace[col]) do
-                                -- NO_DEBUG utils.debug("Applying replacement (" .. expr .. " => " .. repl .. " on col #" .. col .. " => " .. value, 2)
+                                 utils.debug("Applying replacement (" .. expr .. " => " .. repl .. " on col #" .. col .. " => " .. value, 2)
                                 value = string.gsub(tostring(value), expr, repl)
                             end
                         end
                         if (_resultSetRemove and col <= #_resultSetRemove) then
                             for pattern in pairs(_resultSetRemove) do
                                 local match = string.find(tostring(value), pattern)
-                                -- NO_DEBUG utils.debug("Remove row pattern '" .. pattern .. "' on value '" .. value .. " => " .. match, 2)
+                                 utils.debug("Remove row pattern '" .. pattern .. "' on value '" .. value .. " => " .. match, 2)
                                 if (not match) then
                                     removeRow = false
                                 elseif (removeRow == nil) then

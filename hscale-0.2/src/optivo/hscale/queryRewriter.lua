@@ -74,7 +74,7 @@ function QueryRewriter:rewriteQuery()
 		tokenTextLc = tokenText:lower()
 		newTokenText = tokenText
 
-		-- NO_DEBUG utils.debug("Token: " .. tokenName .. " = '" .. tokenText .. "'")
+		 utils.debug("Token: " .. tokenName .. " = '" .. tokenText .. "'")
 
         -- Skip tokens that are not needed to rewrite the query.
 		ignoreToken = (
@@ -115,8 +115,7 @@ function QueryRewriter:rewriteQuery()
 		    or tokenName == "TK_SQL_INFILE"
 		) then
 		    isValidStatementType = true
-		    -- NO_DEBUG utils.debug("Statement type is " .. tokenName, 1)
-		    print("Statement type is " .. tokenName)
+		     utils.debug("Statement type is " .. tokenName, 1)
 		elseif (
             (tokenName == "TK_SQL_TABLE" or tokenName == "TK_SQL_INDEX")
             and (
@@ -126,7 +125,7 @@ function QueryRewriter:rewriteQuery()
             )
         ) then
 		    isValidStatementType = true
-		    -- NO_DEBUG utils.debug("Statement type is " .. tokenName, 1)
+		     utils.debug("Statement type is " .. tokenName, 1)
 		elseif (isValidStatementType) then
 		    -- We are within a CRUD statement
 			if (tokenName == "TK_LITERAL") then
@@ -142,10 +141,10 @@ function QueryRewriter:rewriteQuery()
 				    or lastTokenName == "TK_SQL_ON"
 				    or inTableList) then
 
-                    -- NO_DEBUG utils.debug("Found possible table '" .. tokenText .. "'", 1)
+                     utils.debug("Found possible table '" .. tokenText .. "', key:" .. tokenTextLc, 1)
         			local destTable = self._tableMapping[tokenTextLc]
         			if (destTable) then
-                        -- NO_DEBUG utils.debug("Found table '" .. tokenText .. "' and rewriting it to '" .. destTable .. "'", 1)
+                         utils.debug("Found table '" .. tokenText .. "' and rewriting it to '" .. destTable .. "'", 1)
         			    tablesFound[tokenTextLc] = true
         			    newTokenText = destTable
         			end
@@ -162,7 +161,6 @@ function QueryRewriter:rewriteQuery()
 			    inTableList = false
 			end
 		end
-		print("here we go ")
 		if (skipTokens == 0) then
             if (
                 #newQuery > 0

@@ -97,24 +97,24 @@ function execAdmin(tokens)
         local token = tokens[i]
 	    tokenName = token.token_name
 	    tokenText = token.text:upper()
-		-- NO_DEBUG utils.debug("Token: " .. tokenName .. " = '" .. token.text .. "'")
+		 utils.debug("Token: " .. tokenName .. " = '" .. token.text .. "'")
 		if (tokenName ~= "TK_COMMENT" and tokenName ~= "TK_UNKNOWN") then
 		    if (tokenName == "TK_LITERAL" and tokenText == "HSCALE") then
-		        -- NO_DEBUG utils.debug("Admin query recognized.", 1)
+		         utils.debug("Admin query recognized.", 1)
 		        isAdmin = true
 		    elseif (isAdmin) then
                 if (tokenName == "TK_SQL_SHOW") then
-    		        -- NO_DEBUG utils.debug("SHOW query recognized.", 1)
+    		         utils.debug("SHOW query recognized.", 1)
                     isShow = true
                 elseif (isShow and tokenName == "TK_LITERAL") then
                     if (tokenText == "VARIABLES") then
-        		        -- NO_DEBUG utils.debug("Executing SHOW VARIABLES", 1)
+        		         utils.debug("Executing SHOW VARIABLES", 1)
                         result = _execShowVariables()
                     elseif (tokenText == "STATUS") then
-        		        -- NO_DEBUG utils.debug("Executing SHOW STATUS", 1)
+        		         utils.debug("Executing SHOW STATUS", 1)
                         result = _execShowStatus()
                     elseif (tokenText == "FULL_PARTITION_SCANS") then
-        		        -- NO_DEBUG utils.debug("Executing SHOW FULL_PARTITION_SCANS", 1)
+        		         utils.debug("Executing SHOW FULL_PARTITION_SCANS", 1)
                         result = _execShowFullPartitionScans()
                     end
                 end

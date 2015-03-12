@@ -338,7 +338,7 @@ if test "$WITH_LUA" != "no"; then
   AC_MSG_RESULT($WITH_LUA.pc)
 
   PKG_CHECK_MODULES(LUA, $WITH_LUA >= 5.1, [
-    AC_DEFINE([HAVE_LUA], [1], [libluagit])
+    AC_DEFINE([HAVE_LUA], [1], [liblua])
     AC_DEFINE([HAVE_LUA_H], [1], [lua.h])
   ],[AC_MSG_ERROR([checked for Lua via pkg-config: $LUA_PKG_ERRORS. Make sure lua and its devel-package, which includes the $WITH_LUA.pc file, is installed])])
  fi

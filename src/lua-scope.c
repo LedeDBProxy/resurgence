@@ -59,7 +59,8 @@ lua_scope *lua_scope_new(void) {
 	sc = g_new0(lua_scope, 1);
 
 #ifdef HAVE_LUA_H
-	sc->L = lua_newstate(chassis_lua_alloc, NULL);
+	sc->L = luaL_newstate();
+	/* sc->L = lua_newstate(chassis_lua_alloc, NULL); */
 	luaL_openlibs(sc->L);
 	lua_atpanic(sc->L, proxy_lua_panic);
 #endif

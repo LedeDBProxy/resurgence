@@ -227,13 +227,9 @@ static gint network_address_set_address_ip(network_address *addr, const gchar *a
 		if (ret != 0) return ret;
 #else 
 		struct hostent	*he;
-		static GStaticMutex gh_mutex = G_STATIC_MUTEX_INIT;
-
-		g_static_mutex_lock(&gh_mutex);
 
 		he = gethostbyname(address);
 		if (NULL == he) {
-			g_static_mutex_unlock(&gh_mutex);
 			return -1;
 		}
 
@@ -241,7 +237,6 @@ static gint network_address_set_address_ip(network_address *addr, const gchar *a
 		g_assert(he->h_length == sizeof(struct in_addr));
 
 		memcpy(&(addr->addr.ipv4.sin_addr.s_addr), he->h_addr_list[0], he->h_length);
-		g_static_mutex_unlock(&gh_mutex);
 		addr->addr.ipv4.sin_family = AF_INET;
 		addr->addr.ipv4.sin_port = htons(port);
 		addr->len = sizeof(struct sockaddr_in);

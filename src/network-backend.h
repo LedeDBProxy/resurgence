@@ -68,7 +68,6 @@ NETWORK_API void network_backend_free(network_backend_t *b);
 
 typedef struct {
 	GPtrArray *backends;
-	GMutex    *backends_mutex;
 	
 	GTimeVal backend_last_check;
 } network_backends_t;

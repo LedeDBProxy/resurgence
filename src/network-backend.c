@@ -74,7 +74,6 @@ network_backends_t *network_backends_new() {
 	bs = g_new0(network_backends_t, 1);
 
 	bs->backends = g_ptr_array_new();
-	bs->backends_mutex = g_mutex_new();
 
 	return bs;
 }
@@ -84,16 +83,13 @@ void network_backends_free(network_backends_t *bs) {
 
 	if (!bs) return;
 
-	g_mutex_lock(bs->backends_mutex);
 	for (i = 0; i < bs->backends->len; i++) {
 		network_backend_t *backend = bs->backends->pdata[i];
 		
 		network_backend_free(backend);
 	}
-	g_mutex_unlock(bs->backends_mutex);
 
 	g_ptr_array_free(bs->backends, TRUE);
-	g_mutex_free(bs->backends_mutex);
 
 	g_free(bs);
 }
@@ -115,14 +111,12 @@ int network_backends_add(network_backends_t *bs, /* const */ gchar *address, bac
 	}
 
 	/* check if this backend is already known */
-	g_mutex_lock(bs->backends_mutex);
 	for (i = 0; i < bs->backends->len; i++) {
 		network_backend_t *old_backend = bs->backends->pdata[i];
 
 		if (strleq(S(old_backend->addr->name), S(new_backend->addr->name))) {
 			network_backend_free(new_backend);
 
-			g_mutex_unlock(bs->backends_mutex);
 			g_critical("backend %s is already known!", address);
 			return -1;
 		}
@@ -130,7 +124,6 @@ int network_backends_add(network_backends_t *bs, /* const */ gchar *address, bac
 
 
 	g_ptr_array_add(bs->backends, new_backend);
-	g_mutex_unlock(bs->backends_mutex);
 
 	g_message("added %s backend: %s", (type == BACKEND_TYPE_RW) ?
 			"read/write" : "read-only", address);
@@ -167,9 +160,6 @@ int network_backends_check(network_backends_t *bs) {
 		return 0;
 	}
 	
-	/* check once a second if we have to wakeup a connection */
-	g_mutex_lock(bs->backends_mutex);
-
 	bs->backend_last_check = now;
 
 	for (i = 0; i < bs->backends->len; i++) {
@@ -188,7 +178,6 @@ int network_backends_check(network_backends_t *bs) {
 			backends_woken_up++;
 		}
 	}
-	g_mutex_unlock(bs->backends_mutex);
 
 	return backends_woken_up;
 }
@@ -203,9 +192,7 @@ network_backend_t *network_backends_get(network_backends_t *bs, guint ndx) {
 guint network_backends_count(network_backends_t *bs) {
 	guint len;
 
-	g_mutex_lock(bs->backends_mutex);
 	len = bs->backends->len;
-	g_mutex_unlock(bs->backends_mutex);
 
 	return len;
 }

@@ -455,16 +455,7 @@ chassis_log_func_locked(const gchar G_GNUC_UNUSED *log_domain, GLogLevelFlags lo
 }
 
 void chassis_log_func(const gchar *log_domain, GLogLevelFlags log_level, const gchar *message, gpointer user_data) {
-	/**
-	 * make sure we syncronize the order of the write-statements 
-	 */
-	static GStaticMutex log_mutex = G_STATIC_MUTEX_INIT;
-
-	g_static_mutex_lock(&log_mutex);
-
 	chassis_log_func_locked(log_domain, log_level, message, user_data);
-
-	g_static_mutex_unlock(&log_mutex);
 }
 
 void chassis_log_set_logrotate(chassis_log *log) {

@@ -94,8 +94,7 @@ libmysql_chassis_la_SOURCES = \
 	chassis-stats.c \
 	chassis-frontend.c \
 	chassis-options.c \
-	chassis-unix-daemon.c \
-	chassis-win32-service.c
+	chassis-unix-daemon.c 
 
 
 libmysql_chassis_la_LDFLAGS  = -export-dynamic -no-undefined -dynamic
@@ -184,7 +183,6 @@ include_HEADERS=\
 	chassis-timings.h \
 	chassis-frontend.h \
 	chassis-options.h \
-	chassis-win32-service.h \
 	chassis-unix-daemon.h \
 	my_rdtsc.h
 

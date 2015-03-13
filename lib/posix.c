@@ -119,11 +119,7 @@ static const struct luaL_reg posixlib[] = {
 	{NULL, NULL},
 };
 
-#if defined(_WIN32)
-# define LUAEXT_API __declspec(dllexport)
-#else
 # define LUAEXT_API extern
-#endif
 
 LUAEXT_API int luaopen_posix (lua_State *L) {
 	luaL_register (L, "posix", posixlib);

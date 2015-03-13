@@ -21,13 +21,7 @@
 #include <glib.h>
 
 #include <errno.h>
-#ifdef WIN32
-/* need something compatible, taken from MSDN docs */
-#define PATH_MAX MAX_PATH
-#include <windows.h>
-#else
 #include <stdlib.h> /* for realpath */
-#endif
 #include <string.h>
 #include "chassis-path.h"
 
@@ -70,16 +64,6 @@ gchar *chassis_get_basedir(const gchar *prgname) {
 	 *
 	 * to get this working we need a "clean" basedir, no .../foo/./bin/ 
 	 */
-#ifdef WIN32
-	if (0 == GetFullPathNameA(absolute_path, PATH_MAX, r_path, NULL)) {
-		g_critical("%s: GetFullPathNameA(%s) failed: %s",
-				G_STRLOC,
-				absolute_path,
-				g_strerror(errno));
-
-		return NULL;
-	}
-#else
 	if (NULL == realpath(absolute_path, r_path)) {
 		g_critical("%s: realpath(%s) failed: %s",
 				G_STRLOC,
@@ -88,7 +72,6 @@ gchar *chassis_get_basedir(const gchar *prgname) {
 
 		return NULL;
 	}
-#endif
 	bin_dir = g_path_get_dirname(r_path);
 	base_dir = g_path_get_dirname(bin_dir);
 	

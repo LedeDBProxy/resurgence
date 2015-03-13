@@ -29,12 +29,6 @@
 #ifdef HAVE_UNISTD_H
 #include <unistd.h>
 #endif
-#ifdef _WIN32
-#include <windows.h>
-#include <winsock2.h>
-#include <io.h> /* open, close, ...*/
-#include <process.h> /* getpid() */
-#endif
 #include <errno.h>
 
 #include <glib.h>
@@ -87,33 +81,9 @@ int chassis_frontend_init_glib() {
 		return -1;
 	}
 
-	g_thread_init(NULL);
-
 	return 0;
 }
 
-/**
- * init the win32 specific components
- *
- * - setup winsock32
- */
-int chassis_frontend_init_win32() {
-#ifdef _WIN32
-	WSADATA wsaData;
-
-	if (0 != WSAStartup(MAKEWORD( 2, 2 ), &wsaData)) {
-		g_critical("%s: WSAStartup(2, 2) failed to initialize the socket library",
-				G_STRLOC);
-
-		return -1;
-	}
-	chassis_win32_invalid_parameter_handler_set(chassis_win32_invalid_parameter_handler_log);
-
-	return 0;
-#else
-	return -1;
-#endif
-}
 
 /**
  * setup and check the basedir if nessesary 
@@ -158,11 +128,7 @@ int chassis_frontend_init_basedir(const char *prg_name, char **_base_dir) {
  */
 static int chassis_frontend_lua_setenv(const char *key, const char *value) {
 	int r;
-#if _WIN32
-	r = _putenv_s(key, value);
-#else
 	r = g_setenv(key, value, 1) ? 0 : -1; /* g_setenv() returns TRUE/FALSE */
-#endif
 
 	if (0 == r) {
 		/* the setenv() succeeded, double-check it */
@@ -197,11 +163,7 @@ char *chassis_frontend_get_default_lua_cpath(const char *base_dir, const char *p
 	 * macosx has .so or .dylib
 	 * hpux has .sl
 	 */ 
-#  if _WIN32
-	return g_build_filename(base_dir, "bin", "lua-?." G_MODULE_SUFFIX, NULL);
-#  else
 	return g_build_filename(base_dir, "lib", prg_name, "lua", "?." G_MODULE_SUFFIX, NULL);
-#  endif
 }
 
 /**
@@ -233,14 +195,6 @@ static int chassis_frontend_init_lua_paths(const char *set_path,
 		GString *lua_path = g_string_new(NULL);
 		guint i;
 		gboolean all_in_one_folder = FALSE;
-
-#ifdef _WIN32
-		/**
-		 * call the get_default_lua_cpath() only once on win32 as it has
-		 * all the lua-module-DLLs in one folder
-		 */
-		if (!is_lua_path) all_in_one_folder = TRUE;
-#endif
 
 		/* build a path for each sub_name */
 		for (i = 0; (all_in_one_folder && i == 0) || (!all_in_one_folder && lua_subdirs[i] != NULL); i++) {
@@ -311,10 +265,8 @@ int chassis_frontend_init_plugin_dir(char **_plugin_dir, const char *base_dir) {
 
 	if (plugin_dir) return 0;
 
-#ifdef WIN32
-	plugin_dir = g_build_filename(base_dir, "bin", NULL);
 
-#elif defined(PLUGINDIR) && defined(EXEC_PREFIX)
+#if defined(PLUGINDIR) && defined(EXEC_PREFIX)
 
 	if (chassis_path_string_is_parent_of(C(EXEC_PREFIX), C(PLUGINDIR))) {
 		const char *rel_plugin_dir = PLUGINDIR + sizeof(EXEC_PREFIX) - 1;
@@ -341,11 +293,7 @@ int chassis_frontend_load_plugins(GPtrArray *plugins, const gchar *plugin_dir, g
 	/* load the plugins */
 	for (i = 0; plugin_names && plugin_names[i]; i++) {
 		chassis_plugin *p;
-#ifdef WIN32
-#define G_MODULE_PREFIX "plugin-" /* we build the plugins with a prefix on win32 to avoid name-clashing in bin/ */
-#else
 #define G_MODULE_PREFIX "lib"
-#endif
 /* we have to hack around some glib distributions that
  * don't set the correct G_MODULE_SUFFIX, notably MacPorts
  */

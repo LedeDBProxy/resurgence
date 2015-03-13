@@ -25,9 +25,7 @@
 #include <errno.h>
 #include <stdio.h>
 
-#ifndef _WIN32
 #include <unistd.h>
-#endif
 
 #ifdef HAVE_CONFIG_H
 #include "config.h"
@@ -44,16 +42,12 @@
 #include <glib.h>
 #include "chassis-plugin.h"
 #include "chassis-mainloop.h"
-#include "chassis-event-thread.h"
+#include "chassis-event.h"
 #include "chassis-log.h"
 #include "chassis-stats.h"
 #include "chassis-timings.h"
 
-#ifdef _WIN32
-static volatile int signal_shutdown;
-#else
 static volatile sig_atomic_t signal_shutdown;
-#endif
 
 /**
  * @deprecated will be removed in 1.0
@@ -114,8 +108,6 @@ chassis *chassis_new() {
 	/* create a new global timer info */
 	chassis_timestamps_global_init(NULL);
 
-	chas->threads = chassis_event_threads_new();
-
 	chas->event_hdr_version = g_strdup(_EVENT_VERSION);
 
 	chas->shutdown_hooks = chassis_shutdown_hooks_new();
@@ -167,8 +159,6 @@ void chassis_free(chassis *chas) {
 	if (chas->stats) chassis_stats_free(chas->stats);
 
 	chassis_timestamps_global_free(NULL);
-
-	if (chas->threads) chassis_event_threads_free(chas->threads);
 
 #ifdef HAVE_EVENT_BASE_FREE
 	/* only recent versions have this call */
@@ -243,24 +233,22 @@ int chassis_mainloop(void *_chas) {
 #ifdef SIGHUP
 	struct event ev_sighup;
 #endif
-	chassis_event_thread_t *mainloop_thread;
+	chassis_event_t *mainloop;
 
 	/* redirect logging from libevent to glib */
 	event_set_log_callback(event_log_use_glib);
 
 
 	/* add a event-handler for the "main" events */
-	mainloop_thread = chassis_event_thread_new();
-	if (0 != chassis_event_threads_init_thread(chas->threads, mainloop_thread, chas)) {
-		chassis_event_thread_free(mainloop_thread);
+	mainloop = chassis_event_new();
+	if (0 != chassis_event_init(mainloop, chas)) {
+		chassis_event_free(mainloop);
 		return -1;
 	}
-	chassis_event_threads_add(chas->threads, mainloop_thread);
 
-	chas->event_base = mainloop_thread->event_base; /* all global events go to the 1st thread */
+	chas->event_base = mainloop->event_base; /* all global events go to the 1st thread */
 
 	g_assert(chas->event_base);
-
 
 	/* setup all plugins all plugins */
 	for (i = 0; i < chas->modules->len; i++) {
@@ -277,7 +265,6 @@ int chassis_mainloop(void *_chas) {
 	/*
 	 * drop root privileges if requested
 	 */
-#ifndef _WIN32
 	if (chas->user) {
 		struct passwd *user_info;
 		uid_t user_id= geteuid();
@@ -305,14 +292,15 @@ int chassis_mainloop(void *_chas) {
 			}
 		}
 
-		setgid(user_info->pw_gid);
-		setuid(user_info->pw_uid);
+        if (setgid(user_info->pw_gid) == 0) {
+            if (setuid(user_info->pw_uid) == 0) {
+            }
+        }
 		g_debug("now running as user: %s (%d/%d)",
 				chas->user,
 				user_info->pw_uid,
 				user_info->pw_gid );
 	}
-#endif
 
 	signal_set(&ev_sigterm, SIGTERM, sigterm_handler, NULL);
 	event_base_set(chas->event_base, &ev_sigterm);
@@ -330,35 +318,12 @@ int chassis_mainloop(void *_chas) {
 	}
 #endif
 
-	chas->event_thread_count = 1;
-
-	/* create the event-threads
-	 *
-	 * - dup the async-queue-ping-fds
-	 * - setup the events notification
-	 * */
-	for (i = 1; i < (guint)chas->event_thread_count; i++) { /* we already have 1 event-thread running, the main-thread */
-		chassis_event_thread_t *event_thread;
-	
-		event_thread = chassis_event_thread_new();
-		if (0 != chassis_event_threads_init_thread(chas->threads, event_thread, chas)) {
-			chassis_event_thread_free(event_thread);
-			return -1;
-		}
-		chassis_event_threads_add(chas->threads, event_thread);
-	}
-
-	/* start the event threads */
-	if (chas->event_thread_count > 1) {
-		chassis_event_threads_start(chas->threads);
-	}
-
 	/**
 	 * handle signals and all basic events into the main-thread
 	 *
 	 * block until we are asked to shutdown
 	 */
-	chassis_event_thread_loop(mainloop_thread);
+	chassis_event_loop(mainloop);
 
 	signal_del(&ev_sigterm);
 	signal_del(&ev_sigint);

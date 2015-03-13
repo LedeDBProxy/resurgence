@@ -37,7 +37,6 @@
 #endif
 
 #include <sys/types.h>      /** u_char */
-#ifndef _WIN32
 #include <sys/socket.h>     /** struct sockaddr */
 
 #ifdef HAVE_NETINET_IN_H
@@ -52,10 +51,6 @@
  * use closesocket() to close sockets to be compatible with win32
  */
 #define closesocket(x) close(x)
-#else
-#include <winsock2.h>
-#include <Ws2tcpip.h>
-#endif
 #include <glib.h>
 #include <event.h>
 

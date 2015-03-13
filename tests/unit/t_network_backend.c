@@ -129,20 +129,10 @@ void t_network_backends_check() {
 }
 
 int main(int argc, char **argv) {
-#ifdef WIN32
-	WSADATA wsaData;
-#endif
 
 	g_thread_init(NULL);
 	g_test_init(&argc, &argv, NULL);
 	g_test_bug_base("http://bugs.mysql.com/");
-
-#ifdef _WIN32
-	if (0 != WSAStartup(MAKEWORD( 2, 2 ), &wsaData)) {
-		g_critical("WSAStartup failed to initialize the socket library.\n");
-		return -1;
-	}
-#endif
 
 	g_test_add_func("/core/network_backends_new", t_network_backends_new);
 	g_test_add_func("/core/network_backend_new", t_network_backend_new);
@@ -151,8 +141,3 @@ int main(int argc, char **argv) {
 
 	return g_test_run();
 }
-#else
-int main() {
-	return 77;
-}
-#endif

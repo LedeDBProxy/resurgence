@@ -24,16 +24,8 @@
 
 #ifdef HAVE_SYS_IOCTL_H
 #include <sys/ioctl.h> /* FIONREAD */
-#elif defined(WIN32)
-#include <windows.h>
-#include <winsock2.h>
-#include <io.h>
-#define ioctl ioctlsocket
-
-#define STDERR_FILENO 2
-#else
-#include <unistd.h>
 #endif
+#include <unistd.h>
 #include <string.h>
 #include <stdlib.h>
 #include <fcntl.h>

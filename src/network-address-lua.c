@@ -21,12 +21,7 @@
 #include "config.h"
 #include <lua.h>
 
-#ifdef WIN32
-#include <winsock2.h>
-#include <ws2tcpip.h>
-#else
 #include <arpa/inet.h>
-#endif
 
 #include "lua-env.h"
 #include "glib-ext.h"

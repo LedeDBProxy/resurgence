@@ -1165,18 +1165,11 @@ int main(int argc, char **argv) {
 
 # if defined(LIBDIR)
 	if (!g_getenv(LUA_CPATH)) {
-#  if _WIN32
-		g_setenv(LUA_CPATH, 
-				LIBDIR "/?.dll", 1);
-#  else
 		g_setenv(LUA_CPATH, 
 				LIBDIR "/?.so", 1);
-#  endif
 	}
 # endif
 #endif
-
-	g_thread_init(NULL);
 
 	log = chassis_log_new();
 	log->min_lvl = G_LOG_LEVEL_MESSAGE; /* display messages while parsing or loading plugins */

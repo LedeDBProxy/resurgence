@@ -23,10 +23,6 @@
 #define _NETWORK_MYSQLD_PROTO_H_
 
 #include <glib.h>
-#ifdef _WIN32
-/* mysql.h needs SOCKET defined */
-#include <winsock2.h>
-#endif
 #include <mysql.h>
 
 #include "network-exports.h"

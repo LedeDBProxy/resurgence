@@ -25,13 +25,8 @@
 #include <glib.h>
 #include "chassis-exports.h"
 
-#ifdef G_OS_WIN32
-/* not used on win32 */
-#define CHASSIS_FILEMODE_SECURE_MASK (0)
-#else
 #include <sys/stat.h>
 #define CHASSIS_FILEMODE_SECURE_MASK (S_IROTH|S_IWOTH|S_IXOTH)
-#endif
 CHASSIS_API int chassis_filemode_check(const gchar *filename) G_GNUC_DEPRECATED; /* use chassis_filemode_check_full instead */
 CHASSIS_API int chassis_filemode_check_full(const gchar *filename, int required_filemask, GError **gerr);
 

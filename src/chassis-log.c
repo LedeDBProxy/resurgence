@@ -26,17 +26,11 @@
 #include <string.h>
 #include <stdio.h>
 #include <fcntl.h>
-#ifndef WIN32
 #include <unistd.h> /* close */
 /* define eventlog types when not on windows, saves code below */
 #define EVENTLOG_ERROR_TYPE	0x0001
 #define EVENTLOG_WARNING_TYPE	0x0002
 #define EVENTLOG_INFORMATION_TYPE	0x0004
-#else
-#include <windows.h>
-#include <io.h>
-#define STDERR_FILENO 2
-#endif
 #include <glib.h>
 
 #ifdef HAVE_SYSLOG_H
@@ -162,14 +156,6 @@ void chassis_log_free(chassis_log *log) {
 	if (!log) return;
 
 	chassis_log_close(log);
-#ifdef _WIN32
-	if (log->event_source_handle) {
-		if (!DeregisterEventSource(log->event_source_handle)) {
-			int err = GetLastError();
-			g_critical("unhandled error-code (%d) for DeregisterEventSource()", err);
-		}
-	}
-#endif
 	g_string_free(log->log_ts_str, TRUE);
 	g_string_free(log->last_msg, TRUE);
 
@@ -220,35 +206,24 @@ static int chassis_log_write(chassis_log *log, int log_level, GString *str) {
 		if (-1 == write(log->log_file_fd, S(str))) {
 			/* writing to the file failed (Disk Full, what ever ... */
 			
-			write(STDERR_FILENO, S(str));
-			write(STDERR_FILENO, "\n", 1);
+            if (write(STDERR_FILENO, S(str)) >= 0) {
+                if (write(STDERR_FILENO, "\n", 1) >= 0) {
+                }
+            }
 		} else {
-			write(log->log_file_fd, "\n", 1);
+			if (write(log->log_file_fd, "\n", 1) >= 0) {
+            }
 		}
 #ifdef HAVE_SYSLOG_H
 	} else if (log->use_syslog) {
 		int log_index = g_bit_nth_lsf(log_level & G_LOG_LEVEL_MASK, -1) - G_LOG_ERROR_POSITION;
 		syslog(log_lvl_map[log_index].syslog_lvl, "%s", str->str);
 #endif
-#ifdef _WIN32
-	} else if (log->use_windows_applog && log->event_source_handle) {
-		char *log_messages[1];
-		int log_index = g_bit_nth_lsf(log_level & G_LOG_LEVEL_MASK, -1) - G_LOG_ERROR_POSITION;
-
-		log_messages[0] = str->str;
-		ReportEvent(log->event_source_handle,
-					log_lvl_map[log_index].win_evtype,
-					0, /* category, we don't have that yet */
-					log_lvl_map[log_index].win_evtype, /* event indentifier, one of MSG_ERROR (0x01), MSG_WARNING(0x02), MSG_INFO(0x04) */
-					NULL,
-					1, /* number of strings to be substituted */
-					0, /* no event specific data */
-					log_messages,	/* the actual log message, always the message we came up with, we don't localize using Windows message files*/
-					NULL);
-#endif
 	} else {
-		write(STDERR_FILENO, S(str));
-		write(STDERR_FILENO, "\n", 1);
+        if (write(STDERR_FILENO, S(str)) >=0 ) {
+            if (write(STDERR_FILENO, "\n", 1) >= 0) {
+            }
+        }
 	}
 
 	return 0;
@@ -465,24 +440,6 @@ void chassis_log_set_logrotate(chassis_log *log) {
 int chassis_log_set_event_log(chassis_log *log, const char *app_name) {
 	g_return_val_if_fail(log != NULL, -1);
 
-#if _WIN32
-	log->use_windows_applog = TRUE;
-	log->event_source_handle = RegisterEventSource(NULL, app_name);
-
-	if (!log->event_source_handle) {
-		int err = GetLastError();
-
-		g_critical("%s: RegisterEventSource(NULL, %s) failed: %s (%d)",
-				G_STRLOC,
-				g_strerror(err),
-				err);
-
-		return -1;
-	}
-
-	return 0;
-#else
 	return -1;
-#endif
 }
 

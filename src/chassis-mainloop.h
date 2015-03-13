@@ -34,9 +34,6 @@
 #ifdef HAVE_SYS_TYPES_H
 #include <sys/types.h>
 #endif
-#ifdef _WIN32
-#include <winsock2.h>
-#endif
 #include <event.h>     /* struct event_base */
 
 #include "chassis-exports.h"
@@ -52,7 +49,6 @@
 /*@{*/
 typedef struct chassis_private chassis_private;
 typedef struct chassis chassis;
-typedef struct chassis_event_threads_t chassis_event_threads_t;
 
 struct chassis {
 	struct event_base *event_base;
@@ -72,12 +68,9 @@ struct chassis {
 	
 	chassis_stats_t *stats;			/**< the overall chassis stats, includes lua and glib allocation stats */
 
-	/* network-io threads */
-	gint event_thread_count;
-
-	chassis_event_threads_t *threads;
-
 	chassis_shutdown_hooks_t *shutdown_hooks;
+	GAsyncQueue *event_queue;
+	int event_notify_fds[2];
 };
 
 CHASSIS_API chassis *chassis_init(void) G_GNUC_DEPRECATED;

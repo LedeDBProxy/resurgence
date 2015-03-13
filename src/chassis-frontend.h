@@ -21,11 +21,7 @@
 #ifndef __CHASSIS_FRONTEND_H__
 #define __CHASSIS_FRONTEND_H__
 
-#ifdef WIN32
-#define CHASSIS_NEWLINE "\r\n"
-#else
 #define CHASSIS_NEWLINE "\n"
-#endif
 
 #include <glib.h>
 
@@ -47,15 +43,6 @@
  * @return 0 on success, -1 on error
  */
 CHASSIS_API int chassis_frontend_init_glib(void);
-
-/**
- * setup win32 libs
- *
- * init winsock32 
- *
- * @return 0 on success, -1 on error
- */
-CHASSIS_API int chassis_frontend_init_win32(void);
 
 /**
  * detect the basedir

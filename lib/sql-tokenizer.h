@@ -355,7 +355,7 @@ void sql_token_free(sql_token *token);
 /**
  * get the name for a token-id
  */
-const gchar *sql_token_get_name(sql_token_id token_id, size_t *name_len);
+gchar *sql_token_get_name(sql_token_id token_id, size_t *name_len);
 
 /**
  * get the token_id for a literal

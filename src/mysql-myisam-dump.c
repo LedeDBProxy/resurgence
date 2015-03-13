@@ -1056,7 +1056,7 @@ void network_mysqld_myd_print(network_mysqld_frm G_GNUC_UNUSED *frm, const char 
 
 
 
-	g_mapped_file_free(f);
+	g_mapped_file_unref(f);
 
 	g_string_free(packet->data, FALSE);
 	network_packet_free(packet);
@@ -1095,7 +1095,7 @@ int frm_dump_file(
 		network_mysqld_myd_print(frm, myd_filename);
 	}
 
-	g_mapped_file_free(f);
+	g_mapped_file_unref(f);
 
 	g_string_free(packet->data, FALSE);
 	network_packet_free(packet);
@@ -1172,18 +1172,11 @@ int main(int argc, char **argv) {
 
 # if defined(LIBDIR)
 	if (!g_getenv(LUA_CPATH)) {
-#  if _WIN32
-		g_setenv(LUA_CPATH, 
-				LIBDIR "/?.dll", 1);
-#  else
 		g_setenv(LUA_CPATH, 
 				LIBDIR "/?.so", 1);
-#  endif
 	}
 # endif
 #endif
-
-	g_thread_init(NULL);
 
 	log = chassis_log_new();
 	log->min_lvl = G_LOG_LEVEL_MESSAGE; /* display messages while parsing or loading plugins */

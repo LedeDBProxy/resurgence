@@ -323,11 +323,7 @@ static void remap_print(lua_State *L) {
 	g_assert(n == lua_gettop(L));
 }
 
-#if defined(_WIN32)
-# define LUAEXT_API __declspec(dllexport)
-#else
 # define LUAEXT_API extern
-#endif
 
 LUAEXT_API int luaopen_chassis (lua_State *L) {
 	luaL_register (L, "chassis", chassislib);

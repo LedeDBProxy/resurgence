@@ -43,7 +43,6 @@ int chassis_filemode_check(const gchar *filename) {
  * FIXME? this function currently ignores ACLs
  */
 int chassis_filemode_check_full(const gchar *filename, int required_filemask, GError **gerr) {
-#ifndef _WIN32
 	struct stat stbuf;
 	mode_t		fmode;
 	
@@ -69,6 +68,5 @@ int chassis_filemode_check_full(const gchar *filename, int required_filemask, GE
 	
 #undef MASK
 
-#endif /* _WIN32 */
 	return 0;
 }

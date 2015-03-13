@@ -28,14 +28,12 @@
 #include <sys/filio.h>
 #endif
 
-#ifndef _WIN32
 #include <sys/ioctl.h>
 
 #include <sys/socket.h>
 #include <netinet/in.h>
 #include <arpa/inet.h>
 #define ioctlsocket ioctl
-#endif
 
 #include <errno.h>
 #include <lua.h>
@@ -45,7 +43,7 @@
 
 #include "network-mysqld.h"
 #include "network-mysqld-packet.h"
-#include "chassis-event-thread.h"
+#include "chassis-event.h"
 #include "network-mysqld-lua.h"
 
 #include "network-conn-pool.h"

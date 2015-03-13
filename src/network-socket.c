@@ -23,7 +23,6 @@
 #include "config.h"
 #endif
 
-#ifndef _WIN32
 #include <sys/ioctl.h>
 #include <sys/socket.h>
 #include <sys/uio.h> /* writev */
@@ -46,11 +45,6 @@
 
 #include <netdb.h>
 #include <unistd.h>
-#else
-#include <winsock2.h>
-#include <io.h>
-#define ioctl ioctlsocket
-#endif
 
 #include <stdlib.h>
 #include <string.h>
@@ -63,12 +57,6 @@
 #undef USE_BUFFERED_NETIO 
 #endif
 
-#ifdef _WIN32
-#define E_NET_CONNRESET WSAECONNRESET
-#define E_NET_CONNABORTED WSAECONNABORTED
-#define E_NET_WOULDBLOCK WSAEWOULDBLOCK
-#define E_NET_INPROGRESS WSAEINPROGRESS
-#else
 #define E_NET_CONNRESET ECONNRESET
 #define E_NET_CONNABORTED ECONNABORTED
 #define E_NET_INPROGRESS EINPROGRESS
@@ -82,7 +70,6 @@
 #define E_NET_WOULDBLOCK -1
 #else
 #define E_NET_WOULDBLOCK EWOULDBLOCK
-#endif
 #endif
 
 #include "network-debug.h"
@@ -152,18 +139,8 @@ void network_socket_free(network_socket *s) {
  */
 network_socket_retval_t network_socket_set_non_blocking(network_socket *sock) {
 	int ret;
-#ifdef _WIN32
-	int ioctlvar;
-
-	ioctlvar = 1;
-	ret = ioctlsocket(sock->fd, FIONBIO, &ioctlvar);
-#else
 	ret = fcntl(sock->fd, F_SETFL, O_NONBLOCK | O_RDWR);
-#endif
 	if (ret != 0) {
-#ifdef _WIN32
-		errno = WSAGetLastError();
-#endif
 		g_critical("%s.%d: set_non_blocking() failed: %s (%d)", 
 				__FILE__, __LINE__,
 				g_strerror(errno), errno);
@@ -212,11 +189,7 @@ network_socket *network_socket_accept(network_socket *srv) {
 }
 
 static network_socket_retval_t network_socket_connect_setopts(network_socket *sock) {
-#ifdef WIN32
-	char val = 1;	/* Win32 setsockopt wants a const char* instead of the UNIX void*...*/
-#else
 	int val = 1;
-#endif
 	/**
 	 * set the same options as the mysql client 
 	 */
@@ -258,13 +231,7 @@ network_socket_retval_t network_socket_connect_finish(network_socket *sock) {
 	/**
 	 * we might get called a 2nd time after a connect() == EINPROGRESS
 	 */
-#ifdef _WIN32
-	/* need to cast to get rid of the compiler warning. otherwise identical to the UNIX version below. */
-	if (getsockopt(sock->fd, SOL_SOCKET, SO_ERROR, (char*)&so_error, &so_error_len)) {
-		errno = WSAGetLastError();
-#else
 	if (getsockopt(sock->fd, SOL_SOCKET, SO_ERROR, &so_error, &so_error_len)) {
-#endif
 		/* getsockopt failed */
 		g_critical("%s: getsockopt(%s) failed: %s (%d)", 
 				G_STRLOC,
@@ -305,9 +272,6 @@ network_socket_retval_t network_socket_connect(network_socket *sock) {
 	 * if the dst->addr isn't set yet, socket() will fail with unsupported type
 	 */
 	if (-1 == (sock->fd = socket(sock->dst->addr.common.sa_family, sock->socket_type, 0))) {
-#ifdef _WIN32
-		errno = WSAGetLastError();
-#endif
 		g_critical("%s.%d: socket(%s) failed: %s (%d)", 
 				__FILE__, __LINE__,
 				sock->dst->name->str, g_strerror(errno), errno);
@@ -321,9 +285,6 @@ network_socket_retval_t network_socket_connect(network_socket *sock) {
 	network_socket_set_non_blocking(sock);
 
 	if (-1 == connect(sock->fd, &sock->dst->addr.common, sock->dst->len)) {
-#ifdef _WIN32
-		errno = WSAGetLastError();
-#endif
 		/**
 		 * in most TCP cases we connect() will return with 
 		 * EINPROGRESS ... 3-way handshake
@@ -357,15 +318,11 @@ network_socket_retval_t network_socket_connect(network_socket *sock) {
  * @see network_address_set_address()
  */
 network_socket_retval_t network_socket_bind(network_socket * con) {
-	/* WIN32:      int setsockopt(SOCKET s, int level, int optname, const char *optval, int optlen);
+	/* 
 	 * HPUX:       int setsockopt(int s,    int level, int optname, const void *optval, int optlen);
 	 * all others: int setsockopt(int s,    int level, int optname, const void *optval, socklen_t optlen);
 	 */
-#ifdef WIN32
-#define SETSOCKOPT_OPTVAL_CAST (const char *)
-#else
 #define SETSOCKOPT_OPTVAL_CAST (void *)
-#endif
 
 	g_return_val_if_fail(con->fd < 0, NETWORK_SOCKET_ERROR); /* socket is already bound */
 	g_return_val_if_fail((con->socket_type == SOCK_DGRAM) || (con->socket_type == SOCK_STREAM), NETWORK_SOCKET_ERROR);
@@ -386,11 +343,7 @@ network_socket_retval_t network_socket_bind(network_socket * con) {
 		    con->dst->addr.common.sa_family == AF_INET6) {
 			/* TCP_NODELAY  is int on unix, BOOL on win32 */
 			/* SO_REUSEADDR is int on unix, BOOL on win32 */
-#ifdef WIN32
-			BOOL val;
-#else
 			int val;
-#endif
 
 			val = 1;
 			if (0 != setsockopt(con->fd, IPPROTO_TCP, TCP_NODELAY, SETSOCKOPT_OPTVAL_CAST &val, sizeof(val))) {
@@ -426,11 +379,7 @@ network_socket_retval_t network_socket_bind(network_socket * con) {
 			 */
 
 			/* IPV6_V6ONLY is int on unix, DWORD on win32 */
-#ifdef WIN32
-			DWORD val;
-#else
 			int val;
-#endif
 
 			val = 0;
 			if (0 != setsockopt(con->fd, IPPROTO_IPV6, IPV6_V6ONLY, SETSOCKOPT_OPTVAL_CAST &val, sizeof(val))) {
@@ -578,9 +527,6 @@ network_socket_retval_t network_socket_read(network_socket *sock) {
 			sock->dst->len = dst_len;
 		}
 		if (-1 == len) {
-#ifdef _WIN32
-			errno = WSAGetLastError();
-#endif
 			switch (errno) {
 			case E_NET_CONNABORTED:
 			case E_NET_CONNRESET: /** nothing to read, let's let ioctl() handle the close for us */
@@ -742,9 +688,6 @@ static network_socket_retval_t network_socket_write_send(network_socket *con, in
 			len = sendto(con->fd, s->str + con->send_queue->offset, s->len - con->send_queue->offset, 0, &(con->dst->addr.common), con->dst->len);
 		}
 		if (-1 == len) {
-#ifdef _WIN32
-			errno = WSAGetLastError();
-#endif
 			switch (errno) {
 			case E_NET_WOULDBLOCK:
 			case EAGAIN:

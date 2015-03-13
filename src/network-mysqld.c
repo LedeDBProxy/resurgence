@@ -29,7 +29,6 @@
 #include <sys/filio.h> /* required for FIONREAD on solaris */
 #endif
 
-#ifndef _WIN32
 #include <sys/ioctl.h>
 #include <sys/socket.h>
 
@@ -39,11 +38,6 @@
 
 #include <netdb.h>
 #include <unistd.h>
-#else
-#include <winsock2.h>
-#include <io.h>
-#define ioctl ioctlsocket
-#endif
 
 #include <stdlib.h>
 #include <string.h>
@@ -69,7 +63,7 @@
 #include "network-mysqld-packet.h"
 #include "network-conn-pool.h"
 #include "chassis-mainloop.h"
-#include "chassis-event-thread.h"
+#include "chassis-event.h"
 #include "lua-scope.h"
 #include "glib-ext.h"
 #include "network-asn1.h"
@@ -88,12 +82,6 @@
 #undef USE_BUFFERED_NETIO 
 #endif
 
-#ifdef _WIN32
-#define E_NET_CONNRESET WSAECONNRESET
-#define E_NET_CONNABORTED WSAECONNABORTED
-#define E_NET_WOULDBLOCK WSAEWOULDBLOCK
-#define E_NET_INPROGRESS WSAEINPROGRESS
-#else
 #define E_NET_CONNRESET ECONNRESET
 #define E_NET_CONNABORTED ECONNABORTED
 #define E_NET_INPROGRESS EINPROGRESS
@@ -107,7 +95,6 @@
 #define E_NET_WOULDBLOCK -1
 #else
 #define E_NET_WOULDBLOCK EWOULDBLOCK
-#endif
 #endif
 
 /**

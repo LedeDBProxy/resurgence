@@ -21,11 +21,6 @@
 #include "config.h"
 #endif
 
-
-#ifdef _WIN32
-#include <winsock2.h> /* mysql.h needs SOCKET */
-#endif
-
 #include <mysql.h>
 #include <mysqld_error.h>
 #include <errno.h>

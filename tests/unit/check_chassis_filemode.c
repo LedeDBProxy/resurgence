@@ -42,7 +42,6 @@
 
 #include "chassis-filemode.h"
 
-#ifndef _WIN32
 /* only run theses tests on non windows platforms */
 
 #define TOO_OPEN	0666
@@ -137,8 +136,3 @@ int main(int argc, char **argv) {
 	
 	return g_test_run();
 }
-#else
-int main() {
-	return 0; /* for autoconf we would use 77 here to skip, but cmake (as this is windows) don't count skipped tests so we just pretend it worked */
-}
-#endif

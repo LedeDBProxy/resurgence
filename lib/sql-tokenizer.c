@@ -1930,9 +1930,6 @@ char *yytext;
 
 #include <glib-ext.h>
 
-#ifdef WIN32
-#include <io.h>  /* for read */
-#endif
 #include <stdlib.h>
 
 #define YY_DECL int sql_tokenizer_internal(GPtrArray *tokens)

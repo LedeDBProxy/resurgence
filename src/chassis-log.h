@@ -23,9 +23,6 @@
 #define _CHASSIS_LOG_H_
 
 #include <glib.h>
-#ifdef _WIN32
-#include <windows.h>
-#endif
 
 #include "chassis-exports.h"
 
@@ -64,10 +61,6 @@ struct _chassis_log {
 
 	gboolean use_syslog;
 
-#ifdef _WIN32
-	HANDLE event_source_handle;
-	gboolean use_windows_applog;
-#endif
 	gboolean rotate_logs;
 
 	GString *log_ts_str;

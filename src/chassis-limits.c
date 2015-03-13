@@ -31,18 +31,12 @@
 #ifdef HAVE_SYS_RESOURCE_H
 #include <sys/resource.h>
 #endif
-#ifdef _WIN32
-#include <stdio.h> /* for _getmaxstdio() */
-#endif
 #include <errno.h>
 #include <stdlib.h>
 
 #include "chassis-limits.h"
 
 gint64 chassis_fdlimit_get() {
-#ifdef _WIN32
-	return _getmaxstdio();
-#else
 	struct rlimit max_files_rlimit;
 
 	if (-1 == getrlimit(RLIMIT_NOFILE, &max_files_rlimit)) {
@@ -50,8 +44,6 @@ gint64 chassis_fdlimit_get() {
 	} else {
 		return max_files_rlimit.rlim_cur;
 	}
-#endif
-
 }
 
 /**
@@ -67,29 +59,6 @@ int chassis_set_fdlimit(int max_files_number) {
  * @return -1 on error, 0 on success
  */
 int chassis_fdlimit_set(gint64 max_files_number) {
-#ifdef _WIN32
-	int max_files_number_set;
-
-	max_files_number_set = _setmaxstdio(max_files_number);
-
-	if (-1 == max_files_number_set) {
-		g_critical("%s: failed to set the maximum number of open files to %"G_GINT64_FORMAT" for stdio: %s (%d)",
-				G_STRLOC,
-				max_files_number,
-				g_strerror(errno),
-				errno);
-		return -1;
-	} else if (max_files_number_set != max_files_number) {
-		g_critical("%s: failed to increase the maximum number of open files to %"G_GINT64_FORMAT" for stdio: %s (%d)",
-				G_STRLOC,
-				max_files_number,
-				g_strerror(errno),
-				errno);
-		return -1;
-	}
-
-	return 0;
-#else
 	struct rlimit max_files_rlimit;
 	rlim_t soft_limit;
 	rlim_t hard_limit;
@@ -111,6 +80,5 @@ int chassis_fdlimit_set(gint64 max_files_number) {
 	}
 
 	return 0;
-#endif
 }
 

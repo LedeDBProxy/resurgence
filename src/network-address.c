@@ -21,7 +21,6 @@
 #include "config.h"
 #endif
 
-#ifndef _WIN32
 #include <sys/ioctl.h>
 #include <sys/socket.h>
 
@@ -35,11 +34,6 @@
 
 #include <netdb.h>
 #include <unistd.h>
-#else
-#include <winsock2.h>
-#include <io.h>
-#define ioctl ioctlsocket
-#endif
 
 #include <stdlib.h>
 #include <string.h>
@@ -68,7 +62,6 @@ void network_address_free(network_address *addr) {
 
 	if (!addr) return;
 
-#ifndef WIN32
 	/*
 	 * if the name we're freeing starts with a '/', we're
 	 * looking at a unix socket which needs to be removed
@@ -92,7 +85,6 @@ void network_address_free(network_address *addr) {
 			}
 		}
 	}
-#endif /* WIN32 */
 
 	g_string_free(addr->name, TRUE);
 	g_free(addr);

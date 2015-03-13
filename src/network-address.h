@@ -28,7 +28,6 @@
 
 #include <glib.h>
 
-#ifndef _WIN32
 #ifdef HAVE_NETINET_IN_H
 #include <netinet/in.h>     /** struct sockaddr_in */
 #endif
@@ -38,10 +37,6 @@
 #include <sys/un.h>         /** struct sockaddr_un */
 #endif
 #include <sys/socket.h>     /** struct sockaddr (freebsd and hp/ux need it) */
-#else
-#include <winsock2.h>
-#include <Ws2tcpip.h>
-#endif
 
 #include "network-exports.h"
 

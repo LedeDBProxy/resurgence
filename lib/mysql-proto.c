@@ -811,11 +811,7 @@ static const struct luaL_reg mysql_protolib[] = {
 	{NULL, NULL},
 };
 
-#if defined(_WIN32)
-# define LUAEXT_API __declspec(dllexport)
-#else
 # define LUAEXT_API extern
-#endif
 
 LUAEXT_API int luaopen_mysql_proto (lua_State *L) {
 	luaL_register (L, "proto", mysql_protolib);

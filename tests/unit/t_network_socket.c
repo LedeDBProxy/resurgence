@@ -22,15 +22,11 @@
 #include <stdlib.h>
 #include <string.h>
 #include <errno.h>
-#ifndef _WIN32
 #include <signal.h>
-#endif
 
-#ifndef WIN32
 #include <unistd.h>
 #include <stdlib.h>
 #include <fcntl.h>
-#endif /* WIN32 */
 
 #include <glib.h>
 #include <glib/gstdio.h> /* for g_unlink */
@@ -40,7 +36,6 @@
 #if GLIB_CHECK_VERSION(2, 16, 0)
 #define C(x) x, sizeof(x) - 1
 
-#ifndef WIN32
 #define LOCAL_SOCK "/tmp/mysql-proxy-test.socket"
 
 typedef struct {
@@ -49,7 +44,6 @@ typedef struct {
 
 static local_unix_t	*pp = NULL;
 static local_unix_t local_test_arg;
-#endif /* WIN32 */
 
 void test_network_socket_new() {
 	network_socket *sock;
@@ -536,7 +530,6 @@ void t_network_socket_is_local_ipv6() {
 }
 
 
-#ifndef WIN32
 
 /**
  * test if _is_local() works on unix-domain sockets
@@ -644,7 +637,6 @@ void t_network_socket_rem_local_unix(local_unix_t *p, gconstpointer G_GNUC_UNUSE
 	signal(SIGABRT, SIG_DFL);
 }
 
-#endif /* WIN32 */
 
 int main(int argc, char **argv) {
 	g_test_init(&argc, &argv, NULL);
@@ -662,14 +654,12 @@ int main(int argc, char **argv) {
 	g_test_add_func("/core/network_socket_is_local_ipv4",t_network_socket_is_local_ipv4);
 	g_test_add_func("/core/network_socket_is_local_ipv6",t_network_socket_is_local_ipv6);
 
-#ifndef WIN32
 	g_test_add_func("/core/network_socket_is_local_unix",t_network_socket_is_local_unix);
 
 	g_test_add("/core/network_socket_rem_local_unix", local_unix_t,
 			&local_test_arg,
 			t_network_localsocket_setup, t_network_socket_rem_local_unix, 
 			t_network_localsocket_teardown);
-#endif /* WIN32 */
 #if 0
 	/**
 	 * disabled for now until we fixed the _to_read() on HP/UX and AIX (and MacOS X)

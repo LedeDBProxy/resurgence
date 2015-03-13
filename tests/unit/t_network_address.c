@@ -191,7 +191,6 @@ t_network_address_tostring_ipv6() {
 
 static void
 t_network_address_tostring_unix() {
-#ifndef _WIN32
 	network_address *addr;
 	char buf[255];
 	gsize buf_len = sizeof(buf);
@@ -212,7 +211,6 @@ t_network_address_tostring_unix() {
 	g_clear_error(&gerr);
 
 	network_address_free(addr);
-#endif
 }
 
 int main(int argc, char **argv) {

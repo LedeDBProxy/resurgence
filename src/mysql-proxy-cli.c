@@ -46,14 +46,9 @@
 #include <fcntl.h>
 #include <errno.h>
 
-#ifdef _WIN32
-#include <process.h> /* getpid() */
-#include <io.h>      /* open() */
-#else
 #include <unistd.h>
 #include <sys/wait.h>
 #include <sys/resource.h> /* for rusage in wait() */
-#endif
 
 #include <glib.h>
 #include <gmodule.h>
@@ -87,11 +82,7 @@
 #include "chassis-frontend.h"
 #include "chassis-options.h"
 
-#ifdef WIN32
-#define CHASSIS_NEWLINE "\r\n"
-#else
 #define CHASSIS_NEWLINE "\n"
-#endif
 
 #define GETTEXT_PACKAGE "mysql-proxy"
 
@@ -120,14 +111,10 @@ typedef struct {
 	gchar **plugin_names;
 
 	guint invoke_dbg_on_crash;
-#ifndef _WIN32
 	/* the --keepalive option isn't available on Unix */
 	guint auto_restart;
-#endif
 
 	gint max_files_number;
-
-	gint event_thread_count;
 
 	gchar *log_level;
 	gchar *log_filename;
@@ -145,7 +132,6 @@ chassis_frontend_t *chassis_frontend_new(void) {
 	chassis_frontend_t *frontend;
 
 	frontend = g_slice_new0(chassis_frontend_t);
-	frontend->event_thread_count = 1;
 	frontend->max_files_number = 0;
 
 	return frontend;
@@ -188,10 +174,8 @@ int chassis_frontend_set_chassis_options(chassis_frontend_t *frontend, chassis_o
 	chassis_options_add(opts,
 		"daemon",                   0, 0, G_OPTION_ARG_NONE, &(frontend->daemon_mode), "Start in daemon-mode", NULL);
 
-#ifndef _WIN32
 	chassis_options_add(opts,
 		"user",                     0, 0, G_OPTION_ARG_STRING, &(frontend->user), "Run mysql-proxy as user", "<user>");
-#endif
 
 	chassis_options_add(opts,
 		"basedir",                  0, 0, G_OPTION_ARG_STRING, &(frontend->base_dir), "Base directory to prepend to relative paths in the config", "<absolute path>");
@@ -217,10 +201,8 @@ int chassis_frontend_set_chassis_options(chassis_frontend_t *frontend, chassis_o
 	chassis_options_add(opts,
 		"log-backtrace-on-crash",   0, 0, G_OPTION_ARG_NONE, &(frontend->invoke_dbg_on_crash), "try to invoke debugger on crash", NULL);
 
-#ifndef _WIN32
 	chassis_options_add(opts,
 		"keepalive",                0, 0, G_OPTION_ARG_NONE, &(frontend->auto_restart), "try to restart the proxy if it crashed", NULL);
-#endif
 
 	chassis_options_add(opts,
 		"max-open-files",           0, 0, G_OPTION_ARG_INT, &(frontend->max_files_number), "maximum number of open files (ulimit -n)", NULL);
@@ -277,16 +259,6 @@ int main_cmdline(int argc, char **argv) {
 	log = chassis_log_new();
 	log->min_lvl = G_LOG_LEVEL_MESSAGE; /* display messages while parsing or loading plugins */
 	g_log_set_default_handler(chassis_log_func, log);
-
-#ifdef _WIN32
-	if (chassis_win32_is_service() && chassis_log_set_event_log(log, g_get_prgname())) {
-		GOTO_EXIT(EXIT_FAILURE);
-	}
-
-	if (chassis_frontend_init_win32()) { /* setup winsock */
-		GOTO_EXIT(EXIT_FAILURE);
-	}
-#endif
 
 	/* may fail on library mismatch */
 	if (NULL == (srv = chassis_new())) {
@@ -522,16 +494,6 @@ int main_cmdline(int argc, char **argv) {
 		GOTO_EXIT(EXIT_FAILURE);
 	}
 
-	/* make sure that he max-thread-count isn't negative */
-	if (frontend->event_thread_count < 1) {
-		g_critical("--event-threads has to be >= 1, is %d", frontend->event_thread_count);
-
-		GOTO_EXIT(EXIT_FAILURE);
-	}
-
-	srv->event_thread_count = frontend->event_thread_count;
-	
-#ifndef _WIN32	
 	signal(SIGPIPE, SIG_IGN);
 
 	if (frontend->daemon_mode) {
@@ -553,7 +515,6 @@ int main_cmdline(int argc, char **argv) {
 			/* we are the child, go on */
 		}
 	}
-#endif
 	if (frontend->pid_file) {
 		if (0 != chassis_frontend_write_pidfile(frontend->pid_file, &gerr)) {
 			g_critical("%s", gerr->message);
@@ -567,10 +528,6 @@ int main_cmdline(int argc, char **argv) {
 	 * log the versions of all loaded plugins
 	 */
 	chassis_frontend_log_plugin_versions(srv->modules);
-
-#ifdef _WIN32
-	if (chassis_win32_is_service()) chassis_win32_service_set_state(SERVICE_RUNNING, 0);
-#endif
 
 	/*
 	 * we have to drop root privileges in chassis_mainloop() after
@@ -611,10 +568,6 @@ exit_nicely:
 				"shutting down normally, exit code is: %d", exit_code); /* add a tag to the logfile */
 	}
 
-#ifdef _WIN32
-	if (chassis_win32_is_service()) chassis_win32_service_set_state(SERVICE_STOP_PENDING, 0);
-#endif
-
 	if (gerr) g_error_free(gerr);
 	if (option_ctx) g_option_context_free(option_ctx);
 	if (srv) chassis_free(srv);
@@ -623,10 +576,6 @@ exit_nicely:
 
 	chassis_log_free(log);
 	
-#ifdef _WIN32
-	if (chassis_win32_is_service()) chassis_win32_service_set_state(SERVICE_STOPPED, 0);
-#endif
-
 #ifdef HAVE_SIGACTION
 	/* reset the handler */
 	sigsegv_sa.sa_handler = SIG_DFL;
@@ -645,10 +594,6 @@ exit_nicely:
  * We eventually fall down through to main_cmdline, even on Windows.
  */
 int main(int argc, char **argv) {
-#ifdef WIN32_AS_SERVICE
-	return main_win32(argc, argv, main_cmdline);
-#else
 	return main_cmdline(argc, argv);
-#endif
 }
 

@@ -58,14 +58,8 @@
 
 #include "my_rdtsc.h"
 
-#if defined(_WIN32)
 #include <stdio.h>
-#include "windows.h"
-#else
-#include <stdio.h>
-#endif
 
-#if !defined(_WIN32)
 #if TIME_WITH_SYS_TIME
 #include <sys/time.h>
 #include <time.h>           /* for clock_gettime */
@@ -74,7 +68,6 @@
 #include <sys/time.h>
 #elif defined(HAVE_TIME_H)
 #include <time.h>
-#endif
 #endif
 #endif
 
@@ -161,11 +154,6 @@ ulonglong my_timer_cycles(void)
     rdtscll(result);
     return result;
   }
-#elif defined(_WIN32) && defined(_M_IX86)
-  __asm {rdtsc};
-#elif defined(_WIN64) && defined(_M_X64)
-  /* For 64-bit Windows: unsigned __int64 __rdtsc(); */
-  return __rdtsc();
 #elif defined(__INTEL_COMPILER) && defined(__ia64__) && defined(HAVE_IA64INTRIN_H)
   return (ulonglong) __getReg(_IA64_REG_AR_ITC); /* (3116) */
 #elif defined(__GNUC__) && defined(__ia64__)
@@ -318,14 +306,6 @@ ulonglong my_timer_microseconds(void)
     }
     return last_value;
   }
-#elif defined(_WIN32)
-  {
-    /* QueryPerformanceCounter usually works with about 1/3 microsecond. */
-    LARGE_INTEGER t_cnt;
-
-    QueryPerformanceCounter(&t_cnt);
-    return (ulonglong) t_cnt.QuadPart;
-  }
 #elif defined(__NETWARE__)
   {
     NXTime_t tm;
@@ -353,11 +333,6 @@ ulonglong my_timer_milliseconds(void)
   return (ulonglong)ft.time * 1000 + (ulonglong)ft.millitm;
 #elif defined(HAVE_TIME)
   return (ulonglong) time(NULL) * 1000;
-#elif defined(_WIN32)
-   FILETIME ft;
-   GetSystemTimeAsFileTime( &ft );
-   return ((ulonglong)ft.dwLowDateTime +
-                  (((ulonglong)ft.dwHighDateTime) << 32))/10000;
 #elif defined(__NETWARE__)
   {
     NXTime_t tm;
@@ -388,8 +363,6 @@ ulonglong my_timer_ticks(void)
     NXGetTime(NX_SINCE_BOOT, NX_TICKS, &tm);
     return (ulonglong) tm;
   }
-#elif defined(_WIN32)
-  return (ulonglong) GetTickCount();
 #else
   return 0;
 #endif
@@ -539,10 +512,6 @@ void my_timer_init(MY_TIMER_INFO *mti)
   mti->cycles_routine= MY_TIMER_ROUTINE_ASM_X86_64;
 #elif defined(HAVE_ASM_MSR_H) && defined(HAVE_RDTSCLL)
   mti->cycles_routine= MY_TIMER_ROUTINE_RDTSCLL;
-#elif defined(_WIN32) && defined(_M_IX86)
-  mti->cycles_routine= MY_TIMER_ROUTINE_ASM_X86_WIN;
-#elif defined(_WIN64) && defined(_M_X64)
-  mti->cycles_routine= MY_TIMER_ROUTINE_RDTSC;
 #elif defined(__INTEL_COMPILER) && defined(__ia64__) && defined(HAVE_IA64INTRIN_H)
   mti->cycles_routine= MY_TIMER_ROUTINE_ASM_IA64;
 #elif defined(__GNUC__) && defined(__ia64__)
@@ -606,18 +575,6 @@ void my_timer_init(MY_TIMER_INFO *mti)
   mti->microseconds_frequency= 1000000; /* initial assumption */
 #if defined(HAVE_GETTIMEOFDAY)
    mti->microseconds_routine= MY_TIMER_ROUTINE_GETTIMEOFDAY;
-#elif defined(_WIN32)
-  {
-    LARGE_INTEGER li;
-    /* Windows: typical frequency = 3579545, actually 1/3 microsecond. */
-    if (!QueryPerformanceFrequency(&li))
-      mti->microseconds_routine= 0;
-    else
-    {
-      mti->microseconds_frequency= li.QuadPart;
-      mti->microseconds_routine= MY_TIMER_ROUTINE_QUERYPERFORMANCECOUNTER;
-    }
-  }
 #elif defined(__NETWARE__)
   mti->microseconds_routine= MY_TIMER_ROUTINE_NXGETTIME;
 #else
@@ -635,8 +592,6 @@ void my_timer_init(MY_TIMER_INFO *mti)
   mti->milliseconds_frequency= 1000; /* initial assumption */
 #if defined(HAVE_SYS_TIMEB_H) && defined(HAVE_FTIME)
   mti->milliseconds_routine= MY_TIMER_ROUTINE_FTIME;
-#elif defined(_WIN32)
-  mti->milliseconds_routine= MY_TIMER_ROUTINE_GETSYSTEMTIMEASFILETIME;
 #elif defined(__NETWARE__)
   mti->milliseconds_routine= MY_TIMER_ROUTINE_NXGETTIME;
 #elif defined(HAVE_TIME)
@@ -658,8 +613,6 @@ void my_timer_init(MY_TIMER_INFO *mti)
   mti->ticks_routine= MY_TIMER_ROUTINE_TIMES;
 #elif defined(__NETWARE__)
   mti->ticks_routine= MY_TIMER_ROUTINE_NXGETTIME;
-#elif defined(_WIN32)
-   mti->ticks_routine= MY_TIMER_ROUTINE_GETTICKCOUNT;
 #else
   mti->ticks_routine= 0;
 #endif

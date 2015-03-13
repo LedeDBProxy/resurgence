@@ -134,11 +134,7 @@ static const struct luaL_reg mysql_passwordlib[] = {
 	{NULL, NULL},
 };
 
-#if defined(_WIN32)
-# define LUAEXT_API __declspec(dllexport)
-#else
 # define LUAEXT_API extern
-#endif
 
 LUAEXT_API int luaopen_mysql_password (lua_State *L) {
 	luaL_register (L, "password", mysql_passwordlib);

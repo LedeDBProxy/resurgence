@@ -31,11 +31,7 @@
  */
 void t_chassis_frontend_set_lua_path(void) {
 	char **lua_subdirs;
-#ifdef _WIN32
-#define BASEDIR "C:\\absdir\\"
-#else
 #define BASEDIR "/absdir/"
-#endif
 
 	lua_subdirs = g_new(char *, 3);
 	lua_subdirs[0] = g_strdup("foo");
@@ -45,11 +41,7 @@ void t_chassis_frontend_set_lua_path(void) {
 	g_assert_cmpint(0, ==, chassis_frontend_init_lua_path(
 		NULL, BASEDIR, lua_subdirs));
 
-#ifdef _WIN32
-	g_assert_cmpstr("C:\\absdir\\lib\\foo\\lua\\?.lua;C:\\absdir\\lib\\bar\\lua\\?.lua", ==, getenv("LUA_PATH"));
-#else
 	g_assert_cmpstr("/absdir/lib/foo/lua/?.lua;/absdir/lib/bar/lua/?.lua", ==, getenv("LUA_PATH"));
-#endif
 
 	g_strfreev(lua_subdirs);
 }
@@ -59,11 +51,7 @@ void t_chassis_frontend_set_lua_path(void) {
  */
 void t_chassis_frontend_set_lua_cpath(void) {
 	char **lua_subdirs;
-#ifdef _WIN32
-#define BASEDIR "C:\\absdir\\"
-#else
 #define BASEDIR "/absdir/"
-#endif
 
 	lua_subdirs = g_new(char *, 3);
 	lua_subdirs[0] = g_strdup("foo");
@@ -73,11 +61,7 @@ void t_chassis_frontend_set_lua_cpath(void) {
 	g_assert_cmpint(0, ==, chassis_frontend_init_lua_cpath(
 		NULL, BASEDIR, lua_subdirs));
 
-#ifdef _WIN32
-	g_assert_cmpstr("C:\\absdir\\bin\\lua-?.dll", ==, getenv("LUA_CPATH"));
-#else
 	g_assert_cmpstr("/absdir/lib/foo/lua/?."G_MODULE_SUFFIX";/absdir/lib/bar/lua/?."G_MODULE_SUFFIX, ==, getenv("LUA_CPATH"));
-#endif
 
 	g_strfreev(lua_subdirs);
 }

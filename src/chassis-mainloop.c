@@ -108,6 +108,21 @@ chassis *chassis_new() {
 	/* create a new global timer info */
 	chassis_timestamps_global_init(NULL);
 
+
+    if (0 != evutil_socketpair(AF_UNIX, SOCK_STREAM, 0, chas->event_notify_fds)) {
+        int err;
+        err = errno;
+        g_error("%s: evutil_socketpair() failed: %s (%d)", 
+                G_STRLOC,
+                g_strerror(err),
+                err);
+    }
+
+    /* make both ends non-blocking */
+    evutil_make_socket_nonblocking(chas->event_notify_fds[0]);
+    evutil_make_socket_nonblocking(chas->event_notify_fds[1]);
+
+    chas->event_queue = g_async_queue_new();
 	chas->event_hdr_version = g_strdup(_EVENT_VERSION);
 
 	chas->shutdown_hooks = chassis_shutdown_hooks_new();
@@ -128,6 +143,7 @@ void chassis_free(chassis *chas) {
 #ifdef HAVE_EVENT_BASE_FREE
 	const char *version;
 #endif
+    chassis_event_op_t *op;
 
 	if (!chas) return;
 
@@ -160,6 +176,9 @@ void chassis_free(chassis *chas) {
 
 	chassis_timestamps_global_free(NULL);
 
+    while ((op = g_async_queue_try_pop(chas->event_queue))) {
+        chassis_event_op_free(op);
+    }
 #ifdef HAVE_EVENT_BASE_FREE
 	/* only recent versions have this call */
 

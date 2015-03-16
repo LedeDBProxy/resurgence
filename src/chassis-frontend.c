@@ -45,8 +45,6 @@
 #include "chassis-keyfile.h"
 #include "chassis-filemode.h"
 #include "chassis-options.h"
-#include "chassis-win32-service.h"
-
 #include "string-len.h"
 
 /**
@@ -159,7 +157,6 @@ char *chassis_frontend_get_default_lua_path(const char *base_dir, const char *pr
 char *chassis_frontend_get_default_lua_cpath(const char *base_dir, const char *prg_name) {
 	/* each OS has its own way of declaring a shared-lib extension
 	 *
-	 * win32 has .dll
 	 * macosx has .so or .dylib
 	 * hpux has .sl
 	 */ 

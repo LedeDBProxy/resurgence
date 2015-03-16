@@ -47,9 +47,6 @@
 #ifdef HAVE_SYS_UN_H
 #include <sys/un.h>         /** struct sockaddr_un */
 #endif
-/**
- * use closesocket() to close sockets to be compatible with win32
- */
 #define closesocket(x) close(x)
 #include <glib.h>
 #include <event.h>

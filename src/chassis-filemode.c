@@ -37,8 +37,6 @@ int chassis_filemode_check(const gchar *filename) {
  * return 0 for "OK", -1 of the file cannot be accessed or is the wrong
  * type of file, and 1 if permissions are wrong
  *
- * since Windows has no concept of owner/group/other, this function
- * just return 0 for windows
  *
  * FIXME? this function currently ignores ACLs
  */

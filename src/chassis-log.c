@@ -27,7 +27,6 @@
 #include <stdio.h>
 #include <fcntl.h>
 #include <unistd.h> /* close */
-/* define eventlog types when not on windows, saves code below */
 #define EVENTLOG_ERROR_TYPE	0x0001
 #define EVENTLOG_WARNING_TYPE	0x0002
 #define EVENTLOG_INFORMATION_TYPE	0x0004
@@ -279,9 +278,6 @@ const char *chassis_log_skip_topsrcdir(const char *message) {
  * - log-file is moved to new name
  * - SIGHUP is sent to process to announce log-file rotation
  * - we reopen the log-file
- *
- * Only works on Unix has you can't move a file on windows if it was opened
- * with open().
  *
  * Returns: %TRUE
  */

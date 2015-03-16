@@ -291,7 +291,7 @@ network_socket_retval_t network_socket_connect(network_socket *sock) {
 		 */
 		switch (errno) {
 		case E_NET_INPROGRESS:
-		case E_NET_WOULDBLOCK: /* win32 uses WSAEWOULDBLOCK */
+		case E_NET_WOULDBLOCK: 
 			return NETWORK_SOCKET_ERROR_RETRY;
 		default:
 			g_critical("%s.%d: connect(%s) failed: %s (%d)", 
@@ -341,8 +341,8 @@ network_socket_retval_t network_socket_bind(network_socket * con) {
 
 		if (con->dst->addr.common.sa_family == AF_INET || 
 		    con->dst->addr.common.sa_family == AF_INET6) {
-			/* TCP_NODELAY  is int on unix, BOOL on win32 */
-			/* SO_REUSEADDR is int on unix, BOOL on win32 */
+			/* TCP_NODELAY  is int on unix */
+			/* SO_REUSEADDR is int on unix */
 			int val;
 
 			val = 1;
@@ -378,7 +378,7 @@ network_socket_retval_t network_socket_bind(network_socket * con) {
 			 * - Solaris 9 and earlier
 			 */
 
-			/* IPV6_V6ONLY is int on unix, DWORD on win32 */
+			/* IPV6_V6ONLY is int on unix */
 			int val;
 
 			val = 0;
@@ -668,7 +668,6 @@ static network_socket_retval_t network_socket_write_writev(network_socket *con, 
 /**
  * write data to the socket
  *
- * use a loop over send() to be compatible with win32
  */
 static network_socket_retval_t network_socket_write_send(network_socket *con, int send_chunks) {
 	/* send the whole queue */

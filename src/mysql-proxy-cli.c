@@ -77,7 +77,6 @@
 #include "chassis-path.h"
 #include "chassis-limits.h"
 #include "chassis-filemode.h"
-#include "chassis-win32-service.h"
 #include "chassis-unix-daemon.h"
 #include "chassis-frontend.h"
 #include "chassis-options.h"

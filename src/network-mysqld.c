@@ -154,8 +154,7 @@ plugin_call_timeout(chassis *srv, network_mysqld_con *con) {
 	}
 
     if (!con->plugin_con_state && con->proxy_state == CON_STATE_PROXY_QUIT) {
-        g_critical("%s.%d: %p quit because of proxy state, thread:%u ", __FILE__, __LINE__, 
-                con, (unsigned int)pthread_self());
+        g_critical("%s.%d: %p quit because of proxy state", __FILE__, __LINE__, con);
         return NETWORK_SOCKET_SUCCESS; 
     }
 
@@ -189,8 +188,8 @@ void network_mysqld_priv_shutdown(chassis *chas, chassis_private *priv) {
 		network_mysqld_con *con = priv->cons->pdata[i];
 		plugin_call_cleanup(chas, con);
         con->proxy_state = CON_STATE_PROXY_QUIT;
-        g_critical("%s.%d: %p set proxy state CON_STATE_PROXY_QUIT, thread:%u ", __FILE__, __LINE__, 
-                con, (unsigned int)pthread_self());
+        g_critical("%s.%d: %p set proxy state CON_STATE_PROXY_QUIT", 
+                __FILE__, __LINE__, con);
 	}
 }
 
@@ -202,8 +201,7 @@ void network_mysqld_priv_finally_free_shared(chassis *chas, chassis_private *pri
     len = priv->cons->len;
     for (i = 0; i < len; i++) {
 		network_mysqld_con *con = priv->cons->pdata[i];
-        g_critical("%s.%d: %p finally release, thread:%u ", __FILE__, __LINE__, 
-                con, (unsigned int)pthread_self());
+        g_critical("%s.%d: %p finally release", __FILE__, __LINE__, con);
         network_mysqld_con_free(con);
 	}
 }
@@ -679,8 +677,7 @@ network_socket_retval_t plugin_call(chassis *srv, network_mysqld_con *con, int s
 	NETWORK_MYSQLD_PLUGIN_FUNC(func) = NULL;
 
     if (con->plugin_con_state == NULL && con->proxy_state == CON_STATE_PROXY_QUIT) {
-        g_critical("%s.%d: %p quit because of proxy, thread:%u ", __FILE__, __LINE__, 
-                con, (unsigned int)pthread_self());
+        g_critical("%s.%d: %p quit because of proxy", __FILE__, __LINE__, con);
         return; 
     }
 
@@ -905,8 +902,8 @@ network_socket_retval_t plugin_call(chassis *srv, network_mysqld_con *con, int s
 	if (!func) return NETWORK_SOCKET_SUCCESS;
 
     if (!con->plugin_con_state && con->proxy_state == CON_STATE_PROXY_QUIT) {
-        g_critical("%s.%d: %p quit because of proxy state not zero, thread:%u ", __FILE__, __LINE__, 
-                con, (unsigned int)pthread_self());
+        g_critical("%s.%d: %p quit because of proxy state not zero", 
+                __FILE__, __LINE__, con); 
         return NETWORK_SOCKET_SUCCESS; 
     }
 

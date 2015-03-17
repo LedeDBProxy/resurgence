@@ -155,9 +155,7 @@ void chassis_event_add(chassis *chas, struct event *ev) {
 
 
 /**
- * add a event to the current thread 
- *
- * needs event-base stored in the thread local storage
+ * add a event
  *
  * @see network_connection_pool_lua_add_connection()
  */
@@ -165,7 +163,7 @@ void chassis_event_add_local_with_timeout(chassis G_GNUC_UNUSED *chas, struct ev
 	struct event_base *event_base = chas->event_base;
 	chassis_event_op_t *op;
 
-	g_assert(event_base); /* the thread-local event-base has to be initialized */
+	g_assert(event_base); 
 
 	op = chassis_event_op_new();
 
@@ -278,7 +276,7 @@ int chassis_event_init(chassis_event_t *loop, chassis *chas) {
 }
 
 /**
- * event-handler thread
+ * event-handler 
  *
  */
 void *chassis_event_loop(chassis_event_t *loop) {

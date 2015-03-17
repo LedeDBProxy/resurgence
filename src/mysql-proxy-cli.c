@@ -25,8 +25,6 @@
  *  -  config-file parsing
  * 
  *
- * network_mysqld_thread() is the real proxy thread 
- * 
  * @todo move the SQL based help out into a lua script
  */
 
@@ -223,9 +221,7 @@ static void sigsegv_handler(int G_GNUC_UNUSED signum) {
 }
 
 /**
- * This is the "real" main which is called both on Windows and UNIX platforms.
- * For the Windows service case, this will also handle the notifications and set
- * up the logging support appropriately.
+ * This is the "real" main which is called on UNIX platforms.
  */
 int main_cmdline(int argc, char **argv) {
 	chassis *srv = NULL;
@@ -587,11 +583,6 @@ exit_nicely:
 	return exit_code;
 }
 
-/**
- * On Windows we first look if we are started as a service and 
- * set that up if appropriate.
- * We eventually fall down through to main_cmdline, even on Windows.
- */
 int main(int argc, char **argv) {
 	return main_cmdline(argc, argv);
 }

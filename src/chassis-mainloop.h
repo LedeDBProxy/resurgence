@@ -81,7 +81,6 @@ CHASSIS_API int chassis_check_version(const char *lib_version, const char *hdr_v
 /**
  * the mainloop for all chassis apps 
  *
- * can be called directly or as gthread_* functions 
  */
 CHASSIS_API int chassis_mainloop(void *user_data);
 

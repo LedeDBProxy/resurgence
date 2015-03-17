@@ -36,7 +36,7 @@
  */
 
 /**
- * setup glib, gthread and gmodule
+ * setup glib and gmodule
  *
  * may abort of glib headers and glib libs don't match
  *

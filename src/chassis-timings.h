@@ -73,7 +73,6 @@ CHASSIS_API guint64 chassis_get_rel_microseconds();
 /**
  * Calculate the difference between two relative microsecond readings, taking into account a potential timer frequency.
  *
- * @note This is especially necessary for Windows, do _not_ simply subtract the relative readings, those are _not_ in microseconds!
  * @param start the start time
  * @param stop the end time
  * @return the difference of stop and start, adjusted to microseconds
@@ -103,7 +102,6 @@ CHASSIS_API chassis_timestamps_global_t *chassis_timestamps_global;
 
 /**
  * Creates a new timer base, which will calibrate itself during creation.
- * @note This function is not threadsafe.
  * @param gl the new timer or NULL to initialize the global timer base
  */
 CHASSIS_API void chassis_timestamps_global_init(chassis_timestamps_global_t *gl);

@@ -119,10 +119,6 @@ int chassis_frontend_init_basedir(const char *prg_name, char **_base_dir) {
 /**
  * set the environment as Lua expects it
  *
- * on Win32 glib uses _wputenv to set the env variable,
- * but Lua uses getenv. Those two don't see each other,
- * so we use _putenv. Since we only set ASCII chars, this
- * is safe.
  */
 static int chassis_frontend_lua_setenv(const char *key, const char *value) {
 	int r;

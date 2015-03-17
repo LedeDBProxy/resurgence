@@ -117,10 +117,7 @@ int g_string_get_time(GString *s, GTimeVal *gt) {
 	time_t t = gt->tv_sec;
 
 #ifndef HAVE_GMTIME_R
-	static GStaticMutex m = G_STATIC_MUTEX_INIT; /* gmtime() isn't thread-safe */
-
 	s->len = strftime(s->str, s->allocated_len, "%Y-%m-%dT%H:%M:%S.", gmtime(&(t)));
-	
 #else
 	struct tm tm;
 	gmtime_r(&(t), &tm);

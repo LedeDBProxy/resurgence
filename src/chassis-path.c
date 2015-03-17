@@ -85,8 +85,6 @@ gchar *chassis_get_basedir(const gchar *prgname) {
 /**
  * Helper function to correctly take into account the users base-dir setting for
  * paths that might be relative.
- * Note: Because this function potentially frees the pointer to gchar* that's passed in and cannot lock
- *       on that, it is _not_ threadsafe. You have to ensure threadsafety yourself!
  * @returns TRUE if it modified the filename, FALSE if it didn't
  */
 gboolean chassis_resolve_path(const char *base_dir, gchar **filename) {

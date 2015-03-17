@@ -53,9 +53,6 @@ CHASSIS_API void chassis_event_add_with_timeout(chassis *chas, struct event *ev,
 CHASSIS_API void chassis_event_add_local(chassis *chas, struct event *ev);
 CHASSIS_API void chassis_event_add_local_with_timeout(chassis *chas, struct event *ev, struct timeval *tv);
 
-/**
- * a event-thread
- */
 typedef struct {
 	chassis *chas;
 

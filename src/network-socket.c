@@ -369,7 +369,6 @@ network_socket_retval_t network_socket_bind(network_socket * con) {
 			 *
 			 * ... if it is supported:
 			 * - Linux
-			 * - Windows
 			 * - Mac OS X
 			 * - FreeBSD
 			 * - Solaris 10 and later

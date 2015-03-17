@@ -277,14 +277,6 @@ ulonglong my_timer_nanoseconds(void)
 #endif
 }
 
-/*
-  For microseconds, gettimeofday() is available on
-  almost all platforms. On Windows we use
-  QueryPerformanceCounter which will usually tick over
-  3.5 million times per second, and we don't throw
-  away the extra precision. (On Windows Server 2003
-  the frequency is same as the cycle frequency.)
-*/
 
 ulonglong my_timer_microseconds(void)
 {
@@ -319,9 +311,7 @@ ulonglong my_timer_microseconds(void)
 
 /*
   For milliseconds, we use ftime() if it's supported
-  or time()*1000 if it's not. With modern versions of
-  Windows and with HP Itanium, resolution is 10-15
-  milliseconds.
+  or time()*1000 if it's not. 
 */
 
 ulonglong my_timer_milliseconds(void)
@@ -706,8 +696,7 @@ void my_timer_init(MY_TIMER_INFO *mti)
   In tests, this usually results in a figure within 2% of
   what "cat /proc/cpuinfo" says.
   If the microseconds routine is QueryPerformanceCounter
-  (i.e. it's Windows), and the microseconds frequency is >
-  500,000,000 (i.e. it's Windows Server so it uses RDTSC)
+  , and the microseconds frequency is > 500,000,000 
   and the microseconds resolution is > 100 (i.e. dreadful),
   then calculate cycles frequency = microseconds frequency.
 */
@@ -785,177 +774,4 @@ void my_timer_init(MY_TIMER_INFO *mti)
   }
 }
 
-/*
-   Additional Comments
-   -------------------
-
-   This is for timing, i.e. finding out how long a piece of code
-   takes. If you want time of day matching a wall clock, the
-   my_timer_xxx functions won't help you.
-
-   The best timer is the one with highest frequency, lowest
-   overhead, and resolution=1. The my_timer_info() routine will tell
-   you at runtime which timer that is. Usually it will be
-   my_timer_cycles() but be aware that, although it's best,
-   it has possible flaws and dangers. Depending on platform:
-   - The frequency might change. We don't test for this. It
-     happens on laptops for power saving, and on blade servers
-     for avoiding overheating.
-   - The overhead that my_timer_init() returns is the minimum.
-     In fact it could be slightly greater because of caching or
-     because you call the routine by address, as recommended.
-     It could be hugely greater if there's an interrupt.
-   - The x86 cycle counter, RDTSC doesn't "serialize". That is,
-     if there is out-of-order execution, rdtsc might be processed
-     after an instruction that logically follows it.
-     (We could force serialization, but that would be slower.)
-   - It is possible to set a flag which renders RDTSC
-     inoperative. Somebody responsible for the kernel
-     of the operating system would have to make this
-     decision. For the platforms we've tested with, there's
-     no such problem.
-   - With a multi-processor arrangement, it's possible
-     to get the cycle count from one processor in
-     thread X, and the cycle count from another processor
-     in thread Y. They may not always be in synch.
-   - You can't depend on a cycle counter being available for
-     all platforms. On Alphas, the
-     cycle counter is only 32-bit, so it would overflow quickly,
-     so we don't bother with it. On platforms that we haven't
-     tested, there might be some if/endif combination that we
-     didn't expect, or some assembler routine that we didn't
-     supply.
-
-   The recommended way to use the timer routines is:
-   1. Somewhere near the beginning of the program, call
-      my_timer_init(). This should only be necessary once,
-      although you can call it again if you think that the
-      frequency has changed.
-   2. Determine the best timer based on frequency, resolution,
-      overhead -- all things that my_timer_init() returns.
-      Preserve the address of the timer and the my_timer_into
-      results in an easily-accessible place.
-   3. Instrument the code section that you're monitoring, thus:
-      time1= my_timer_xxx();
-      Instrumented code;
-      time2= my_timer_xxx();
-      elapsed_time= (time2 - time1) - overhead;
-      If the timer is always on, then overhead is always there,
-      so don't subtract it.
-   4. Save the elapsed time, or add it to a totaller.
-   5. When all timing processes are complete, transfer the
-      saved / totalled elapsed time to permanent storage.
-      Optionally you can convert cycles to microseconds at
-      this point. (Don't do so every time you calculate
-      elapsed_time! That would waste time and lose precision!)
-      For converting cycles to microseconds, use the frequency
-      that my_timer_init() returns. You'll also need to convert
-      if the my_timer_microseconds() function is the Windows
-      function QueryPerformanceCounter(), since that's sometimes
-      a counter with precision slightly better than microseconds.
-
-   Since we recommend calls by function pointer, we supply
-   no inline functions.
-
-   Some comments on the many candidate routines for timing ...
-
-   clock() -- We don't use because it would overflow frequently.
-
-   clock_gettime() -- Often we don't use this even when it exists.
-   In configure.in, we use AC_CHECK_FUNCS(clock_gettime). Not
-   AC_CHECK_LIB(rc,clock_gettime)
-   AC_CHECK_FUNCS(clock_gettime)
-   If we had the above lines in configure.in, we'd have to use
-   /usr/lib/librt.so or /usr/lib64/librt.so when linking, and
-   the size of librt.so is 40KB. In tests, clock_gettime often
-   had resolution = 1000.
-
-   ftime() -- A "man ftime" says: "This function is obsolete.
-   Don't use it." On every platform that we tested, if ftime()
-   was available, then so was gettimeofday(), and gettimeofday()
-   overhead was always at least as good as ftime() overhead.
-
-   gettimeofday() -- available on most platforms, though not
-   on Windows. There is a hardware timer (sometimes a Programmable
-   Interrupt Timer or "PIT") (sometimes a "HPET") used for
-   interrupt generation. When it interrupts (a "tick" or "jiffy",
-   typically 1 centisecond) it sets xtime. For gettimeofday, a
-   Linux kernel routine usually gets xtime and then gets rdtsc
-   to get elapsed nanoseconds since the last tick. On Red Hat
-   Enterprise Linux 3, there was once a bug which caused the
-   resolution to be 1000, i.e. one centisecond. We never check
-   for time-zone change.
-
-   getnstimeofday() -- something to watch for in future Linux
-
-   do_gettimeofday() -- exists on Linux but not for "userland"
-
-   get_cycles() -- a multi-platform function, worth watching
-   in future Linux versions. But we found platform-specific
-   functions which were better documented in operating-system
-   manuals. And get_cycles() can fail or return a useless
-   32-bit number. It might be available on some platforms,
-   such as arm, which we didn't test.  Using
-   "include <linux/timex.h>" or "include <asm/timex.h>"
-   can lead to autoconf or compile errors, depending on system.
-
-   rdtsc, __rdtsc, rdtscll: available for x86 with Linux BSD,
-   Solaris, Windows. See "possible flaws and dangers" comments.
-
-   times(): what we use for ticks. Should just read the last
-   (xtime) tick count, therefore should be fast, but usually
-   isn't.
-
-   GetTickCount(): we use this for my_timer_ticks() on
-   Windows. Actually it really is a tick counter, so resolution
-   >= 10 milliseconds unless you have a very old Windows version.
-   With Windows 95 or 98 or ME, timeGetTime() has better resolution than
-   GetTickCount (1ms rather than 55ms). But with Windows NT or XP or 2000,
-   they're both getting from a variable in the Process Environment Block
-   (PEB), and the variable is set by the programmable interrupt timer, so
-   the resolution is the same (usually 10-15 milliseconds). Also timeGetTime
-   is slower on old machines:
-   http://www.doumo.jp/aon-java/jsp/postgretips/tips.jsp?tips=74.
-   Also timeGetTime requires linking winmm.lib,
-   Therefore we use GetTickCount.
-   It will overflow every 49 days because the return is 32-bit.
-   There is also a GetTickCount64 but it requires Vista or Windows Server 2008.
-   (As for GetSystemTimeAsFileTime, its precision is spurious, it
-   just reads the tick variable like the other functions do.
-   However, we don't expect it to overflow every 49 days, so we
-   will prefer it for my_timer_milliseconds().)
-
-   QueryPerformanceCounter() we use this for my_timer_microseconds()
-   on Windows. 1-PIT-tick (often 1/3-microsecond). Usually reads
-   the PIT so it's slow. On some Windows variants, uses RDTSC.
-
-   GetLocalTime() this is available on Windows but we don't use it.
-
-   getclock(): documented for Alpha, but not found during tests.
-
-   mach_absolute_time() and UpTime() are recommended for Apple.
-   Inititally they weren't tried, because asm_ppc seems to do the job.
-   But now we use mach_absolute_time for nanoseconds.
-
-   Any clock-based timer can be affected by NPT (ntpd program),
-   which means:
-   - full-second correction can occur for leap second
-   - tiny corrections can occcur approimately every 11 minutes
-     (but I think they only affect the RTC which isn't the PIT).
-
-   We define "precision" as "frequency" and "high precision" is
-   "frequency better than 1 microsecond". We define "resolution"
-   as a synonym for "granularity". We define "accuracy" as
-   "closeness to the truth" as established by some authoritative
-   clock, but we can't measure accuracy.
-
-   Do not expect any of our timers to be monotonic; we
-   won't guarantee that they return constantly-increasing
-   unique numbers.
-
-   We tested with AIX, Solaris (x86 + Sparc), Linux (x86 +
-   Itanium), Windows, 64-bit Windows, QNX, FreeBSD, HPUX,
-   Irix, Mac. We didn't test with NetWare or SCO.
-
-*/
 

@@ -265,7 +265,7 @@ int chassis_mainloop(void *_chas) {
 		return -1;
 	}
 
-	chas->event_base = mainloop->event_base; /* all global events go to the 1st thread */
+	chas->event_base = mainloop->event_base; 
 
 	g_assert(chas->event_base);
 
@@ -338,8 +338,6 @@ int chassis_mainloop(void *_chas) {
 #endif
 
 	/**
-	 * handle signals and all basic events into the main-thread
-	 *
 	 * block until we are asked to shutdown
 	 */
 	chassis_event_loop(mainloop);

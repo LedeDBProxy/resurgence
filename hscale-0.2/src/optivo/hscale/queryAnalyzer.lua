@@ -685,7 +685,7 @@ end
 function QueryAnalyzer:_normalizeQueryAndParseHints()
     local result = {}
     local tokenName = nil
-     utils.debug("Parsing tokens for comments and hints...")
+    utils.debug("Parsing tokens for comments and hints...")
     for i = 1, #self._tokens do
         local token = self._tokens[i]
 	    tokenName = token.token_name
@@ -698,6 +698,7 @@ function QueryAnalyzer:_normalizeQueryAndParseHints()
             end
             if (string.match(token.text, "hscale.forceFullPartitionScan%(%)")) then
                 self._isForceFullPartitionScan = true
+                utils.debug("****************_isForceFullPartitionScan set true", 2)
             end
 		elseif (
 		    tokenName == "TK_UNKNOWN"

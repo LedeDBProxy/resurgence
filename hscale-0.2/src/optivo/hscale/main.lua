@@ -110,7 +110,7 @@ function read_query(packet)
                             local partitionTable = partitionLookup.getAllPartitionTables(tableName)[1]
                             local rewriter = optivo.hscale.queryRewriter.QueryRewriter.create(tokens, {[tableName] = partitionTable})
                             local rewrittenQuery = rewriter:rewriteQuery()
-                            proxy.queries:append(1, string.char(proxy.COM_QUERY) .. rewrittenQuery, {resultset_is_needed = true})
+                            proxy.queries:append(1, string.char(proxy.COM_QUERY) .. rewrittenQuery, { resultset_is_needed = true })
                             if (_queryAnalyzer:getStatementType() == "SHOW CREATE TABLE") then
                                 _resultSetReplace = {
                                     {[partitionTable] = tableName},
@@ -132,7 +132,7 @@ function read_query(packet)
                                 local rewrittenQuery = rewriter:rewriteQuery()
                                  utils.debug("<<< Rewritten query #" .. _combinedNumberOfQueries .. ": '" .. rewrittenQuery .. "'")
                                 _combinedNumberOfQueries = _combinedNumberOfQueries + 1
-                                proxy.queries:append(_combinedNumberOfQueries, string.char(proxy.COM_QUERY) .. rewrittenQuery, {resultset_is_needed = true})
+                                proxy.queries:append(_combinedNumberOfQueries, string.char(proxy.COM_QUERY) .. rewrittenQuery, { resultset_is_needed = true })
                              end
                         end
                     else
@@ -142,6 +142,7 @@ function read_query(packet)
                             tableMapping[tableName] = partitionLookup.getPartitionTable(tableName, partitionValue)
                             utils.debug("--- table '" .. tableName .. "' and partitionValue '" .. partitionValue .. "'")
                         end
+                        utils.debug("--- check full partition scan '" .. _query .. "'")
                         if (_queryAnalyzer:isFullPartitionScanNeeded()) then
                             local tableName = _queryAnalyzer:getAffectedTables()[1]
                             stats.incFullPartitionScans(tableName)
@@ -153,13 +154,13 @@ function read_query(packet)
                                 local rewrittenQuery = rewriter:rewriteQuery()
                                  utils.debug("<<< Full partition scan: rewritten query #" .. _combinedNumberOfQueries .. ": '" .. rewrittenQuery .. "'")
                                 _combinedNumberOfQueries = _combinedNumberOfQueries + 1
-                                proxy.queries:append(_combinedNumberOfQueries, string.char(proxy.COM_QUERY) .. rewrittenQuery, {resultset_is_needed = true})
+                                proxy.queries:append(_combinedNumberOfQueries, string.char(proxy.COM_QUERY) .. rewrittenQuery, { resultset_is_needed = true })
                              end
                         else
                             local rewriter = optivo.hscale.queryRewriter.QueryRewriter.create(tokens, tableMapping)
                             local rewrittenQuery = rewriter:rewriteQuery()
                              utils.debug("<<< Rewritten query: '" .. rewrittenQuery .. "'")
-                            proxy.queries:append(1, string.char(proxy.COM_QUERY) .. rewrittenQuery, {resultset_is_needed = true})
+                            proxy.queries:append(1, string.char(proxy.COM_QUERY) .. rewrittenQuery, { resultset_is_needed = true })
                         end
                     end
                     return proxy.PROXY_SEND_QUERY
@@ -270,6 +271,7 @@ function _getFields(resultSet)
                     name = fields[fieldCount].name
                 }
             )
+
             fieldCount = fieldCount + 1
         end
     end
@@ -278,10 +280,12 @@ end
 
 -- Aggregate the different result sets.
 function _buildUpCombinedResultSet(inj)
+    utils.debug("_combinedNumberOfQueries:'" .. _combinedNumberOfQueries .. "'", 1)
     if (_combinedNumberOfQueries > 0) then
         -- We have a full partition scan here - build up the final result set
         local resultSet = assert(inj.resultset, "Something went terribly wrong, got NULL result set.")
         if (resultSet.fields) then
+            assert(#(resultSet.fields) > 0, "Something went terribly wrong, got zero length fields.")
             -- We have a result set
             if (not _combinedResultSet.fields) then
                 -- Build up the fields part
@@ -316,7 +320,7 @@ function _buildUpCombinedResultSet(inj)
             _combinedNumberOfQueries = inj.id
             proxy.queries:reset()
         end
-        if (inj.id == _combinedNumberOfQueries ) then
+        if (inj.id == _combinedNumberOfQueries) then
             -- This has been the last result set - send all back to client
             if (_combinedResultSet.fields) then
                 proxy.response.type = proxy.MYSQLD_PACKET_OK

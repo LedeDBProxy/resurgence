@@ -63,7 +63,6 @@ typedef struct chassis_plugin {
     
 } chassis_plugin;
 
-CHASSIS_API chassis_plugin *chassis_plugin_init(void) G_GNUC_DEPRECATED;
 CHASSIS_API chassis_plugin *chassis_plugin_new(void);
 CHASSIS_API chassis_plugin *chassis_plugin_load(const gchar *name);
 CHASSIS_API void chassis_plugin_free(chassis_plugin *p);

@@ -74,14 +74,6 @@ const struct {
 static gboolean
 chassis_log_rotate_reopen(chassis_log *log, gpointer userdata, GError **gerr);
 
-/**
- * @deprecated will be removed in 1.0
- * @see chassis_log_new()
- */
-chassis_log *chassis_log_init(void) {
-	return chassis_log_new();
-}
-
 chassis_log *chassis_log_new(void) {
 	chassis_log *log;
 

@@ -144,14 +144,6 @@ typedef struct {
 	 */
 	NETWORK_MYSQLD_PLUGIN_FUNC(con_send_query_result);
     /**
-     * Called when an internal timer has elapsed.
-     * 
-     * This state is meant to give a plugin the opportunity to react to timers.
-     * @note This state is currently unused, as there is no support for setting up timers.
-     * @deprecated Unsupported, there is no way to set timers right now. Might be removed in 1.0.
-     */
-    NETWORK_MYSQLD_PLUGIN_FUNC(con_timer_elapsed);
-    /**
      * Called when either side of a connection was either closed or some network error occurred.
      * 
      * Usually this is called because a client has disconnected. Plugins might want to preserve the server connection in this case

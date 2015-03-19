@@ -50,14 +50,6 @@
 static volatile sig_atomic_t signal_shutdown;
 
 /**
- * @deprecated will be removed in 1.0
- * @see chassis_new()
- */
-chassis *chassis_init() {
-	return chassis_new();
-}
-
-/**
  * check if the libevent headers we built against match the 
  * library we run against
  */

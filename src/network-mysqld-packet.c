@@ -55,16 +55,6 @@ void network_mysqld_com_query_result_free(network_mysqld_com_query_result_t *uda
 }
 
 /**
- * unused
- *
- * @deprecated will be removed in 0.9
- * @see network_mysqld_proto_get_com_query_result
- */
-int network_mysqld_com_query_result_track_state(network_packet G_GNUC_UNUSED *packet, network_mysqld_com_query_result_t G_GNUC_UNUSED *udata) {
-	g_error("%s: this function is deprecated and network_mysqld_proto_get_com_query_result() should be used instead",
-			G_STRLOC);
-}
-/**
  * @return -1 on error
  *         0  on success and done
  *         1  on success and need more
@@ -306,18 +296,6 @@ int network_mysqld_proto_get_com_query_result(network_packet *packet, network_my
 	return is_finished;
 }
 
-/**
- * check if the we are in the LOCAL INFILE 'send data from client' state
- *
- * is deprecated as the name doesn't reflect its purpose:
- * - it isn't triggered for LOAD DATA INFILE (w/o LOCAL)
- * - it also covers LOAD XML LOCAL INFILE
- *
- * @deprecated use network_mysqld_com_query_result_is_local_infile() instead
- */
-gboolean network_mysqld_com_query_result_is_load_data(network_mysqld_com_query_result_t *udata) {
-	return network_mysqld_com_query_result_is_local_infile(udata);
-}
 
 /**
  * check if the we are in the LOCAL INFILE 'send data from client' state

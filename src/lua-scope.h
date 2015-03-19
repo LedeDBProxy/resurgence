@@ -42,7 +42,6 @@ typedef struct {
 	int L_top;
 } lua_scope;
 
-CHASSIS_API lua_scope *lua_scope_init(void) G_GNUC_DEPRECATED;
 CHASSIS_API lua_scope *lua_scope_new(void);
 CHASSIS_API void lua_scope_free(lua_scope *sc);
 

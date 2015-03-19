@@ -58,10 +58,6 @@ typedef struct {
 	GString *uuid;           /**< the UUID of the backend */
 } network_backend_t;
 
-typedef network_backend_t backend_t G_GNUC_DEPRECATED;
-
-NETWORK_API network_backend_t *backend_init() G_GNUC_DEPRECATED;
-NETWORK_API void backend_free(network_backend_t *b) G_GNUC_DEPRECATED;
 
 NETWORK_API network_backend_t *network_backend_new();
 NETWORK_API void network_backend_free(network_backend_t *b);

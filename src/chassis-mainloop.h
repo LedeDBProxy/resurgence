@@ -73,7 +73,6 @@ struct chassis {
 	int event_notify_fds[2];
 };
 
-CHASSIS_API chassis *chassis_init(void) G_GNUC_DEPRECATED;
 CHASSIS_API chassis *chassis_new(void);
 CHASSIS_API void chassis_free(chassis *chas);
 CHASSIS_API int chassis_check_version(const char *lib_version, const char *hdr_version);

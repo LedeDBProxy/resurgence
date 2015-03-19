@@ -311,6 +311,8 @@ function _buildUpCombinedResultSet(inj)
                     proxy.queries:reset()
                 end
             end
+        else
+            utils.debug("resultSet.fields is null", 1)
         end
         if (resultSet.affected_rows) then
             _combinedResultSet.affected_rows = _combinedResultSet.affected_rows + tonumber(resultSet.affected_rows)

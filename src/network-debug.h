@@ -26,13 +26,10 @@
  *
  */
 
- #define NETWORK_DEBUG_TRACE_IO 1
 /**
  * if NETWORK_DEBUG_TRACE_STATE_CHANGES is defined the state engine for
  * the mysql protocol will log all state changes 
  *
  */
-
-#define NETWORK_DEBUG_TRACE_STATE_CHANGES 1
 
 #endif

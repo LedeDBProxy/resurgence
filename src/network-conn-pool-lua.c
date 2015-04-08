@@ -281,7 +281,7 @@ network_socket *network_connection_pool_lua_swap(network_mysqld_con *con, int ba
 
 	/* the backend is up and cool, take and move the current backend into the pool */
 	/* g_debug("%s: (swap) added the previous connection to the pool", G_STRLOC); */
-	/* network_connection_pool_lua_add_connection(con); */
+	network_connection_pool_lua_add_connection(con);
 
 	/* connect to the new backend */
 	st->backend = backend;

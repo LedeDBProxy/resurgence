@@ -349,7 +349,7 @@ function read_query_result( inj )
 	   not is_in_select_calc_found_rows and
 	   not have_last_insert_id then
 		-- release the backend if not in transaction or in prepare statement
-		proxy.connection.backend_ndx = 0
+		-- proxy.connection.backend_ndx = 0
 	elseif is_debug then
 		print("(read_query_result) staying on the same backend")
 		print("    in_trans        : " .. tostring(is_in_transaction))

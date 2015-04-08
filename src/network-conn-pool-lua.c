@@ -260,9 +260,11 @@ network_socket *network_connection_pool_lua_swap(network_mysqld_con *con, int ba
 	 * - default_db should match
 	 */
 		
-#ifdef DEBUG_CONN_POOL
-	g_debug("%s: (swap) check if we have a connection for this user in the pool '%s'", G_STRLOC, con->client->username->str);
-#endif
+    if (con->client->response == NULL) {
+        g_debug("%s: (swap) check if we have a connection for this user in the pool: nil", G_STRLOC);
+    } else {
+        g_debug("%s: (swap) check if we have a connection for this user in the pool '%s'", G_STRLOC, con->client->response->username->str);
+    }
 
     info.key = con->client->src->key;
     info.last_visit_time = con->client->last_visit_time;
@@ -278,9 +280,7 @@ network_socket *network_connection_pool_lua_swap(network_mysqld_con *con, int ba
 	}
 
 	/* the backend is up and cool, take and move the current backend into the pool */
-#ifdef DEBUG_CONN_POOL
 	/* g_debug("%s: (swap) added the previous connection to the pool", G_STRLOC); */
-#endif
 	/* network_connection_pool_lua_add_connection(con); */
 
 	/* connect to the new backend */

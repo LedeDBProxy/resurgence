@@ -40,7 +40,7 @@ if not proxy.global.config.rwsplit then
 		min_idle_connections = 4,
 		max_idle_connections = 8,
 
-		is_debug = false
+		is_debug = debug
 	}
 end
 
@@ -348,7 +348,7 @@ function read_query_result( inj )
 	if not is_in_transaction and 
 	   not is_in_select_calc_found_rows and
 	   not have_last_insert_id then
-		-- release the backend
+		-- release the backend if not in transaction or in prepare statement
 		proxy.connection.backend_ndx = 0
 	elseif is_debug then
 		print("(read_query_result) staying on the same backend")

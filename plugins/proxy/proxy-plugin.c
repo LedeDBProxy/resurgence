@@ -2075,10 +2075,6 @@ NETWORK_MYSQLD_PLUGIN_PROTO(proxy_disconnect_client) {
 		break;
 	}
 
-	/**
-	 * check if one of the backends has to many open connections
-	 */
-
 	if (con->state == CON_STATE_CLOSE_CLIENT) {
 		/* move the connection to the connection pool
 		 *

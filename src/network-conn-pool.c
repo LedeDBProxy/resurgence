@@ -136,9 +136,7 @@ GQueue *network_connection_pool_get_conns(network_connection_pool *pool, GString
 		/**
 		 * if we know this use, return a authed connection 
 		 */
-#ifdef DEBUG_CONN_POOL
 		g_debug("%s: (get_conns) get user-specific idling connection for '%s' -> %p", G_STRLOC, username->str, conns);
-#endif
 		if (conns) return conns;
 	}
 
@@ -148,9 +146,7 @@ GQueue *network_connection_pool_get_conns(network_connection_pool *pool, GString
 	 */
 
 	conns = g_hash_table_find(pool->users, find_idle_conns, &(pool->min_idle_connections));
-#ifdef DEBUG_CONN_POOL
 	g_debug("%s: (get_conns) try to find max-idling conns for user '%s' -> %p", G_STRLOC, username ? username->str : "", conns);
-#endif
 
 	return conns;
 }
@@ -206,11 +202,9 @@ network_socket *network_connection_pool_get(network_connection_pool *pool,
             if (reuse) {
                 found_entry = entry;
                 g_queue_pop_nth (conns, 0);
-#ifdef DEBUG_CONN_POOL
                 g_debug("%s: (get) entry for user '%s' -> %p, cur:%u, last visit:%u",
                         G_STRLOC, username ? username->str : "", entry,
                         cur, entry->sock->last_visit_time);
-#endif
             }
         }
 
@@ -223,9 +217,7 @@ network_socket *network_connection_pool_get(network_connection_pool *pool,
 	}
 
     if (!found_entry) {
-#ifdef DEBUG_CONN_POOL
 		g_debug("%s: (get) no entry for user '%s' -> %p", G_STRLOC, username ? username->str : "", conns);
-#endif
 		return NULL;
 	}
 
@@ -236,9 +228,7 @@ network_socket *network_connection_pool_get(network_connection_pool *pool,
 	/* remove the idle handler from the socket */	
 	event_del(&(sock->event));
 		
-#ifdef DEBUG_CONN_POOL
 	g_debug("%s: (get) got socket for user '%s' -> %p", G_STRLOC, username ? username->str : "", sock);
-#endif
 
 	return sock;
 }
@@ -261,9 +251,7 @@ network_connection_pool_entry *network_connection_pool_add(network_connection_po
 
 	g_get_current_time(&(entry->added_ts));
 	
-#ifdef DEBUG_CONN_POOL
-	g_debug("%s: (add) adding socket to pool for user '%s' -> %p", G_STRLOC, sock->username->str, sock);
-#endif
+	g_debug("%s: (add) adding socket to pool for user '%s' -> %p", G_STRLOC, sock->response->username->str, sock);
 
 	if (NULL == (conns = g_hash_table_lookup(pool->users, sock->response->username))) {
 		conns = g_queue_new();

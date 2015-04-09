@@ -1675,7 +1675,7 @@ static network_mysqld_lua_stmt_ret proxy_lua_connect_server(network_mysqld_con *
 				 */
 		
 				/* send packet-id 0 */
-				network_mysqld_con_send_error(con->client, C("(lua) handling proxy.response failed, check error-log"));
+				network_mysqld_con_send_error(con->client, C("(proxy) too many connections"));
 			} else {
 				network_queue *q;
 				network_packet packet;

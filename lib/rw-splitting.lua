@@ -38,7 +38,7 @@ local auto_config = require("proxy.auto-config")
 if not proxy.global.config.rwsplit then
 	proxy.global.config.rwsplit = {
 		min_idle_connections = 1,
-		max_idle_connections = 1,
+		max_idle_connections = 2,
 
 		is_debug = true
 	}
@@ -240,7 +240,7 @@ function read_query( packet )
 
 		if stmt.token_name == "TK_SQL_SELECT" then
             local diff = time - last_time
-            if diff > 1 then
+            if diff > 10 then
                 if is_debug then
                     print("set stay_on_same_connection false")
                 end

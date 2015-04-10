@@ -211,6 +211,7 @@ struct chassis_plugin_config {
  *
  */
 NETWORK_MYSQLD_PLUGIN_PROTO(proxy_timeout) {
+    guint32 diff;
 	network_mysqld_con_lua_t *st = con->plugin_con_state;
 
 	if (st == NULL) return NETWORK_SOCKET_ERROR;
@@ -247,8 +248,11 @@ NETWORK_MYSQLD_PLUGIN_PROTO(proxy_timeout) {
 		}
 		/* fall through */
 	default:
-		/* the client timed out, close the connection */
-		con->state = CON_STATE_ERROR;
+        diff = time(0) - con->client->last_visit_time;
+        if (diff >= 28800) {
+            /* the client timed out, close the connection */
+            con->state = CON_STATE_ERROR;
+        }
 		return NETWORK_SOCKET_SUCCESS;
 	}
 }

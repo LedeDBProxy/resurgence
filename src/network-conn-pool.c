@@ -166,7 +166,7 @@ network_socket *network_connection_pool_get(network_connection_pool *pool,
 		GString *UNUSED_PARAM(default_db), conn_ctl_info *info) {
 
     guint32  cur;
-    guint    len, i, diff, reuse;
+    guint    len, i;
 	network_socket *sock = NULL;
 	network_connection_pool_entry *entry, *found_entry = NULL;
 
@@ -191,21 +191,10 @@ network_socket *network_connection_pool_get(network_connection_pool *pool,
 
         if (!found_entry && len > 0) {
             entry = g_queue_peek_nth(conns, 0);
-            reuse = 1;
-            if (entry->special) {
-                diff = cur - entry->sock->last_visit_time;
-                if (diff < 120) {
-                    reuse = 0;
-                }
-            }
-
-            if (reuse) {
-                found_entry = entry;
-                g_queue_pop_nth (conns, 0);
-                g_debug("%s: (get) entry for user '%s' -> %p, cur:%u, last visit:%u",
-                        G_STRLOC, username ? username->str : "", entry,
-                        cur, entry->sock->last_visit_time);
-            }
+            found_entry = entry;
+            g_queue_pop_nth (conns, 0);
+            g_debug("%s: (get) entry for user '%s' -> %p, cur:%u",
+                    G_STRLOC, username ? username->str : "", entry, cur);
         }
 
 		if (conns->length == 0) {
@@ -247,7 +236,6 @@ network_connection_pool_entry *network_connection_pool_add(network_connection_po
 	entry->sock = sock;
 	entry->pool = pool;
     entry->key = key;
-    entry->sock->last_visit_time = time(0);
 
 	g_get_current_time(&(entry->added_ts));
 	

@@ -243,7 +243,7 @@ network_socket *network_connection_pool_lua_swap(network_mysqld_con *con, int ba
 	network_mysqld_con_lua_t *st = con->plugin_con_state;
 	chassis_private *g = con->srv->priv;
 	GString empty_username = { "", 0, 0 };
-    conn_ctl_info info = {0, 0, 0};
+    conn_ctl_info info = {0, 0};
 
 	/*
 	 * we can only change to another backend if the backend is already
@@ -267,7 +267,6 @@ network_socket *network_connection_pool_lua_swap(network_mysqld_con *con, int ba
     }
 
     info.key = con->client->src->key;
-    info.last_visit_time = con->client->last_visit_time;
 
 	if (NULL == (send_sock = network_connection_pool_get(backend->pool, 
 					con->client->response ? con->client->response->username : &empty_username,

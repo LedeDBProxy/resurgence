@@ -65,7 +65,6 @@ typedef struct network_mysqld_auth_response network_mysqld_auth_response;
 
 typedef struct {
     guint64  key;
-    guint32  last_visit_time;
     guint32  special_type;
 } conn_ctl_info;
 

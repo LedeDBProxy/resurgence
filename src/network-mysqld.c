@@ -259,10 +259,10 @@ network_mysqld_con *network_mysqld_con_new() {
 	con->connect_timeout.tv_sec = 2 * SECONDS;
 	con->connect_timeout.tv_usec = 0;
 
-	con->read_timeout.tv_sec = 8 * HOURS;
+	con->read_timeout.tv_sec = 30 * SECONDS;
 	con->read_timeout.tv_usec = 0;
 	
-	con->write_timeout.tv_sec = 8 * HOURS;
+	con->write_timeout.tv_sec = 30 * SECONDS;
 	con->write_timeout.tv_usec = 0;
 #undef SECONDS
 #undef MINUTES
@@ -855,6 +855,7 @@ network_socket_retval_t plugin_call(chassis *srv, network_mysqld_con *con, int s
 		func = con->plugins.con_send_query_result;
 
 		if (!func) { /* default implementation */
+            con->client->last_visit_time = time(0);
 			con->state = CON_STATE_READ_QUERY;
 		}
 		break;
@@ -1050,6 +1051,10 @@ void network_mysqld_con_handle(int event_fd, short events, void *user_data) {
 	g_assert(srv);
 	g_assert(con);
 
+#define WAIT_FOR_EVENT(ev_struct, ev_type, timeout) \
+	event_set(&(ev_struct->event), ev_struct->fd, ev_type, network_mysqld_con_handle, user_data); \
+	chassis_event_add_with_timeout(srv, &(ev_struct->event), timeout); 
+
 	if (events == EV_READ) {
 		int b = -1;
 
@@ -1104,6 +1109,11 @@ void network_mysqld_con_handle(int event_fd, short events, void *user_data) {
 		/* if we got a timeout on CON_STATE_CONNECT_SERVER we should pick another backend */
 		switch ((retval = plugin_call_timeout(srv, con))) {
 		case NETWORK_SOCKET_SUCCESS:
+            if (con->state == CON_STATE_READ_QUERY) {
+                struct timeval timeout = con->read_timeout;
+                WAIT_FOR_EVENT(con->client, EV_READ, &timeout);
+                NETWORK_MYSQLD_CON_TRACK_TIME(con, "wait_for_event::read_query again");
+            }
 			/* the plugin did set a reasonable next state */
 			break;
 		default:
@@ -1112,9 +1122,6 @@ void network_mysqld_con_handle(int event_fd, short events, void *user_data) {
 		}
 	}
 
-#define WAIT_FOR_EVENT(ev_struct, ev_type, timeout) \
-	event_set(&(ev_struct->event), ev_struct->fd, ev_type, network_mysqld_con_handle, user_data); \
-	chassis_event_add_with_timeout(srv, &(ev_struct->event), timeout); 
 
 	/**
 	 * loop on the same connection as long as we don't end up in a stable state

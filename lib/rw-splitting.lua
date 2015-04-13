@@ -37,8 +37,8 @@ local auto_config = require("proxy.auto-config")
 -- connection pool
 if not proxy.global.config.rwsplit then
 	proxy.global.config.rwsplit = {
-		min_idle_connections = 1,
-		max_idle_connections = 2,
+		min_idle_connections = 10,
+		max_idle_connections = 20,
 
 		is_debug = true
 	}
@@ -49,7 +49,6 @@ end
 --
 -- is_in_transaction tracks the state of the transactions
 local is_in_transaction       = false
-local stay_on_same_connection = true
 local last_time = 0
 
 -- if this was a SELECT SQL_CALC_FOUND_ROWS ... stay on the same connections
@@ -229,6 +228,7 @@ function read_query( packet )
 
     local time = os.time()
 
+    c.is_server_conn_reserved = false
 	-- read/write splitting 
 	--
 	-- send all non-transactional SELECTs to a slave
@@ -239,16 +239,6 @@ function read_query( packet )
 		local stmt = tokenizer.first_stmt_token(tokens)
 
 		if stmt.token_name == "TK_SQL_SELECT" then
-            local diff = time - last_time
-            if diff > 10 then
-                if is_debug then
-                    print("set stay_on_same_connection false")
-                end
-                stay_on_same_connection = false
-            else
-                stay_on_same_connection = true
-            end
-
 			is_in_select_calc_found_rows = false
 			local is_insert_id = false
 
@@ -281,16 +271,21 @@ function read_query( packet )
 			if not is_insert_id then
 				local backend_ndx = lb.idle_ro()
 
+		        print("   try to get a new connection from the pool")
 				if backend_ndx > 0 then
 					proxy.connection.backend_ndx = backend_ndx
 				end
 			else
-                stay_on_same_connection = true
+                c.is_server_conn_reserved = true;
 				print("   found a SELECT LAST_INSERT_ID(), staying on the same backend")
 			end
         else
-            stay_on_same_connection = true
+            c.is_server_conn_reserved = true;
+		    print("   non pure read, staying on the same backend")
         end
+    else
+        c.is_server_conn_reserved = true;
+        print("   staying on the same backend")
     end
 
     last_time = time
@@ -374,23 +369,6 @@ function read_query_result( inj )
 
 	is_in_transaction = flags.in_trans
 	local have_last_insert_id = (res.insert_id and (res.insert_id > 0))
-
-	if not stay_on_same_connection and
-	   not is_in_transaction and
-	   not is_in_select_calc_found_rows and
-	   not have_last_insert_id then
-		-- release the backend
-		proxy.connection.backend_ndx = 0
-        stay_on_same_connection = true
-        if is_debug then
-            print("return connection to the connection pool")
-        end
-	elseif is_debug then
-		print("(read_query_result) staying on the same backend")
-		print("    in_trans        : " .. tostring(is_in_transaction))
-		print("    in_calc_found   : " .. tostring(is_in_select_calc_found_rows))
-		print("    have_insert_id  : " .. tostring(have_last_insert_id))
-	end
 end
 
 --- 

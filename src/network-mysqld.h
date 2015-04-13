@@ -362,6 +362,7 @@ struct network_mysqld_con {
 	struct timeval connect_timeout;
 	struct timeval read_timeout;
 	struct timeval write_timeout;
+	struct timeval wait_clt_next_sql;
 };
 
 

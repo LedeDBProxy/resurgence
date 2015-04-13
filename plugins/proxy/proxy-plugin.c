@@ -249,7 +249,15 @@ NETWORK_MYSQLD_PLUGIN_PROTO(proxy_timeout) {
 		/* fall through */
 	default:
         diff = time(0) - con->client->last_visit_time;
-        if (diff >= 28800) {
+        if (diff < 3600) {
+            if (!con->client->is_server_conn_reserved) {
+                if (con->server) {
+                    network_connection_pool_lua_add_connection(con);
+                        g_debug("%s: server connection returned to pool",
+                                G_STRLOC);
+                }
+            }
+        } else {
             /* the client timed out, close the connection */
             con->state = CON_STATE_ERROR;
         }

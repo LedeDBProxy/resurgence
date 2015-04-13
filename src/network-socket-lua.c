@@ -91,9 +91,22 @@ static int proxy_socket_get(lua_State *L) {
 	return 1;
 }
 
+static int proxy_socket_set(lua_State *L) {
+    network_socket *sock = *(network_socket **)luaL_checkself(L);
+    gsize keysize = 0;
+    const char *key = luaL_checklstring(L, 2, &keysize);
+
+    if (strleq(key, keysize, C("is_server_conn_reserved"))) {
+        sock->is_server_conn_reserved = lua_toboolean(L, -1);
+    }
+
+    return 0;
+}
+
 int network_socket_lua_getmetatable(lua_State *L) {
 	static const struct luaL_reg methods[] = {
 		{ "__index", proxy_socket_get },
+		{ "__newindex", proxy_socket_set },
 		{ NULL, NULL },
 	};
 	return proxy_getmetatable(L, methods);

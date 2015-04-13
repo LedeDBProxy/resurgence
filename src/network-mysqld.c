@@ -259,11 +259,14 @@ network_mysqld_con *network_mysqld_con_new() {
 	con->connect_timeout.tv_sec = 2 * SECONDS;
 	con->connect_timeout.tv_usec = 0;
 
-	con->read_timeout.tv_sec = 30 * SECONDS;
+	con->read_timeout.tv_sec = 600;
 	con->read_timeout.tv_usec = 0;
 	
-	con->write_timeout.tv_sec = 30 * SECONDS;
+	con->write_timeout.tv_sec = 600;
 	con->write_timeout.tv_usec = 0;
+
+    con->wait_clt_next_sql.tv_sec = 1;
+	con->wait_clt_next_sql.tv_usec = 0;
 #undef SECONDS
 #undef MINUTES
 #undef HOURS
@@ -855,7 +858,6 @@ network_socket_retval_t plugin_call(chassis *srv, network_mysqld_con *con, int s
 		func = con->plugins.con_send_query_result;
 
 		if (!func) { /* default implementation */
-            con->client->last_visit_time = time(0);
 			con->state = CON_STATE_READ_QUERY;
 		}
 		break;
@@ -1109,11 +1111,6 @@ void network_mysqld_con_handle(int event_fd, short events, void *user_data) {
 		/* if we got a timeout on CON_STATE_CONNECT_SERVER we should pick another backend */
 		switch ((retval = plugin_call_timeout(srv, con))) {
 		case NETWORK_SOCKET_SUCCESS:
-            if (con->state == CON_STATE_READ_QUERY) {
-                struct timeval timeout = con->read_timeout;
-                WAIT_FOR_EVENT(con->client, EV_READ, &timeout);
-                NETWORK_MYSQLD_CON_TRACK_TIME(con, "wait_for_event::read_query again");
-            }
 			/* the plugin did set a reasonable next state */
 			break;
 		default:
@@ -1597,8 +1594,15 @@ void network_mysqld_con_handle(int event_fd, short events, void *user_data) {
 				switch (network_mysqld_read(srv, recv_sock)) {
 				case NETWORK_SOCKET_SUCCESS:
 					break;
-				case NETWORK_SOCKET_WAIT_FOR_EVENT:
-					timeout = con->read_timeout;
+                case NETWORK_SOCKET_WAIT_FOR_EVENT:
+                    if (con->client->is_need_quick_peek_excuted) {
+                        timeout = con->wait_clt_next_sql;
+                        con->client->is_need_quick_peek_excuted = 0;
+                        g_debug("%s: set a short timeout value", G_STRLOC);
+                    } else {
+                        timeout = con->read_timeout;
+                        g_debug("%s: set a long timeout value", G_STRLOC);
+                    }
 
 					WAIT_FOR_EVENT(con->client, EV_READ, &timeout);
 					NETWORK_MYSQLD_CON_TRACK_TIME(con, "wait_for_event::read_query");
@@ -1821,6 +1825,15 @@ void network_mysqld_con_handle(int event_fd, short events, void *user_data) {
 				con->state = CON_STATE_ERROR;
 				break;
 			}
+
+            if (con->resultset_is_finished) {
+                con->client->last_visit_time = time(0);
+                if (!con->client->is_server_conn_reserved) {
+                    con->client->is_need_quick_peek_excuted = 1;
+                    g_debug("%s: set is_need_quick_peek_excuted true",
+                            G_STRLOC);
+                }
+            }
 
 			/* special treatment for the LOAD DATA LOCAL INFILE command */
 			if (con->state != CON_STATE_ERROR &&

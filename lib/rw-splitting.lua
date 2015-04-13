@@ -37,8 +37,8 @@ local auto_config = require("proxy.auto-config")
 -- connection pool
 if not proxy.global.config.rwsplit then
 	proxy.global.config.rwsplit = {
-		min_idle_connections = 10,
-		max_idle_connections = 20,
+		min_idle_connections = 100,
+		max_idle_connections = 200,
 
 		is_debug = true
 	}
@@ -49,7 +49,6 @@ end
 --
 -- is_in_transaction tracks the state of the transactions
 local is_in_transaction       = false
-local last_time = 0
 
 -- if this was a SELECT SQL_CALC_FOUND_ROWS ... stay on the same connections
 local is_in_select_calc_found_rows = false
@@ -271,21 +270,30 @@ function read_query( packet )
 			if not is_insert_id then
 				local backend_ndx = lb.idle_ro()
 
-		        print("   try to get a new connection from the pool")
+                if is_debug then
+                    print("[pure select statement] ")
+                end
+
 				if backend_ndx > 0 then
 					proxy.connection.backend_ndx = backend_ndx
 				end
 			else
                 c.is_server_conn_reserved = true;
-				print("   found a SELECT LAST_INSERT_ID(), staying on the same backend")
+                if is_debug then
+                    print("[this select statement should use the same connection] ")
+                end
 			end
         else
             c.is_server_conn_reserved = true;
-		    print("   non pure read, staying on the same backend")
+            if is_debug then
+                print("[query but not select statement, should use the same connection] ")
+            end
         end
     else
         c.is_server_conn_reserved = true;
-        print("   staying on the same backend")
+        if is_debug then
+            print("[other statement, should use the same connection] ")
+        end
     end
 
     last_time = time

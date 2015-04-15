@@ -37,8 +37,8 @@ local auto_config = require("proxy.auto-config")
 -- connection pool
 if not proxy.global.config.rwsplit then
 	proxy.global.config.rwsplit = {
-		min_idle_connections = 100,
-		max_idle_connections = 200,
+        min_idle_connections = 1,
+        max_idle_connections = 2,
 
 		is_debug = true
 	}
@@ -225,8 +225,6 @@ function read_query( packet )
 
 	proxy.queries:append(1, packet, { resultset_is_needed = true })
 
-    local time = os.time()
-
     c.is_server_conn_reserved = false
 	-- read/write splitting 
 	--
@@ -271,7 +269,7 @@ function read_query( packet )
 				local backend_ndx = lb.idle_ro()
 
                 if is_debug then
-                    print("[pure select statement] ")
+                    print("  [pure select statement] ")
                 end
 
 				if backend_ndx > 0 then
@@ -280,23 +278,21 @@ function read_query( packet )
 			else
                 c.is_server_conn_reserved = true;
                 if is_debug then
-                    print("[this select statement should use the same connection] ")
+                    print("  [this select statement should use the same connection] ")
                 end
 			end
         else
             c.is_server_conn_reserved = true;
             if is_debug then
-                print("[query but not select statement, should use the same connection] ")
+                print("  [query but not select statement, should use the same connection] ")
             end
         end
     else
         c.is_server_conn_reserved = true;
         if is_debug then
-            print("[other statement, should use the same connection] ")
+            print("  [other statement, should use the same connection] ")
         end
     end
-
-    last_time = time
 
 	-- no backend selected yet, pick a master
 	if proxy.connection.backend_ndx == 0 then

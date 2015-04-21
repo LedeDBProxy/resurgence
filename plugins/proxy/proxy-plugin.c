@@ -1329,6 +1329,7 @@ NETWORK_MYSQLD_PLUGIN_PROTO(proxy_read_query) {
 	network_socket *recv_sock, *send_sock;
 	network_mysqld_con_lua_t *st = con->plugin_con_state;
 	int proxy_query = 1;
+	int quietly_quit = 0;
 	network_mysqld_lua_stmt_ret ret;
 	
     if (st == NULL) return NETWORK_SOCKET_ERROR;
@@ -1354,7 +1355,7 @@ NETWORK_MYSQLD_PLUGIN_PROTO(proxy_read_query) {
 	 *
 	 * for PROXY_SEND_RESULT we don't need a server
 	 */
-	if (ret != PROXY_SEND_RESULT &&
+	if (ret != PROXY_SEND_NONE && ret != PROXY_SEND_RESULT &&
 	    con->server == NULL) {
 		g_critical("%s.%d: I have no server backend, closing connection", __FILE__, __LINE__);
 		return NETWORK_SOCKET_ERROR;
@@ -1413,12 +1414,20 @@ NETWORK_MYSQLD_PLUGIN_PROTO(proxy_read_query) {
 		while ((packet = g_queue_pop_head(recv_sock->recv_queue->chunks))) g_string_free(packet, TRUE);
 
 		break; }
+	case PROXY_SEND_NONE: {
+		quietly_quit = 1;
+
+		break; }
 	default:
 		g_error("%s.%d: ", __FILE__, __LINE__);
 	}
 
 	if (proxy_query) {
-		con->state = CON_STATE_SEND_QUERY;
+        if (quietly_quit) {
+		    con->state = CON_STATE_CLIENT_QUIT;
+        } else {
+            con->state = CON_STATE_SEND_QUERY;
+        }
 	} else {
 		GList *cur;
 

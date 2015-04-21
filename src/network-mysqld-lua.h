@@ -32,6 +32,7 @@ typedef enum {
 	PROXY_SEND_QUERY,
 	PROXY_SEND_RESULT,
 	PROXY_SEND_INJECTION,
+	PROXY_SEND_NONE,
 	PROXY_IGNORE_RESULT       /** for read_query_result */
 } network_mysqld_lua_stmt_ret;
 

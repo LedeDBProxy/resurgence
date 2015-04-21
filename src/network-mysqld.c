@@ -956,6 +956,7 @@ const char *network_mysqld_con_state_get_name(network_mysqld_con_state_t state) 
 	case CON_STATE_SEND_LOCAL_INFILE_DATA: return "CON_STATE_SEND_LOCAL_INFILE_DATA";
 	case CON_STATE_READ_LOCAL_INFILE_RESULT: return "CON_STATE_READ_LOCAL_INFILE_RESULT";
 	case CON_STATE_SEND_LOCAL_INFILE_RESULT: return "CON_STATE_SEND_LOCAL_INFILE_RESULT";
+	case CON_STATE_CLIENT_QUIT: return "CON_STATE_CLIENT_QUIT";
 	case CON_STATE_CLOSE_CLIENT: return "CON_STATE_CLOSE_CLIENT";
 	case CON_STATE_CLOSE_SERVER: return "CON_STATE_CLOSE_SERVER";
 	case CON_STATE_ERROR: return "CON_STATE_ERROR";
@@ -1163,6 +1164,7 @@ void network_mysqld_con_handle(int event_fd, short events, void *user_data) {
 
 			return;
 		case CON_STATE_CLOSE_CLIENT:
+		case CON_STATE_CLIENT_QUIT:
 		case CON_STATE_CLOSE_SERVER:
 			/* FIXME: this comment has nothing to do with reality...
 			 * the server connection is still fine, 

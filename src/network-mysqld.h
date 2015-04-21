@@ -205,16 +205,17 @@ typedef enum {
 	CON_STATE_SEND_QUERY_RESULT = 13,    /**< Result set packets are to be sent to a client */
 	
 	CON_STATE_CLOSE_CLIENT = 14,         /**< The client connection should be closed */
-	CON_STATE_SEND_ERROR = 15,           /**< An unrecoverable error occurred, leads to sending a MySQL ERR packet to the client and closing the client connection */
-	CON_STATE_ERROR = 16,                /**< An error occurred (malformed/unexpected packet, unrecoverable network error), internal state */
+	CON_STATE_CLIENT_QUIT = 15,
+	CON_STATE_SEND_ERROR = 16,           /**< An unrecoverable error occurred, leads to sending a MySQL ERR packet to the client and closing the client connection */
+	CON_STATE_ERROR = 17,                /**< An error occurred (malformed/unexpected packet, unrecoverable network error), internal state */
 
-	CON_STATE_CLOSE_SERVER = 17,         /**< The server connection should be closed */
+	CON_STATE_CLOSE_SERVER = 18,         /**< The server connection should be closed */
 
 	/* handling the LOAD DATA LOCAL INFILE protocol extensions */
-	CON_STATE_READ_LOCAL_INFILE_DATA = 18,
-	CON_STATE_SEND_LOCAL_INFILE_DATA = 19,
-	CON_STATE_READ_LOCAL_INFILE_RESULT = 20,
-	CON_STATE_SEND_LOCAL_INFILE_RESULT = 21
+	CON_STATE_READ_LOCAL_INFILE_DATA = 19,
+	CON_STATE_SEND_LOCAL_INFILE_DATA = 20,
+	CON_STATE_READ_LOCAL_INFILE_RESULT = 21,
+	CON_STATE_SEND_LOCAL_INFILE_RESULT = 22
 } network_mysqld_con_state_t;
 
 typedef enum { 

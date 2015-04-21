@@ -192,18 +192,18 @@ function read_query( packet )
 		end
 	end
 
-	if cmd.type == proxy.COM_QUIT then
+	if cmd.type == proxy.COM_QUIT and is_backend_conn_keepalive  then
 		-- don't send COM_QUIT to the backend. We manage the connection
 		-- in all aspects.
-		proxy.response = {
-			type = proxy.MYSQLD_PACKET_OK,
-		}
+		-- proxy.response = {
+		--	type = proxy.MYSQLD_PACKET_OK,
+		-- }
 	
 		if is_debug then
 			print("  (QUIT) current backend   = " .. proxy.connection.backend_ndx)
 		end
 
-		return proxy.PROXY_SEND_RESULT
+		return proxy.PROXY_SEND_NONE
 	end
 	
 	-- COM_BINLOG_DUMP packet can't be balanced

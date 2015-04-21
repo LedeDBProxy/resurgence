@@ -464,6 +464,7 @@ void network_mysqld_lua_init_global_fenv(lua_State *L) {
 	
 	DEF(PROXY_SEND_QUERY);
 	DEF(PROXY_SEND_RESULT);
+	DEF(PROXY_SEND_NONE);
 	DEF(PROXY_IGNORE_RESULT);
 
 	DEF(MYSQLD_PACKET_OK);

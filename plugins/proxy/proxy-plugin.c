@@ -2051,6 +2051,10 @@ static network_mysqld_lua_stmt_ret proxy_lua_disconnect_client(network_mysqld_co
 	lua_pop(L, 1); /* fenv */
 
 	g_assert(lua_isfunction(L, -1));
+
+    if (st->connection_close) {
+        con->sever_is_closed = TRUE;
+    }
 #endif
 	return ret;
 }
@@ -2087,7 +2091,7 @@ NETWORK_MYSQLD_PLUGIN_PROTO(proxy_disconnect_client) {
 		break;
 	}
 
-	if (con->state == CON_STATE_CLOSE_CLIENT) {
+	if (con->state == CON_STATE_CLOSE_CLIENT && !con->sever_is_closed) {
 		/* move the connection to the connection pool
 		 *
 		 * this disconnects con->server and safes it from getting free()ed later

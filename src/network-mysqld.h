@@ -331,6 +331,7 @@ struct network_mysqld_con {
 	 * MySQL Proxy would report spurious errors for the latter case, if we failed to track this command.
 	 */
 	gboolean com_quit_seen;
+	gboolean sever_is_closed;
 
 	/**
 	 * Flag indicating whether we have received all data from load data infile.

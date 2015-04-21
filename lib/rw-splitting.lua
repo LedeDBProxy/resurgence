@@ -49,6 +49,7 @@ end
 --
 -- is_in_transaction tracks the state of the transactions
 local is_in_transaction       = false
+local is_backend_conn_keepalive = true
 
 -- if this was a SELECT SQL_CALC_FOUND_ROWS ... stay on the same connections
 local is_in_select_calc_found_rows = false
@@ -107,23 +108,18 @@ function connect_server()
             rw_ndx == 0 then
             if cur_idle == 0 and s.connected_clients >= pool.max_idle_connections then
                 print("pool:" .. i .. " is full")
-            else
-                rw_ndx = i
+                is_backend_conn_keepalive = false
             end
+            rw_ndx = i
         end
 	end
 
 	if proxy.connection.backend_ndx == 0 then
 		if is_debug then
 			print("  [" .. rw_ndx .. "] taking master as default")
-		end
-        if rw_ndx == 0 then
-			print("  too many connections")
-            return proxy.PROXY_SEND_RESULT
-        else
-            proxy.connection.backend_ndx = rw_ndx
         end
-	end
+        proxy.connection.backend_ndx = rw_ndx
+    end
 
 	-- pick a random backend
 	--
@@ -386,8 +382,15 @@ function disconnect_client()
 		print("[disconnect_client] " .. proxy.connection.client.src.name)
 	end
 
-	-- make sure we are disconnection from the connection
-	-- to move the connection into the pool
-	proxy.connection.backend_ndx = 0
+    if not is_backend_conn_keepalive then 
+        if is_debug then
+            print("set connection_close true ")
+        end
+        proxy.connection.connection_close = true
+    else
+        -- make sure we are disconnection from the connection
+        -- to move the connection into the pool
+        proxy.connection.backend_ndx = 0
+    end
 end
 

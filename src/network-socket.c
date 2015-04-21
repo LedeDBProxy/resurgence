@@ -165,14 +165,11 @@ network_socket *network_socket_accept(network_socket *srv) {
 	g_return_val_if_fail(srv->socket_type == SOCK_STREAM, NULL); /* accept() only works on stream sockets */
 
 	client = network_socket_new();
+    if (-1 == (client->fd = accept4(srv->fd, &client->src->addr.common, &(client->src->len), SOCK_NONBLOCK))) {
+        network_socket_free(client);
 
-	if (-1 == (client->fd = accept(srv->fd, &client->src->addr.common, &(client->src->len)))) {
-		network_socket_free(client);
-
-		return NULL;
-	}
-
-	network_socket_set_non_blocking(client);
+        return NULL;
+    }
 
 	if (network_address_refresh_name(client->src)) {
 		network_socket_free(client);

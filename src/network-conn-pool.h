@@ -37,7 +37,6 @@ typedef struct {
 typedef struct {
     guint64         key;
     guint           shared;
-    guint           special;
 	network_socket *sock;          /** the idling socket */
 	
 	network_connection_pool *pool; /** a pointer back to the pool */

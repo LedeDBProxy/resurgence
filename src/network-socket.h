@@ -76,7 +76,10 @@ typedef struct {
 	network_address *src; /**< getsockname() */
 	network_address *dst; /**< getpeername() */
 
+    guint64 sql_burst_executed;
+
 	int socket_type; /**< SOCK_STREAM or SOCK_DGRAM for now */
+
 
 	guint8   last_packet_id; /**< internal tracking of the packet_id's the automaticly set the next good packet-id */
 	gboolean packet_id_is_reset; /**< internal tracking of the packet_id sequencing */

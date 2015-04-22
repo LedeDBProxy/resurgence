@@ -37,10 +37,10 @@ local auto_config = require("proxy.auto-config")
 -- connection pool
 if not proxy.global.config.rwsplit then
 	proxy.global.config.rwsplit = {
-        min_idle_connections = 10,
-        max_idle_connections = 20,
+        min_idle_connections = 0,
+        max_idle_connections = 1,
 
-		is_debug = false
+		is_debug = true
 	}
 end
 
@@ -278,15 +278,16 @@ function read_query( packet )
                 end
 			end
         else
-            c.is_server_conn_reserved = true;
             if is_debug then
-                print("  [query but not select statement, should use the same connection] ")
+                print("  [query but not select statement, reuse connection] ")
             end
         end
     else
-        c.is_server_conn_reserved = true;
-        if is_debug then
-            print("  [other statement, should use the same connection] ")
+        if is_in_transaction then
+            c.is_server_conn_reserved = true;
+            if is_debug then
+                print("  [transaction statement, should use the same connection] ")
+            end
         end
     end
 

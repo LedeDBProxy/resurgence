@@ -298,6 +298,7 @@ struct network_mysqld_con {
 	 * It does not follow the MySQL protocol by itself and its client network_socket will always be NULL.
 	 */
 	int is_listen_socket;
+	int valid_prepare_stmt_cnt;
 
 	/**
 	 * An integer indicating the result received from a server after sending an authentication request.

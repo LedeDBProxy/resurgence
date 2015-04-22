@@ -321,14 +321,14 @@ void network_mysqld_com_stmt_prepare_result_free(network_mysqld_com_stmt_prepare
 
 int network_mysqld_proto_get_com_stmt_prepare_result(
 		network_packet *packet, 
-		network_mysqld_com_stmt_prepare_result_t *udata) {
+		network_mysqld_com_stmt_prepare_result_t *udata, network_mysqld_con *con) {
 	guint8 status;
 	int is_finished = 0;
 	int err = 0;
 
 	err = err || network_mysqld_proto_get_int8(packet, &status);
 
-	if (udata->first_packet == 1) {
+    if (udata->first_packet == 1) {
 		udata->first_packet = 0;
 
 		switch (status) {
@@ -351,11 +351,20 @@ int network_mysqld_proto_get_com_stmt_prepare_result(
 
 			if (udata->want_eofs == 0) {
 				is_finished = 1;
+                con->valid_prepare_stmt_cnt++;
 			}
+
+            g_message("%s: want_eofs value:%d",
+					G_STRLOC,
+					udata->want_eofs);
 
 			break;
 		case MYSQLD_PACKET_ERR:
 			is_finished = 1;
+            g_message("%s: network_mysqld_proto_get_com_stmt_prepare_result get packet err:%d",
+            G_STRLOC,
+            status);
+
 			break;
 		default:
 			g_error("%s.%d: COM_STMT_PREPARE should either get a (OK|ERR), got %02x",
@@ -375,7 +384,11 @@ int network_mysqld_proto_get_com_stmt_prepare_result(
 		case MYSQLD_PACKET_EOF:
 			if (--udata->want_eofs == 0) {
 				is_finished = 1;
+                con->valid_prepare_stmt_cnt++;
 			}
+            g_message("%s: other want_eofs value:%d",
+					G_STRLOC,
+					udata->want_eofs);
 			break;
 		default:
 			break;
@@ -674,7 +687,7 @@ int network_mysqld_proto_get_query_result(network_packet *packet, network_mysqld
 
 		break;
 	case COM_STMT_PREPARE:
-		is_finished = network_mysqld_proto_get_com_stmt_prepare_result(packet, con->parse.data);
+		is_finished = network_mysqld_proto_get_com_stmt_prepare_result(packet, con->parse.data, con);
 		break;
 	case COM_STMT_EXECUTE:
 		/* COM_STMT_EXECUTE result packets are basically the same as COM_QUERY ones,

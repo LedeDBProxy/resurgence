@@ -1727,6 +1727,14 @@ void network_mysqld_con_handle(int event_fd, short events, void *user_data) {
 				con->state = CON_STATE_READ_QUERY;
 				if (con->client) network_mysqld_queue_reset(con->client);
 				if (con->server) network_mysqld_queue_reset(con->server);
+
+                con->valid_prepare_stmt_cnt--;
+                if (con->valid_prepare_stmt_cnt == 0) {
+                    network_connection_pool_lua_add_connection(con);
+                    g_debug("%s: add prepare server connection returned to pool",
+                                G_STRLOC);
+
+                }
 				break;
 			default:
 				con->state = CON_STATE_READ_QUERY_RESULT;

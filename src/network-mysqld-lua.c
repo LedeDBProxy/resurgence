@@ -136,10 +136,9 @@ static int proxy_connection_set(lua_State *L) {
 			st->backend_ndx = backend_ndx;
 		}
 	} else if (0 == strcmp(key, "connection_close")) {
-		luaL_checktype(L, 3, LUA_TBOOLEAN);
+        luaL_checktype(L, 3, LUA_TBOOLEAN);
 
-		st->connection_close = lua_toboolean(L, 3);
-
+        st->connection_close = lua_toboolean(L, 3);
 	} else {
 		return luaL_error(L, "proxy.connection.%s is not writable", key);
 	}

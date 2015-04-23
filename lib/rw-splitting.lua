@@ -37,8 +37,8 @@ local auto_config = require("proxy.auto-config")
 -- connection pool
 if not proxy.global.config.rwsplit then
 	proxy.global.config.rwsplit = {
-        min_idle_connections = 0,
-        max_idle_connections = 1,
+        min_idle_connections = 1,
+        max_idle_connections = 2,
 
 		is_debug = true
 	}
@@ -50,6 +50,7 @@ end
 -- is_in_transaction tracks the state of the transactions
 local is_in_transaction       = false
 local is_backend_conn_keepalive = true
+local use_pool_conn = false
 
 -- if this was a SELECT SQL_CALC_FOUND_ROWS ... stay on the same connections
 local is_in_select_calc_found_rows = false
@@ -132,6 +133,8 @@ function connect_server()
 			print("  using pooled connection from: " .. proxy.connection.backend_ndx)
 		end
 
+        use_pool_conn = true
+
 		-- stay with it
 		return proxy.PROXY_IGNORE_RESULT
 	end
@@ -150,18 +153,24 @@ end
 --
 -- auth.packet is the packet
 function read_auth_result( auth )
+	local is_debug = proxy.global.config.rwsplit.is_debug
 	if is_debug then
 		print("[read_auth_result] " .. proxy.connection.client.src.name)
 	end
 	if auth.packet:byte() == proxy.MYSQLD_PACKET_OK then
 		-- auth was fine, disconnect from the server
-		proxy.connection.backend_ndx = 0
+        if use_pool_conn then
+            proxy.connection.backend_ndx = 0
+        end
+        if is_debug then
+            print("  (read_auth_result) ... ok");
+        end
 	elseif auth.packet:byte() == proxy.MYSQLD_PACKET_EOF then
 		-- we received either a 
 		-- 
 		-- * MYSQLD_PACKET_ERR and the auth failed or
 		-- * MYSQLD_PACKET_EOF which means a OLD PASSWORD (4.0) was sent
-		print("(read_auth_result) ... not ok yet");
+		print("  (read_auth_result) ... not ok yet");
 	elseif auth.packet:byte() == proxy.MYSQLD_PACKET_ERR then
 		-- auth failed
 	end

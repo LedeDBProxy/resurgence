@@ -297,6 +297,12 @@ function read_query( packet )
             if is_debug then
                 print("  [transaction statement, should use the same connection] ")
             end
+        else
+            if cmd.type == proxy.COM_STMT_PREPARE then
+                if is_debug then
+                    print("  [not transaction statement], cmd:" .. cmd.query)
+                end
+            end
         end
     end
 
@@ -378,7 +384,6 @@ function read_query_result( inj )
 	end
 
 	is_in_transaction = flags.in_trans
-	local have_last_insert_id = (res.insert_id and (res.insert_id > 0))
 end
 
 --- 

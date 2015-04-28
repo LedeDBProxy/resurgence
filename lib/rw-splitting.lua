@@ -37,8 +37,8 @@ local auto_config = require("proxy.auto-config")
 -- connection pool
 if not proxy.global.config.rwsplit then
 	proxy.global.config.rwsplit = {
-        min_idle_connections = 1,
-        max_idle_connections = 2,
+        min_idle_connections = 10,
+        max_idle_connections = 120,
 
 		is_debug = false
 	}
@@ -80,6 +80,7 @@ function connect_server()
 		local s        = proxy.global.backends[i]
 		local pool     = s.pool -- we don't have a username yet, try to find a connections which is idling
 		local cur_idle = pool.users[""].cur_idle_connections
+		local cur_idle2 = pool.users["root"].cur_idle_connections
 
 		pool.min_idle_connections = proxy.global.config.rwsplit.min_idle_connections
 		pool.max_idle_connections = proxy.global.config.rwsplit.max_idle_connections
@@ -87,6 +88,7 @@ function connect_server()
 		if is_debug then
 			print("  [".. i .."].connected_clients = " .. s.connected_clients)
 			print("  [".. i .."].pool.cur_idle     = " .. cur_idle)
+			print("  [".. i .."].pool.root idle    = " .. cur_idle2)
 			print("  [".. i .."].pool.max_idle     = " .. pool.max_idle_connections)
 			print("  [".. i .."].pool.min_idle     = " .. pool.min_idle_connections)
 			print("  [".. i .."].type = " .. s.type)
@@ -162,8 +164,12 @@ function read_auth_result( auth )
 	end
 	if auth.packet:byte() == proxy.MYSQLD_PACKET_OK then
 		-- auth was fine, disconnect from the server
-        if not use_pool_conn and not is_backend_conn_keepalive then
+        if not use_pool_conn and is_backend_conn_keepalive then
             proxy.connection.backend_ndx = 0
+        else
+            if is_debug then
+                print("  no need to put the connection to pool ... ok")
+            end
         end
         if is_debug then
             print("  (read_auth_result) ... ok")

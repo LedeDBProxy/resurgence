@@ -124,6 +124,7 @@ static gboolean find_idle_conns(gpointer UNUSED_PARAM(_key), gpointer _val, gpoi
 	guint min_idle_conns = *(gint *)_user_data;
 	GQueue *conns = _val;
 
+    g_debug("%s: conns length:%d, min_idle_conns:%d", G_STRLOC, conns->length, min_idle_conns);
 	return (conns->length > min_idle_conns);
 }
 

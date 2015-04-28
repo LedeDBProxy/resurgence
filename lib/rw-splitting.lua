@@ -40,7 +40,7 @@ if not proxy.global.config.rwsplit then
         min_idle_connections = 1,
         max_idle_connections = 2,
 
-		is_debug = true
+		is_debug = false
 	}
 end
 
@@ -62,7 +62,8 @@ local is_in_select_calc_found_rows = false
 -- as long as we don't have enough connections in the pool, create new connections
 --
 function connect_server() 
-	local is_debug = proxy.global.config.rwsplit.is_debug
+	local is_debug = true
+	-- local is_debug = proxy.global.config.rwsplit.is_debug
 	-- make sure that we connect to each backend at least ones to 
 	-- keep the connections to the servers alive
 	--
@@ -154,13 +155,14 @@ end
 --
 -- auth.packet is the packet
 function read_auth_result( auth )
-	local is_debug = proxy.global.config.rwsplit.is_debug
+	local is_debug = true
+	-- local is_debug = proxy.global.config.rwsplit.is_debug
 	if is_debug then
 		print("[read_auth_result] " .. proxy.connection.client.src.name)
 	end
 	if auth.packet:byte() == proxy.MYSQLD_PACKET_OK then
 		-- auth was fine, disconnect from the server
-        if use_pool_conn then
+        if not use_pool_conn and not is_backend_conn_keepalive then
             proxy.connection.backend_ndx = 0
         end
         if is_debug then
@@ -219,6 +221,7 @@ function read_query( packet )
 		-- }
 	
 		if is_debug then
+            print("  valid_prepare_stmt_cnt:" .. ps_cnt)
 			print("  (QUIT) current backend   = " .. proxy.connection.backend_ndx)
 		end
 
@@ -308,7 +311,7 @@ function read_query( packet )
             end
         else
             if cmd.type == proxy.COM_STMT_PREPARE then
-                is_prepared =true
+                is_prepared = true
                 conn_reserved = true
                 if is_debug then
                     print("  [prepare statement], cmd:" .. cmd.query)
@@ -320,9 +323,6 @@ function read_query( packet )
                     local session_read_only = 0
                     for i = 2, #tokens do
                         local token = tokens[i]
-                        print("token: " .. token.token_name)
-                        print("  val: " .. token.text)
-
                         if (token.token_name == "TK_COMMENT") then
                             if is_debug then
                                 print("  [check readonly for ps]")
@@ -444,14 +444,15 @@ end
 -- @return nil - close connection 
 --         IGNORE_RESULT - store connection in the pool
 function disconnect_client()
-	local is_debug = proxy.global.config.rwsplit.is_debug
+	local is_debug = true
+	-- local is_debug = proxy.global.config.rwsplit.is_debug
 	if is_debug then
 		print("[disconnect_client] " .. proxy.connection.client.src.name)
 	end
-
+    
     if not is_backend_conn_keepalive then 
         if is_debug then
-            print("set connection_close true ")
+            print("  set connection_close true ")
         end
         proxy.connection.connection_close = true
     else

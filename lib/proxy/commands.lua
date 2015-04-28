@@ -89,6 +89,8 @@ function parse(packet)
 		cmd.option = packet:sub(2)
 	elseif cmd.type == proxy.COM_BINLOG_DUMP then
 		-- nothing to decode
+	elseif cmd.type == proxy.COM_STMT_RESET then
+		-- nothing to decode
 	else
 		print("[debug] (command) unhandled type name:" .. tostring(cmd.type_name) .. " byte:" .. tostring(cmd.type))
 	end

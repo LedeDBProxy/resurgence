@@ -49,6 +49,7 @@ end
 --
 -- is_in_transaction tracks the state of the transactions
 local is_in_transaction       = false
+local is_prepared             = false
 local is_backend_conn_keepalive = true
 local use_pool_conn = false
 
@@ -163,14 +164,14 @@ function read_auth_result( auth )
             proxy.connection.backend_ndx = 0
         end
         if is_debug then
-            print("  (read_auth_result) ... ok");
+            print("  (read_auth_result) ... ok")
         end
 	elseif auth.packet:byte() == proxy.MYSQLD_PACKET_EOF then
 		-- we received either a 
 		-- 
 		-- * MYSQLD_PACKET_ERR and the auth failed or
 		-- * MYSQLD_PACKET_EOF which means a OLD PASSWORD (4.0) was sent
-		print("  (read_auth_result) ... not ok yet");
+		print("  (read_auth_result) ... not ok yet")
 	elseif auth.packet:byte() == proxy.MYSQLD_PACKET_ERR then
 		-- auth failed
 	end
@@ -183,12 +184,21 @@ function read_query( packet )
 	local is_debug = proxy.global.config.rwsplit.is_debug
 	local cmd      = commands.parse(packet)
 	local c        = proxy.connection.client
+    local ps_cnt   = 0
+    local conn_reserved = false
 
 	local r = auto_config.handle(cmd)
 	if r then return r end
 
 	local tokens
 	local norm_query
+
+    if is_prepared then
+        ps_cnt = proxy.connection.valid_prepare_stmt_cnt
+        if is_debug then
+            print("  valid_prepare_stmt_cnt:" .. ps_cnt)
+        end
+    end
 
 	-- looks like we have to forward this statement to a backend
 	if is_debug then
@@ -230,62 +240,61 @@ function read_query( packet )
 
 	proxy.queries:append(1, packet, { resultset_is_needed = true })
 
-    c.is_server_conn_reserved = false
 	-- read/write splitting 
 	--
 	-- send all non-transactional SELECTs to a slave
-	if not is_in_transaction and
-	    cmd.type == proxy.COM_QUERY then
-		tokens     = tokens or assert(tokenizer.tokenize(cmd.query))
+    if not is_in_transaction and
+        cmd.type == proxy.COM_QUERY then
+        tokens     = tokens or assert(tokenizer.tokenize(cmd.query))
 
-		local stmt = tokenizer.first_stmt_token(tokens)
+        local stmt = tokenizer.first_stmt_token(tokens)
 
-		if stmt.token_name == "TK_SQL_SELECT" then
-			is_in_select_calc_found_rows = false
-			local is_insert_id = false
+        if stmt.token_name == "TK_SQL_SELECT" then
+            is_in_select_calc_found_rows = false
+            local is_insert_id = false
 
-			for i = 1, #tokens do
-				local token = tokens[i]
-				-- SQL_CALC_FOUND_ROWS + FOUND_ROWS() have to be executed 
-				-- on the same connection
-				-- print("token: " .. token.token_name)
-				-- print("  val: " .. token.text)
-				
-				if not is_in_select_calc_found_rows and token.token_name == "TK_SQL_SQL_CALC_FOUND_ROWS" then
-					is_in_select_calc_found_rows = true
-				elseif not is_insert_id and token.token_name == "TK_LITERAL" then
-					local utext = token.text:upper()
+            for i = 2, #tokens do
+                local token = tokens[i]
+                -- SQL_CALC_FOUND_ROWS + FOUND_ROWS() have to be executed
+                -- on the same connection
+                -- print("token: " .. token.token_name)
+                -- print("  val: " .. token.text)
 
-					if utext == "LAST_INSERT_ID" or
-					   utext == "@@INSERT_ID" then
-						is_insert_id = true
-					end
-				end
+                if not is_in_select_calc_found_rows and token.token_name == "TK_SQL_SQL_CALC_FOUND_ROWS" then
+                    is_in_select_calc_found_rows = true
+                elseif not is_insert_id and token.token_name == "TK_LITERAL" then
+                    local utext = token.text:upper()
 
-				-- we found the two special token, we can't find more
-				if is_insert_id and is_in_select_calc_found_rows then
-					break
-				end
-			end
+                    if utext == "LAST_INSERT_ID" or
+                        utext == "@@INSERT_ID" then
+                        is_insert_id = true
+                    end
+                end
 
-			-- if we ask for the last-insert-id we have to ask it on the original 
-			-- connection
-			if not is_insert_id then
-				local backend_ndx = lb.idle_ro()
+                -- we found the two special token, we can't find more
+                if is_insert_id and is_in_select_calc_found_rows then
+                    break
+                end
+            end
+
+            -- if we ask for the last-insert-id we have to ask it on the original 
+            -- connection
+            if not is_insert_id then
+                local backend_ndx = lb.idle_ro()
 
                 if is_debug then
                     print("  [pure select statement] ")
                 end
 
-				if backend_ndx > 0 then
-					proxy.connection.backend_ndx = backend_ndx
-				end
-			else
-                c.is_server_conn_reserved = true;
+                if backend_ndx > 0 then
+                    proxy.connection.backend_ndx = backend_ndx
+                end
+            else
+                conn_reserved = true
                 if is_debug then
                     print("  [this select statement should use the same connection] ")
                 end
-			end
+            end
         else
             if is_debug then
                 print("  [query but not select statement, reuse connection] ")
@@ -293,20 +302,63 @@ function read_query( packet )
         end
     else
         if is_in_transaction then
-            c.is_server_conn_reserved = true;
+            conn_reserved = true
             if is_debug then
                 print("  [transaction statement, should use the same connection] ")
             end
         else
             if cmd.type == proxy.COM_STMT_PREPARE then
+                is_prepared =true
+                conn_reserved = true
                 if is_debug then
-                    print("  [not transaction statement], cmd:" .. cmd.query)
+                    print("  [prepare statement], cmd:" .. cmd.query)
+                end
+                tokens     = tokens or assert(tokenizer.tokenize(cmd.query))
+                local stmt = tokenizer.first_stmt_token(tokens)
+
+                if stmt.token_name == "TK_SQL_SELECT" then
+                    local session_read_only = 0
+                    for i = 2, #tokens do
+                        local token = tokens[i]
+                        print("token: " .. token.token_name)
+                        print("  val: " .. token.text)
+
+                        if (token.token_name == "TK_COMMENT") then
+                            if is_debug then
+                                print("  [check readonly for ps]")
+                            end
+                            local _, _, readonly= string.find(token.text, "sesson_read_only=%s*(%d)")
+                            if readonly then
+                                session_read_only = 1
+                                break
+                            end
+                        end
+                    end
+
+                    if session_read_only == 1 then
+                        local backend_ndx = lb.idle_ro()
+
+                        if is_debug then
+                            print("  [pure readonly statement] ")
+                        end
+
+                        if backend_ndx > 0 then
+                            proxy.connection.backend_ndx = backend_ndx
+                        end
+                    end
+                end
+            elseif ps_cnt > 0 then
+                conn_reserved = true
+                if is_debug then
+                    print("  [prepare keeping connection]")
                 end
             end
         end
     end
 
-	-- no backend selected yet, pick a master
+    c.is_server_conn_reserved = conn_reserved
+
+    -- no backend selected yet, pick a master
 	if proxy.connection.backend_ndx == 0 then
 		-- we don't have a backend right now
 		-- 
@@ -340,8 +392,8 @@ function read_query( packet )
 	if is_debug then
 		if proxy.connection.backend_ndx > 0 then
 			local b = proxy.global.backends[proxy.connection.backend_ndx]
-			print("  sending to backend : " .. b.dst.name);
-			print("    is_slave         : " .. tostring(b.type == proxy.BACKEND_TYPE_RO));
+			print("  sending to backend : " .. b.dst.name)
+			print("    is_slave         : " .. tostring(b.type == proxy.BACKEND_TYPE_RO))
 			print("    server default db: " .. s.default_db)
 			print("    server username  : " .. s.username)
 		end

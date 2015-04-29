@@ -95,6 +95,10 @@ network_connection_pool *network_connection_pool_new(void) {
 
 	pool = g_new0(network_connection_pool, 1);
 
+    pool->max_idle_connections = 100;
+    pool->mid_idle_connections = 50;
+    pool->min_idle_connections = 10;
+    pool->init_phase = TRUE;
 	pool->users = g_hash_table_new_full(g_hash_table_string_hash, g_hash_table_string_equal, g_hash_table_string_free, g_queue_free_all);
 
 	return pool;
@@ -121,11 +125,11 @@ void network_connection_pool_free(network_connection_pool *pool) {
  * @see network_connection_pool_get_conns 
  */
 static gboolean find_idle_conns(gpointer UNUSED_PARAM(_key), gpointer _val, gpointer _user_data) {
-	guint min_idle_conns = *(gint *)_user_data;
+	guint idle_conns_threshold = *(gint *)_user_data;
 	GQueue *conns = _val;
 
-    g_critical("%s: conns length:%d, min_idle_conns:%d", G_STRLOC, conns->length, min_idle_conns);
-	return (conns->length > min_idle_conns);
+    g_critical("%s: conns length:%d, idle_conns_threshold:%d", G_STRLOC, conns->length, idle_conns_threshold);
+	return (conns->length > idle_conns_threshold);
 }
 
 GQueue *network_connection_pool_get_conns(network_connection_pool *pool, GString *username, GString *UNUSED_PARAM(default_db)) {
@@ -146,7 +150,16 @@ GQueue *network_connection_pool_get_conns(network_connection_pool *pool, GString
 	 * min_idle waiting
 	 */
 
-	conns = g_hash_table_find(pool->users, find_idle_conns, &(pool->min_idle_connections));
+    if (pool->init_phase) {
+        conns = g_hash_table_find(pool->users, find_idle_conns, &(pool->mid_idle_connections));
+        if (conns && conns->length > pool->mid_idle_connections) {
+            pool->init_phase = FALSE;
+		    g_critical("%s: (get_conns) init phase complete for user '%s' -> %p", G_STRLOC, username->str, conns);
+        }
+    } else {
+        conns = g_hash_table_find(pool->users, find_idle_conns, &(pool->min_idle_connections));
+    }
+
 	g_critical("%s: (get_conns) try to find max-idling conns for user '%s' -> %p", G_STRLOC, username ? username->str : "", conns);
 
 	return conns;
@@ -172,11 +185,6 @@ network_socket *network_connection_pool_get(network_connection_pool *pool,
 	network_connection_pool_entry *entry, *found_entry = NULL;
 
 	GQueue *conns = network_connection_pool_get_conns(pool, username, NULL);
-
-    if (conns && info->state < CON_STATE_READ_QUERY && conns->length < pool->mid_idle_connections) {
-		g_critical("%s: (get) not use conns from pool '%s' -> %p", G_STRLOC, username ? username->str : "", conns);
-        conns = NULL;
-    }
 
 	/**
 	 * if we know this use, return a authed connection 

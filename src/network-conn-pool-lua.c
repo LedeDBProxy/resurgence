@@ -123,6 +123,8 @@ static int proxy_pool_get(lua_State *L) {
 		lua_pushinteger(L, pool->max_idle_connections);
 	} else if (strleq(key, keysize, C("min_idle_connections"))) {
 		lua_pushinteger(L, pool->min_idle_connections);
+	} else if (strleq(key, keysize, C("min_idle_connections"))) {
+		lua_pushinteger(L, pool->min_idle_connections);
 	} else if (strleq(key, keysize, C("users"))) {
 		network_connection_pool **pool_p;
 
@@ -146,6 +148,8 @@ static int proxy_pool_set(lua_State *L) {
 
 	if (strleq(key, keysize, C("max_idle_connections"))) {
 		pool->max_idle_connections = lua_tointeger(L, -1);
+	} else if (strleq(key, keysize, C("mid_idle_connections"))) {
+		pool->mid_idle_connections = lua_tointeger(L, -1);
 	} else if (strleq(key, keysize, C("min_idle_connections"))) {
 		pool->min_idle_connections = lua_tointeger(L, -1);
 	} else {
@@ -244,7 +248,7 @@ network_socket *network_connection_pool_lua_swap(network_mysqld_con *con, int ba
 	network_mysqld_con_lua_t *st = con->plugin_con_state;
 	chassis_private *g = con->srv->priv;
 	GString empty_username = { "", 0, 0 };
-    conn_ctl_info info = {0, 0};
+    conn_ctl_info info = {0, 0, 0};
 
 	/*
 	 * we can only change to another backend if the backend is already
@@ -268,6 +272,7 @@ network_socket *network_connection_pool_lua_swap(network_mysqld_con *con, int ba
     }
 
     info.key = con->client->src->key;
+    info.state = con->state;
 
 	if (NULL == (send_sock = network_connection_pool_get(backend->pool, 
 					con->client->response ? con->client->response->username : &empty_username,

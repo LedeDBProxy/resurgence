@@ -124,7 +124,7 @@ static gboolean find_idle_conns(gpointer UNUSED_PARAM(_key), gpointer _val, gpoi
 	guint min_idle_conns = *(gint *)_user_data;
 	GQueue *conns = _val;
 
-    g_debug("%s: conns length:%d, min_idle_conns:%d", G_STRLOC, conns->length, min_idle_conns);
+    g_critical("%s: conns length:%d, min_idle_conns:%d", G_STRLOC, conns->length, min_idle_conns);
 	return (conns->length > min_idle_conns);
 }
 
@@ -147,7 +147,7 @@ GQueue *network_connection_pool_get_conns(network_connection_pool *pool, GString
 	 */
 
 	conns = g_hash_table_find(pool->users, find_idle_conns, &(pool->min_idle_connections));
-	g_debug("%s: (get_conns) try to find max-idling conns for user '%s' -> %p", G_STRLOC, username ? username->str : "", conns);
+	g_critical("%s: (get_conns) try to find max-idling conns for user '%s' -> %p", G_STRLOC, username ? username->str : "", conns);
 
 	return conns;
 }
@@ -172,6 +172,11 @@ network_socket *network_connection_pool_get(network_connection_pool *pool,
 	network_connection_pool_entry *entry, *found_entry = NULL;
 
 	GQueue *conns = network_connection_pool_get_conns(pool, username, NULL);
+
+    if (conns && info->state < CON_STATE_READ_QUERY && conns->length < pool->mid_idle_connections) {
+		g_critical("%s: (get) not use conns from pool '%s' -> %p", G_STRLOC, username ? username->str : "", conns);
+        conns = NULL;
+    }
 
 	/**
 	 * if we know this use, return a authed connection 
@@ -207,7 +212,7 @@ network_socket *network_connection_pool_get(network_connection_pool *pool,
 	}
 
     if (!found_entry) {
-		g_debug("%s: (get) no entry for user '%s' -> %p", G_STRLOC, username ? username->str : "", conns);
+		g_critical("%s: (get) no entry for user '%s' -> %p", G_STRLOC, username ? username->str : "", conns);
 		return NULL;
 	}
 
@@ -218,7 +223,7 @@ network_socket *network_connection_pool_get(network_connection_pool *pool,
 	/* remove the idle handler from the socket */	
 	event_del(&(sock->event));
 		
-	g_debug("%s: (get) got socket for user '%s' -> %p", G_STRLOC, username ? username->str : "", sock);
+	g_critical("%s: (get) got socket for user '%s' -> %p", G_STRLOC, username ? username->str : "", sock);
 
 	return sock;
 }

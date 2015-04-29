@@ -37,8 +37,9 @@ local auto_config = require("proxy.auto-config")
 -- connection pool
 if not proxy.global.config.rwsplit then
 	proxy.global.config.rwsplit = {
-        min_idle_connections = 10,
-        max_idle_connections = 120,
+        min_idle_connections = 1,
+        mid_idle_connections = 6,
+        max_idle_connections = 12,
 
 		is_debug = false
 	}
@@ -83,6 +84,7 @@ function connect_server()
 		local cur_idle2 = pool.users["root"].cur_idle_connections
 
 		pool.min_idle_connections = proxy.global.config.rwsplit.min_idle_connections
+		pool.mid_idle_connections = proxy.global.config.rwsplit.mid_idle_connections
 		pool.max_idle_connections = proxy.global.config.rwsplit.max_idle_connections
 		
 		if is_debug then

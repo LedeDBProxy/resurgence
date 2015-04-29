@@ -31,6 +31,7 @@ typedef struct {
 	GHashTable *users; /** GHashTable<GString, GQueue<network_connection_pool_entry>> */
 	
 	guint max_idle_connections;
+	guint mid_idle_connections;
 	guint min_idle_connections;
 } network_connection_pool;
 

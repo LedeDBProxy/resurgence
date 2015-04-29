@@ -81,7 +81,6 @@ function connect_server()
 		local s        = proxy.global.backends[i]
 		local pool     = s.pool -- we don't have a username yet, try to find a connections which is idling
 		local cur_idle = pool.users[""].cur_idle_connections
-		local cur_idle2 = pool.users["root"].cur_idle_connections
 
 		pool.min_idle_connections = proxy.global.config.rwsplit.min_idle_connections
 		pool.mid_idle_connections = proxy.global.config.rwsplit.mid_idle_connections
@@ -90,8 +89,8 @@ function connect_server()
 		if is_debug then
 			print("  [".. i .."].connected_clients = " .. s.connected_clients)
 			print("  [".. i .."].pool.cur_idle     = " .. cur_idle)
-			print("  [".. i .."].pool.root idle    = " .. cur_idle2)
 			print("  [".. i .."].pool.max_idle     = " .. pool.max_idle_connections)
+			print("  [".. i .."].pool.mid_idle     = " .. pool.mid_idle_connections)
 			print("  [".. i .."].pool.min_idle     = " .. pool.min_idle_connections)
 			print("  [".. i .."].type = " .. s.type)
 			print("  [".. i .."].state = " .. s.state)

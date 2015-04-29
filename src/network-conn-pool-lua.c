@@ -121,8 +121,8 @@ static int proxy_pool_get(lua_State *L) {
 
 	if (strleq(key, keysize, C("max_idle_connections"))) {
 		lua_pushinteger(L, pool->max_idle_connections);
-	} else if (strleq(key, keysize, C("min_idle_connections"))) {
-		lua_pushinteger(L, pool->min_idle_connections);
+	} else if (strleq(key, keysize, C("mid_idle_connections"))) {
+		lua_pushinteger(L, pool->mid_idle_connections);
 	} else if (strleq(key, keysize, C("min_idle_connections"))) {
 		lua_pushinteger(L, pool->min_idle_connections);
 	} else if (strleq(key, keysize, C("users"))) {

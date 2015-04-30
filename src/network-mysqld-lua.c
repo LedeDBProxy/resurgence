@@ -136,6 +136,7 @@ static int proxy_connection_set(lua_State *L) {
 			con->server = send_sock;
 		} else {
 			st->backend_ndx = backend_ndx;
+		    g_critical("set backend index for client:%d", st->backend_ndx);
 		}
 	} else if (0 == strcmp(key, "connection_close")) {
         luaL_checktype(L, 3, LUA_TBOOLEAN);

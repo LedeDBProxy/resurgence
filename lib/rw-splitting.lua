@@ -37,11 +37,12 @@ local auto_config = require("proxy.auto-config")
 -- connection pool
 if not proxy.global.config.rwsplit then
 	proxy.global.config.rwsplit = {
-        min_idle_connections = 10,
-        mid_idle_connections = 150,
-        max_idle_connections = 200,
+        min_idle_connections = 1,
+        mid_idle_connections = 1,
+        max_idle_connections = 4,
 
-		is_debug = false
+		is_debug = true,
+		is_slave_write_forbidden_set = false
 	}
 end
 
@@ -365,13 +366,13 @@ function read_query( packet )
 
     c.is_server_conn_reserved = conn_reserved
 
-    -- no backend selected yet, pick a master
 	if proxy.connection.backend_ndx == 0 then
-		-- we don't have a backend right now
-		-- 
-		-- let's pick a master as a good default
-		--
-		proxy.connection.backend_ndx = lb.idle_failsafe_rw()
+        local backend_ndx = lb.idle_failsafe_rw()
+        if backend_ndx <= 0 and proxy.global.config.rwsplit.is_slave_write_forbidden_set then
+            backend_ndx = lb.idle_ro()
+        end
+
+        proxy.connection.backend_ndx = backend_ndx
 	end
 
 	-- by now we should have a backend

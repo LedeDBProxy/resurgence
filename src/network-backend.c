@@ -84,7 +84,7 @@ void network_backends_free(network_backends_t *bs) {
  * FIXME: 1) remove _set_address, make this function callable with result of same
  *        2) differentiate between reasons for "we didn't add" (now -1 in all cases)
  */
-int network_backends_add(network_backends_t *bs, /* const */ gchar *address, backend_type_t type) {
+int network_backends_add(network_backends_t *bs, const  gchar *address, backend_type_t type) {
 	network_backend_t *new_backend;
 	guint i;
 
@@ -115,6 +115,17 @@ int network_backends_add(network_backends_t *bs, /* const */ gchar *address, bac
 			"read/write" : "read-only", address);
 
 	return 0;
+}
+
+
+int network_backends_remove(network_backends_t *bs, guint index) {
+    network_backend_t* b = bs->backends->pdata[index];
+    if (b != NULL) {
+        if (b->addr) network_address_free(b->addr);
+        if (b->uuid) g_string_free(b->uuid, TRUE);
+        g_ptr_array_remove_index(bs->backends, index);
+    }   
+    return 0;
 }
 
 /**

@@ -76,6 +76,12 @@ function read_query(packet)
 				b.connected_clients  -- currently connected clients
 			}
 		end
+    elseif query:lower() == "select version" then
+        fields = { 
+            { name = "version",
+            type = proxy.MYSQL_TYPE_STRING },
+        }   
+        rows[#rows + 1] = { "1.0.0" }
 	elseif query:lower() == "select * from help" then
 		fields = { 
 			{ name = "command", 
@@ -85,6 +91,39 @@ function read_query(packet)
 		}
 		rows[#rows + 1] = { "SELECT * FROM help", "shows this help" }
 		rows[#rows + 1] = { "SELECT * FROM backends", "lists the backends and their state" }
+		rows[#rows + 1] = { "ADD SLAVE $backend", "add MySQL instance to the slave list" }
+		rows[#rows + 1] = { "ADD MASTER $backend", "add MySQL instance to the master list" }
+		rows[#rows + 1] = { "REMOVE BACKEND $backend_id", "remove one MySQL instance" }
+        rows[#rows + 1] = { "SELECT VERSION", "display the version of MySQL proxy" }
+	elseif string.find(query:lower(), "add slave") then
+        local server = string.match(query:lower(), "add slave%s+(.+)$")
+        proxy.global.backends.slave_add = server
+        fields = {
+            { name = "status", 
+            type = proxy.MYSQL_TYPE_STRING },
+        }
+        rows[#rows + 1] = { "please use 'SELECT * FROM backend' to check if it succeeded " }
+    elseif string.find(query:lower(), "add master") then
+        local server = string.match(query:lower(), "add master%s+(.+)$")
+        proxy.global.backends.master_add = server
+        fields = {
+            { name = "status", 
+            type = proxy.MYSQL_TYPE_STRING },
+        }
+        rows[#rows + 1] = { "please use 'SELECT * FROM backend' to check if it succeeded " }
+    elseif string.find(query:lower(), "remove backend") then
+        local server_id = tonumber(string.match(query:lower(), "remove backend%s+(.+)$"))
+        if server_id <= 0 or server_id > #proxy.global.backends then
+            set_error("invalid backend_id")
+            return proxy.PROXY_SEND_RESULT
+        else
+            proxy.global.backends.backend_remove = server_id - 1
+            fields = {
+                { name = "status", 
+                type = proxy.MYSQL_TYPE_STRING },
+            }
+            rows[#rows + 1] = { "please use 'SELECT * FROM backend' to check if it succeeded " }
+        end
 	else
 		set_error("use 'SELECT * FROM help' to see the supported commands")
 		return proxy.PROXY_SEND_RESULT

@@ -152,9 +152,31 @@ static int proxy_backends_len(lua_State *L) {
 	return 1;
 }
 
+
+static int proxy_backends_set(lua_State *L) {
+    network_backends_t *bs = *(network_backends_t **)luaL_checkself(L);
+	gsize keysize = 0;
+	const char *key = luaL_checklstring(L, 2, &keysize);
+
+	if (strleq(key, keysize, C("slave_add"))) {
+        const gchar *address = lua_tostring(L, -1);
+        network_backends_add(bs, address, BACKEND_TYPE_RO);
+	} else if (strleq(key, keysize, C("master_add"))) {
+        const gchar *address = lua_tostring(L, -1);
+        network_backends_add(bs, address, BACKEND_TYPE_RW);
+	} else if (strleq(key, keysize, C("backend_remove"))) {
+        network_backends_remove(bs, lua_tointeger(L, -1));
+	} else {
+		return luaL_error(L, "proxy.global.backends.%s is not writable", key);
+	}
+	return 1;
+}
+
+
 int network_backends_lua_getmetatable(lua_State *L) {
 	static const struct luaL_reg methods[] = {
 		{ "__index", proxy_backends_get },
+        { "__newindex", proxy_backends_set },
 		{ "__len", proxy_backends_len },
 		{ NULL, NULL },
 	};

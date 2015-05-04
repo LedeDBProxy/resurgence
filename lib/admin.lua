@@ -77,10 +77,10 @@ function read_query(packet)
 			}
 		end
     elseif query:lower() == "select version" then
-        fields = { 
+        fields = {
             { name = "version",
             type = proxy.MYSQL_TYPE_STRING },
-        }   
+        }
         rows[#rows + 1] = { "1.0.0" }
 	elseif query:lower() == "select * from help" then
 		fields = { 
@@ -99,7 +99,7 @@ function read_query(packet)
         local server = string.match(query:lower(), "add slave%s+(.+)$")
         proxy.global.backends.slave_add = server
         fields = {
-            { name = "status", 
+            { name = "status",
             type = proxy.MYSQL_TYPE_STRING },
         }
         rows[#rows + 1] = { "please use 'SELECT * FROM backend' to check if it succeeded " }
@@ -107,7 +107,7 @@ function read_query(packet)
         local server = string.match(query:lower(), "add master%s+(.+)$")
         proxy.global.backends.master_add = server
         fields = {
-            { name = "status", 
+            { name = "status",
             type = proxy.MYSQL_TYPE_STRING },
         }
         rows[#rows + 1] = { "please use 'SELECT * FROM backend' to check if it succeeded " }
@@ -119,7 +119,7 @@ function read_query(packet)
         else
             proxy.global.backends.backend_remove = server_id - 1
             fields = {
-                { name = "status", 
+                { name = "status",
                 type = proxy.MYSQL_TYPE_STRING },
             }
             rows[#rows + 1] = { "please use 'SELECT * FROM backend' to check if it succeeded " }

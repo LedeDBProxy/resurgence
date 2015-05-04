@@ -124,7 +124,7 @@ int network_backends_remove(network_backends_t *bs, guint index) {
         if (b->addr) network_address_free(b->addr);
         if (b->uuid) g_string_free(b->uuid, TRUE);
         g_ptr_array_remove_index(bs->backends, index);
-    }   
+    }
     return 0;
 }
 

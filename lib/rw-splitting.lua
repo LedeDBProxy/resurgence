@@ -38,7 +38,7 @@ local auto_config = require("proxy.auto-config")
 if not proxy.global.config.rwsplit then
 	proxy.global.config.rwsplit = {
         min_idle_connections = 1,
-        mid_idle_connections = 1,
+        mid_idle_connections = 2,
         max_idle_connections = 4,
 
 		is_debug = true,
@@ -126,6 +126,8 @@ function connect_server()
 			print("  [" .. rw_ndx .. "] taking master as default")
         end
         proxy.connection.backend_ndx = rw_ndx
+    else
+        is_backend_conn_keepalive = true
     end
 
 	-- pick a random backend
@@ -162,8 +164,10 @@ function read_auth_result( auth )
 	local is_debug = true
 	-- local is_debug = proxy.global.config.rwsplit.is_debug
 	if is_debug then
-		print("[read_auth_result] " .. proxy.connection.client.src.name)
-	end
+        print("[read_auth_result] " .. proxy.connection.client.src.name)
+        print("  using connection from: " .. proxy.connection.backend_ndx)
+        print("  server address: " .. proxy.connection.server.dst.name)
+    end
 	if auth.packet:byte() == proxy.MYSQLD_PACKET_OK then
 		-- auth was fine, disconnect from the server
         if not use_pool_conn and is_backend_conn_keepalive then

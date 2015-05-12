@@ -204,25 +204,25 @@ static int lua_proto_get_masterinfo_string (lua_State *L) {
 		return 0;
 	}
 
-	lua_newtable(L);
-        
-        LUA_EXPORT_INT(info, master_lines);
-	LUA_EXPORT_STR(info, master_log_file);
-	LUA_EXPORT_INT(info, master_log_pos);
-	LUA_EXPORT_STR(info, master_host);
-	LUA_EXPORT_STR(info, master_user);
-	LUA_EXPORT_STR(info, master_password);
-	LUA_EXPORT_INT(info, master_port);
-	LUA_EXPORT_INT(info, master_connect_retry);
-	LUA_EXPORT_INT(info, master_ssl);
-        LUA_EXPORT_STR(info, master_ssl_ca);
-        LUA_EXPORT_STR(info, master_ssl_capath);
-        LUA_EXPORT_STR(info, master_ssl_cert);
-        LUA_EXPORT_STR(info, master_ssl_cipher);
-        LUA_EXPORT_STR(info, master_ssl_key);
-        if (info->master_lines >= 15) {
-		LUA_EXPORT_INT(info, master_ssl_verify_server_cert);
-	}
+    lua_newtable(L);
+
+    LUA_EXPORT_INT(info, master_lines);
+    LUA_EXPORT_STR(info, master_log_file);
+    LUA_EXPORT_INT(info, master_log_pos);
+    LUA_EXPORT_STR(info, master_host);
+    LUA_EXPORT_STR(info, master_user);
+    LUA_EXPORT_STR(info, master_password);
+    LUA_EXPORT_INT(info, master_port);
+    LUA_EXPORT_INT(info, master_connect_retry);
+    LUA_EXPORT_INT(info, master_ssl);
+    LUA_EXPORT_STR(info, master_ssl_ca);
+    LUA_EXPORT_STR(info, master_ssl_capath);
+    LUA_EXPORT_STR(info, master_ssl_cert);
+    LUA_EXPORT_STR(info, master_ssl_cipher);
+    LUA_EXPORT_STR(info, master_ssl_key);
+    if (info->master_lines >= 15) {
+        LUA_EXPORT_INT(info, master_ssl_verify_server_cert);
+    }
 	
 	network_mysqld_masterinfo_free(info);
 
@@ -737,6 +737,79 @@ static int lua_proto_get_stmt_execute_packet_stmt_id (lua_State *L) {
 	return 1;
 }
 
+static int lua_proto_change_stmt_id_from_server_prepare_ok(lua_State *L) {
+	size_t packet_len;
+	const char *packet_str = luaL_checklstring(L, 1, &packet_len);
+	int index = luaL_checkint(L, 2);
+	network_packet packet;
+	GString s;
+	int err = 0;
+	guint32 stmt_id;
+
+	s.str = (char *)packet_str;
+	s.len = packet_len;
+
+	packet.data = &s;
+	packet.offset = 0;
+
+	err = err || network_mysqld_proto_change_stmt_id_from_server_prepare_ok_packet(&packet, index);
+	if (err) {
+		luaL_error(L, "%s: network_mysqld_proto_change_stmt_id_from_server_prepare_ok_packet() failed", G_STRLOC);
+		return 0;
+	}
+
+	return 1;
+}
+
+static int lua_proto_change_stmt_id_from_server_stmt_execute_packet(lua_State *L) {
+	size_t packet_len;
+	const char *packet_str = luaL_checklstring(L, 1, &packet_len);
+	int index = luaL_checkint(L, 2);
+	network_packet packet;
+	GString s;
+	int err = 0;
+	guint32 stmt_id;
+
+	s.str = (char *)packet_str;
+	s.len = packet_len;
+
+	packet.data = &s;
+	packet.offset = 0;
+
+	err = err || network_mysqld_proto_change_stmt_id_from_server_stmt_execute_packet(&packet, index);
+	if (err) {
+		luaL_error(L, "%s: network_mysqld_proto_change_stmt_id_from_server_stmt_execute_packet() failed", G_STRLOC);
+		return 0;
+	}
+
+	return 1;
+}
+
+static int lua_proto_change_stmt_id_from_client_stmt_execute_packet(lua_State *L) {
+	size_t packet_len;
+	const char *packet_str = luaL_checklstring(L, 1, &packet_len);
+    int index;
+	network_packet packet;
+	GString s;
+	int err = 0;
+	guint32 stmt_id;
+
+	s.str = (char *)packet_str;
+	s.len = packet_len;
+
+	packet.data = &s;
+	packet.offset = 0;
+
+	err = err || network_mysqld_proto_change_stmt_id_from_client_stmt_execute_packet(&packet, &index);
+	if (err) {
+		luaL_error(L, "%s: network_mysqld_proto_change_stmt_id_from_client_stmt_execute_packet() failed", G_STRLOC);
+		return 0;
+	}
+
+	lua_pushinteger(L, index);
+
+	return 1;
+}
 
 static int lua_proto_get_stmt_close_packet (lua_State *L) {
 	size_t packet_len;
@@ -807,6 +880,9 @@ static const struct luaL_reg mysql_protolib[] = {
 	{"from_stmt_prepare_ok_packet", lua_proto_get_stmt_prepare_ok_packet},
 	{"from_stmt_execute_packet", lua_proto_get_stmt_execute_packet},
 	{"stmt_id_from_stmt_execute_packet", lua_proto_get_stmt_execute_packet_stmt_id},
+	{"change_stmt_id_from_server_prepare_ok", lua_proto_change_stmt_id_from_server_prepare_ok},
+	{"change_stmt_id_from_server_stmt_execute_packet", lua_proto_change_stmt_id_from_server_stmt_execute_packet},
+	{"change_stmt_id_from_client_stmt_execute_packet", lua_proto_change_stmt_id_from_client_stmt_execute_packet},
 	{"from_stmt_close_packet", lua_proto_get_stmt_close_packet},
 	{NULL, NULL},
 };

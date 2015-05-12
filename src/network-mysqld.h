@@ -260,8 +260,14 @@ struct network_mysqld_con {
 
 	/**
 	 * The server side of the connection as it pertains to the low-level network implementation.
+     * The current working server
 	 */
 	network_socket *server;
+    /**
+     * server list when needed
+     */
+    server_list_t *server_list;
+
 	/**
 	 * The client side of the connection as it pertains to the low-level network implementation.
 	 */

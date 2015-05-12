@@ -84,6 +84,12 @@ static int proxy_connection_get(lua_State *L) {
 		return luaL_error(L, "proxy.connection.thread_id is deprecated, use proxy.connection.server.thread_id instead");
 	} else if (strleq(key, keysize, C("mysqld_version"))) {
 		return luaL_error(L, "proxy.connection.mysqld_version is deprecated, use proxy.connection.server.mysqld_version instead");
+	} else if (strleq(key, keysize, C("selected_server_ndx"))) {
+        int index = 0;
+        if (st->backend_ndx > 0) {
+            index = st->backend_ndx_array[st->backend_ndx];
+        }
+		lua_pushinteger(L, index);
 	} else if (strleq(key, keysize, C("backend_ndx"))) {
 		lua_pushinteger(L, st->backend_ndx + 1);
 	} else if ((con->server && (strleq(key, keysize, C("server")))) ||
@@ -138,6 +144,9 @@ static int proxy_connection_set(lua_State *L) {
 			st->backend_ndx = backend_ndx;
 		    g_critical("set backend index for client:%d", st->backend_ndx);
 		}
+	} else if (0 == strcmp(key, "selected_server_ndx")) {
+		int index = luaL_checkinteger(L, 3) - 1;
+        con->server = con->server_list->server[index];
 	} else if (0 == strcmp(key, "connection_close")) {
         luaL_checktype(L, 3, LUA_TBOOLEAN);
 

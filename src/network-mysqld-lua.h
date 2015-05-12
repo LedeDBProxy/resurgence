@@ -79,6 +79,10 @@ typedef struct {
 	 * Flag indicating whether we injected a COM_CHANGE_USER packet on the proxy plugin side
 	 */
 	gboolean is_in_com_change_user;
+
+    short *backend_ndx_array;
+	network_backend_t **backend_array;
+
 } network_mysqld_con_lua_t;
 
 NETWORK_API network_mysqld_con_lua_t *network_mysqld_con_lua_new();

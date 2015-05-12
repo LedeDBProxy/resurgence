@@ -111,6 +111,13 @@ typedef struct {
 	GString *default_db;     /** default-db of this side of the connection */
 } network_socket;
 
+#define MAX_SERVER_NUM 64
+
+typedef struct {
+    int num;
+    network_socket *server[MAX_SERVER_NUM];
+} server_list_t;
+
 NETWORK_API network_socket *network_socket_init(void) G_GNUC_DEPRECATED;
 NETWORK_API network_socket *network_socket_new(void);
 NETWORK_API void network_socket_free(network_socket *s);

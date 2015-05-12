@@ -1768,6 +1768,83 @@ int network_mysqld_proto_get_stmt_execute_packet_stmt_id(network_packet *packet,
 	return err ? -1 : 0;
 }
 
+int network_mysqld_proto_change_stmt_id_from_server_prepare_ok_packet(network_packet *packet, int server_index) {
+	guint8 packet_type;
+	int err = 0;
+    int *p = NULL;
+
+    err = err || network_mysqld_proto_get_int8(packet, &packet_type);
+	if (err) return -1;
+
+	if (0x00 != packet_type) {
+		g_critical("%s: expected the first byte to be %02x, got %02x",
+				G_STRLOC,
+				0x00,
+				packet_type);
+		return -1;
+	}
+
+    p = (int *)(((unsigned char *)packet->data) + packet->offset);
+
+    /*if (*p > MAX_STMT_ID) {
+    }*/
+
+	*p = *p & 0x00007fff;
+
+    *p = *p | (server_index << 16);
+
+	return 0;
+}
+
+int network_mysqld_proto_change_stmt_id_from_server_stmt_execute_packet(network_packet *packet, int server_index) {
+	guint8 packet_type;
+	int err = 0;
+    int *p = NULL;
+
+	err = err || network_mysqld_proto_get_int8(packet, &packet_type);
+	if (err) return -1;
+
+	if (COM_STMT_EXECUTE != packet_type) {
+		g_critical("%s: expected the first byte to be %02x, got %02x",
+				G_STRLOC,
+				COM_STMT_EXECUTE,
+				packet_type);
+		return -1;
+	}
+
+    p = (int *)(((unsigned char *)packet->data) + packet->offset);
+
+	*p = *p & 0x00007fff;
+
+    *p = *p | (server_index << 16);
+
+	return 0;
+}
+
+int network_mysqld_proto_change_stmt_id_from_client_stmt_execute_packet(network_packet *packet, int *server_index) {
+	guint8 packet_type;
+	int err = 0;
+    int *p = NULL;
+
+	err = err || network_mysqld_proto_get_int8(packet, &packet_type);
+	if (err) return -1;
+
+	if (COM_STMT_EXECUTE != packet_type) {
+		g_critical("%s: expected the first byte to be %02x, got %02x",
+				G_STRLOC,
+				COM_STMT_EXECUTE,
+				packet_type);
+		return -1;
+	}
+
+    p = (int *)(((unsigned char *)packet->data) + packet->offset);
+
+    *server_index = (*p & 0xffff0000) >> 16;
+	*p = *p & 0x00007fff;
+
+	return 0;
+}
+
 /**
  *
  * param_count has to be taken from the response of the prepare-stmt-ok packet

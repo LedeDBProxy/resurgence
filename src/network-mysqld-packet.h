@@ -223,6 +223,10 @@ NETWORK_API void network_mysqld_stmt_execute_packet_free(network_mysqld_stmt_exe
 NETWORK_API int network_mysqld_proto_get_stmt_execute_packet(network_packet *packet, network_mysqld_stmt_execute_packet_t *stmt_execute_packet, guint param_count);
 NETWORK_API int network_mysqld_proto_append_stmt_execute_packet(GString *packet, network_mysqld_stmt_execute_packet_t *stmt_execute_packet, guint param_count);
 NETWORK_API int network_mysqld_proto_get_stmt_execute_packet_stmt_id(network_packet *packet, guint32 *stmt_id);
+NETWORK_API int network_mysqld_proto_change_stmt_id_from_server_prepare_ok_packet(network_packet *packet, int server_index);
+NETWORK_API int network_mysqld_proto_change_stmt_id_from_server_stmt_execute_packet(network_packet *packet, int server_index);
+NETWORK_API int network_mysqld_proto_change_stmt_id_from_client_stmt_execute_packet(network_packet *packet, int *server_index);
+
 
 
 typedef GPtrArray network_mysqld_resultset_row_t;

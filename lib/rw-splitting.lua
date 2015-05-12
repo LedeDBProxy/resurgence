@@ -387,6 +387,10 @@ function read_query( packet )
 		return proxy.PROXY_SEND_QUERY
 	end
 
+    if cmd_type == proxy.COM_STMT_EXECUTE then
+        proxy.connection.selected_server_ndx = lua_proto_change_stmt_id_from_client_stmt_execute_packet(inj.query)
+    end
+
 	local s = proxy.connection.server
 
 	-- if client and server db don't match, adjust the server-side 
@@ -414,6 +418,12 @@ function read_query( packet )
 		print("    COM_QUERY       : " .. tostring(cmd.type == proxy.COM_QUERY))
 	end
 
+    if cmd_type == proxy.COM_STMT_EXECUTE then
+        proxy.queries:append(3, packet, { resultset_is_needed = true } )
+    elseif cmd_type == proxy.COM_STMT_PREPARE then
+        proxy.queries:append(1, packet, { resultset_is_needed = true } )
+    end
+
 	return proxy.PROXY_SEND_QUERY
 end
 
@@ -424,8 +434,9 @@ function read_query_result( inj )
 	local is_debug = proxy.global.config.rwsplit.is_debug
 	local res      = assert(inj.resultset)
   	local flags    = res.flags
+    local server_index
 
-	if inj.id ~= 1 then
+	if inj.id ~= 1 && inj.id ~= 3 then
 		-- ignore the result of the USE <default_db>
 		-- the DB might not exist on the backend, what do do ?
 		--
@@ -448,6 +459,16 @@ function read_query_result( inj )
 	end
 
 	is_in_transaction = flags.in_trans
+
+    server_index = proxy.connection.selected_server_ndx;
+
+    if server_index > 0 then
+        if inj.id == 3 then
+            change_stmt_id_from_server_prepare_ok(inj.query, server_index)
+        else
+            change_stmt_id_from_server_stmt_execute_packet(inj.query, server_index)
+        end
+    end
 end
 
 --- 

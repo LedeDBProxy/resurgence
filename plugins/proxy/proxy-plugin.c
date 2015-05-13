@@ -252,9 +252,9 @@ NETWORK_MYSQLD_PLUGIN_PROTO(proxy_timeout) {
         if (diff < 3600) {
             if (!con->client->is_server_conn_reserved) {
                 if (con->server) {
+                    g_debug("%s: server connection returned to pool",
+                            G_STRLOC);
                     network_connection_pool_lua_add_connection(con);
-                        g_debug("%s: server connection returned to pool",
-                                G_STRLOC);
                 }
             }
         } else {

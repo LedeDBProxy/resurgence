@@ -1730,10 +1730,9 @@ void network_mysqld_con_handle(int event_fd, short events, void *user_data) {
 
                 con->valid_prepare_stmt_cnt--;
                 if (con->valid_prepare_stmt_cnt == 0) {
-                    network_connection_pool_lua_add_connection(con);
                     g_debug("%s: add prepare server connection returned to pool",
                                 G_STRLOC);
-
+                    network_connection_pool_lua_add_connection(con);
                 }
 				break;
 			default:

@@ -436,7 +436,7 @@ function read_query_result( inj )
   	local flags    = res.flags
     local server_index
 
-	if inj.id ~= 1 && inj.id ~= 3 then
+	if inj.id ~= 1 and inj.id ~= 3 then
 		-- ignore the result of the USE <default_db>
 		-- the DB might not exist on the backend, what do do ?
 		--

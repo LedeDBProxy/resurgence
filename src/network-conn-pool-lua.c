@@ -264,7 +264,7 @@ int network_connection_pool_lua_add_connection(network_mysqld_con *con) {
  *         the new backend on success
  */
 network_socket *network_connection_pool_lua_swap(network_mysqld_con *con, int backend_ndx) {
-    gboolean           server_switch;
+    gboolean           server_switch = FALSE;
 	network_backend_t *backend = NULL;
 	network_socket *send_sock;
 	network_mysqld_con_lua_t *st = con->plugin_con_state;
@@ -297,10 +297,12 @@ network_socket *network_connection_pool_lua_swap(network_mysqld_con *con, int ba
 
     if (con->valid_prepare_stmt_cnt > 1 && st->backend_ndx != -1 && st->backend_ndx != backend_ndx) {
         server_switch = TRUE;
+        g_debug("%s: (swap) server_switch is true", G_STRLOC);
     }
 
     if (server_switch && con->server_list != NULL && st->backend_ndx_array[backend_ndx] > 0) {
         send_sock = con->server_list->server[st->backend_ndx_array[backend_ndx] - 1];
+        g_debug("%s: (swap) by pass", G_STRLOC);
         return send_sock;
     } else if (NULL == (send_sock = network_connection_pool_get(backend->pool, 
 					con->client->response ? con->client->response->username : &empty_username,
@@ -335,8 +337,10 @@ network_socket *network_connection_pool_lua_swap(network_mysqld_con *con, int ba
 
         st->backend_ndx_array[backend_ndx] = con->server_list->num;
         st->backend_array[backend_ndx] = backend;
+        g_debug("%s: (swap) add server to server list", G_STRLOC);
     } else {
 
+        g_debug("%s: (swap) take and move the current backend into the pool", G_STRLOC);
         /* the backend is up and cool, take and move the current backend into the pool */
         /* g_debug("%s: (swap) added the previous connection to the pool", G_STRLOC); */
         network_connection_pool_lua_add_connection(con);

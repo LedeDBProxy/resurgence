@@ -47,6 +47,8 @@
 #include "chassis-stats.h"
 #include "chassis-timings.h"
 
+#include "network-socket.h"
+
 static volatile sig_atomic_t signal_shutdown;
 
 /**

@@ -47,6 +47,7 @@ function idle_ro()
 		local s = proxy.global.backends[i]
 		local conns = s.pool.users[proxy.connection.client.username]
 
+        print("  [cur_idle_connections]:" .. conns.cur_idle_connections)
 		-- pick a slave which has some idling connections
 		if s.type == proxy.BACKEND_TYPE_RO and 
 		   s.state ~= proxy.BACKEND_STATE_DOWN and 

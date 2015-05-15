@@ -845,8 +845,6 @@ static int lua_proto_get_stmt_close_packet (lua_State *L) {
 }
 
 
-
-
 /*
 ** Assumes the table is on top of the stack.
 */

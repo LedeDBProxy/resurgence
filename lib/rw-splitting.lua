@@ -26,7 +26,7 @@
 -- * 
 -- 
 -- 
-
+local proto       = require("mysql.proto")
 local commands    = require("proxy.commands")
 local tokenizer   = require("proxy.tokenizer")
 local lb          = require("proxy.balance")
@@ -54,6 +54,7 @@ local is_in_transaction       = false
 local is_prepared             = false
 local is_backend_conn_keepalive = true
 local use_pool_conn = false
+local multiple_server_mode = false
 
 -- if this was a SELECT SQL_CALC_FOUND_ROWS ... stay on the same connections
 local is_in_select_calc_found_rows = false
@@ -200,6 +201,8 @@ function read_query( packet )
 	local c        = proxy.connection.client
     local ps_cnt   = 0
     local conn_reserved = false
+    local ro_server = false
+    local backend_ndx = proxy.connection.backend_ndx
 
 	local r = auto_config.handle(cmd)
 	if r then return r end
@@ -210,7 +213,11 @@ function read_query( packet )
     if is_prepared then
         ps_cnt = proxy.connection.valid_prepare_stmt_cnt
         if is_debug then
-            print("  valid_prepare_stmt_cnt:" .. ps_cnt)
+            print("read query before valid_prepare_stmt_cnt:" .. ps_cnt)
+        end
+	    local b = proxy.global.backends[backend_ndx]
+        if b.type == proxy.BACKEND_TYPE_RO then
+            ro_server = true
         end
     end
 
@@ -332,7 +339,7 @@ function read_query( packet )
                 local stmt = tokenizer.first_stmt_token(tokens)
 
                 if stmt.token_name == "TK_SQL_SELECT" then
-                    local session_read_only = 0
+                    local session_read_only = 1
                     for i = 2, #tokens do
                         local token = tokens[i]
                         if (token.token_name == "TK_COMMENT") then
@@ -351,13 +358,18 @@ function read_query( packet )
                         local backend_ndx = lb.idle_ro()
 
                         if is_debug then
-                            print("  [pure readonly statement] ")
+                            print("  [pure readonly statement]:" .. backend_ndx)
                         end
 
                         if backend_ndx > 0 then
                             proxy.connection.backend_ndx = backend_ndx
                         end
                     end
+                elseif ro_server == true then
+                    multiple_server_mode = true
+                    proxy.connection.backend_ndx = lb.idle_failsafe_rw()
+                    print("  [set multiple_server_mode true]")
+                    -- TODO if backend_ndx not more than 0
                 end
             elseif ps_cnt > 0 then
                 conn_reserved = true
@@ -367,6 +379,8 @@ function read_query( packet )
             end
         end
     end
+
+    print("  backend_ndx:" .. proxy.connection.backend_ndx)
 
     c.is_server_conn_reserved = conn_reserved
 
@@ -387,8 +401,16 @@ function read_query( packet )
 		return proxy.PROXY_SEND_QUERY
 	end
 
-    if cmd_type == proxy.COM_STMT_EXECUTE then
-        proxy.connection.selected_server_ndx = lua_proto_change_stmt_id_from_client_stmt_execute_packet(inj.query)
+    if cmd.type == proxy.COM_STMT_EXECUTE or cmd.type == proxy.COM_STMT_CLOSE then
+        print("    stmt id before change:" .. cmd.stmt_handler_id)
+        if cmd.stmt_handler_id > 0x00007fff then
+            local selected_server_ndx = proto.change_stmt_id_from_client_stmt_execute_packet(packet)
+            if selected_server_ndx > 0 then
+                proxy.connection.selected_server_ndx = selected_server_ndx
+                cmd.stmt_handler_id = bit._and(0x00007ffff, cmd.stmt_handler_id)
+                print("    after change:" .. cmd.stmt_handler_id)
+            end
+        end
     end
 
 	local s = proxy.connection.server
@@ -436,6 +458,8 @@ function read_query_result( inj )
   	local flags    = res.flags
     local server_index
 
+    print("[read_query_result] " .. proxy.connection.client.src.name)
+
 	if inj.id ~= 1 and inj.id ~= 3 then
 		-- ignore the result of the USE <default_db>
 		-- the DB might not exist on the backend, what do do ?
@@ -460,13 +484,28 @@ function read_query_result( inj )
 
 	is_in_transaction = flags.in_trans
 
-    server_index = proxy.connection.selected_server_ndx;
+    local stmt_prepare_ok = assert(proto.from_stmt_prepare_ok_packet(inj.resultset.raw))
+        print(("< PREPARE: stmt-id = %d (resultset-cols = %d, params = %d)"):format(
+        stmt_prepare_ok.stmt_id,
+        stmt_prepare_ok.num_columns,
+        stmt_prepare_ok.num_params))
 
-    if server_index > 0 then
-        if inj.id == 3 then
-            change_stmt_id_from_server_prepare_ok(inj.query, server_index)
+
+    if multiple_server_mode == true then
+        server_index = proxy.connection.selected_server_ndx
+        print("   multiple_server_mode, server index:" .. server_index)
+
+        if inj.id == 1 then
+            print("change stmt id")
+            proto.change_stmt_id_from_server_prepare_ok(inj.resultset.raw, server_index)
+            local stmt_prepare_ok = assert(proto.from_stmt_prepare_ok_packet(inj.resultset.raw))
+            print(("after < PREPARE: stmt-id = %d (resultset-cols = %d, params = %d)"):format(
+            stmt_prepare_ok.stmt_id,
+            stmt_prepare_ok.num_columns,
+            stmt_prepare_ok.num_params))
+
         else
-            change_stmt_id_from_server_stmt_execute_packet(inj.query, server_index)
+            proto.change_stmt_id_from_server_stmt_execute_packet(inj.resultset.raw, server_index)
         end
     end
 end

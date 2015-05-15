@@ -86,7 +86,7 @@ static int proxy_connection_get(lua_State *L) {
 		return luaL_error(L, "proxy.connection.mysqld_version is deprecated, use proxy.connection.server.mysqld_version instead");
 	} else if (strleq(key, keysize, C("selected_server_ndx"))) {
         int index = 0;
-        if (st->backend_ndx > 0 && st->backend_ndx_array != NULL) {
+        if (st->backend_ndx >= 0 && st->backend_ndx_array != NULL) {
             index = st->backend_ndx_array[st->backend_ndx];
         }
 		lua_pushinteger(L, index);

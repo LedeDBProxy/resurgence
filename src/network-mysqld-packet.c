@@ -1784,7 +1784,7 @@ int network_mysqld_proto_change_stmt_id_from_server_prepare_ok_packet(network_pa
 		return -1;
 	}
 
-    p = (int *)(((unsigned char *)packet->data) + packet->offset);
+    p = (int *)(((unsigned char *)packet->data->str) + packet->offset);
 
     /*if (*p > MAX_STMT_ID) {
     }*/
@@ -1812,7 +1812,7 @@ int network_mysqld_proto_change_stmt_id_from_server_stmt_execute_packet(network_
 		return -1;
 	}
 
-    p = (int *)(((unsigned char *)packet->data) + packet->offset);
+    p = (int *)(((unsigned char *)packet->data->str) + packet->offset);
 
 	*p = *p & 0x00007fff;
 
@@ -1837,7 +1837,7 @@ int network_mysqld_proto_change_stmt_id_from_client_stmt_execute_packet(network_
 		return -1;
 	}
 
-    p = (int *)(((unsigned char *)packet->data) + packet->offset);
+    p = (int *)(((unsigned char *)packet->data->str) + packet->offset);
 
     *server_index = (*p & 0xffff0000) >> 16;
 	*p = *p & 0x00007fff;

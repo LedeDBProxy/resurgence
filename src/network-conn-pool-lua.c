@@ -217,7 +217,8 @@ int network_connection_pool_lua_add_connection(network_mysqld_con *con) {
 
 	/* the server connection is still authed */
 	con->server->is_authed = 1;
-    con->valid_prepare_stmt_cnt = 0;
+        
+    g_debug("%s: call network_connection_pool_lua_add_connection", G_STRLOC);
 
     if (con->server_list != NULL) {
         int i;
@@ -237,6 +238,9 @@ int network_connection_pool_lua_add_connection(network_mysqld_con *con) {
             backend->connected_clients--;
         }
     } else {
+        con->valid_prepare_stmt_cnt = 0;
+        g_debug("%s: set valid_prepare_stmt_cnt 0", G_STRLOC);
+
         /* insert the server socket into the connection pool */
         pool_entry = network_connection_pool_add(st->backend->pool, con->server, con->client->src->key);
 

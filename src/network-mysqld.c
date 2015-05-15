@@ -1729,6 +1729,8 @@ void network_mysqld_con_handle(int event_fd, short events, void *user_data) {
 				if (con->server) network_mysqld_queue_reset(con->server);
 
                 con->valid_prepare_stmt_cnt--;
+                g_debug("%s: sub, now valid_prepare_stmt_cnt:%d", G_STRLOC, con->valid_prepare_stmt_cnt);
+
                 if (con->valid_prepare_stmt_cnt == 0) {
                     g_debug("%s: add prepare server connection returned to pool",
                                 G_STRLOC);

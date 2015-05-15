@@ -401,15 +401,13 @@ function read_query( packet )
 		return proxy.PROXY_SEND_QUERY
 	end
 
-    if cmd.type == proxy.COM_STMT_EXECUTE or cmd.type == proxy.COM_STMT_CLOSE then
-        print("    stmt id before change:" .. cmd.stmt_handler_id)
-        if cmd.stmt_handler_id > 0x00007fff then
+    if multiple_server_mode == true then
+        if cmd.type == proxy.COM_STMT_EXECUTE or cmd.type == proxy.COM_STMT_CLOSE then
+            print("    stmt id before change:" .. cmd.stmt_handler_id)
             local selected_server_ndx = proto.change_stmt_id_from_client_stmt_execute_packet(packet)
-            if selected_server_ndx > 0 then
-                proxy.connection.selected_server_ndx = selected_server_ndx
-                cmd.stmt_handler_id = bit._and(0x00007ffff, cmd.stmt_handler_id)
-                print("    after change:" .. cmd.stmt_handler_id)
-            end
+            print("    selected_server_ndx:" .. selected_server_ndx)
+            proxy.connection.selected_server_ndx = selected_server_ndx
+            print("    after change selected_server_ndx")
         end
     end
 
@@ -484,28 +482,15 @@ function read_query_result( inj )
 
 	is_in_transaction = flags.in_trans
 
-    local stmt_prepare_ok = assert(proto.from_stmt_prepare_ok_packet(inj.resultset.raw))
-        print(("< PREPARE: stmt-id = %d (resultset-cols = %d, params = %d)"):format(
-        stmt_prepare_ok.stmt_id,
-        stmt_prepare_ok.num_columns,
-        stmt_prepare_ok.num_params))
-
-
     if multiple_server_mode == true then
         server_index = proxy.connection.selected_server_ndx
         print("   multiple_server_mode, server index:" .. server_index)
 
         if inj.id == 1 then
             print("change stmt id")
-            proto.change_stmt_id_from_server_prepare_ok(inj.resultset.raw, server_index)
-            local stmt_prepare_ok = assert(proto.from_stmt_prepare_ok_packet(inj.resultset.raw))
-            print(("after < PREPARE: stmt-id = %d (resultset-cols = %d, params = %d)"):format(
-            stmt_prepare_ok.stmt_id,
-            stmt_prepare_ok.num_columns,
-            stmt_prepare_ok.num_params))
-
+            res.prepared_stmt_id = server_index
         else
-            proto.change_stmt_id_from_server_stmt_execute_packet(inj.resultset.raw, server_index)
+            res.executed_stmt_id = server_index
         end
     end
 end

@@ -471,8 +471,63 @@ static int proxy_resultset_get(lua_State *L) {
 	return 1;
 }
 
+static int proxy_resultset_set(lua_State *L) {
+	GRef *ref = *(GRef **)luaL_checkself(L);
+	proxy_resultset_t *res = ref->udata;
+	gsize keysize = 0;
+	const char *key = luaL_checklstring(L, 2, &keysize);
+
+	if (strleq(key, keysize, C("prepared_stmt_id"))) {
+		if (!res->result_queue) {
+			luaL_error(L, ".resultset.raw isn't available if 'resultset_is_needed ~= true'");
+        } else {
+            network_packet packet;
+            GString s;
+            int err = 0;
+            GString *tmp;
+            int index = lua_tointeger(L, -1);
+            tmp = res->result_queue->head->data;
+            s.str = tmp->str + 4; /* skip the network-header */
+            s.len = tmp->len - 4;
+            packet.data = &s;
+            packet.offset = 0;
+
+            err = network_mysqld_proto_change_stmt_id_from_server_prepare_ok_packet(&packet, index);
+            if (err) {
+                luaL_error(L, "%s: change stmt id_from server prepare ok packet() failed", G_STRLOC);
+                return 0;
+            }
+        }
+	} else if (strleq(key, keysize, C("executed_stmt_id"))) {
+		if (!res->result_queue) {
+			luaL_error(L, ".resultset.raw isn't available if 'resultset_is_needed ~= true'");
+        } else {
+            network_packet packet;
+            GString s;
+            int err = 0;
+            GString *tmp;
+            int index = lua_tointeger(L, -1);
+            tmp = res->result_queue->head->data;
+            s.str = tmp->str + 4; /* skip the network-header */
+            s.len = tmp->len - 4;
+            packet.data = &s;
+            packet.offset = 0;
+
+            err = network_mysqld_proto_change_stmt_id_from_server_stmt_execute_packet(&packet, index);
+            if (err) {
+                luaL_error(L, "%s: change stmt id_from server prepare ok packet() failed", G_STRLOC);
+                return 0;
+            }
+        }
+	}
+    
+	return 1;
+}
+
+
 static const struct luaL_reg methods_proxy_resultset[] = {
 	{ "__index", proxy_resultset_get },
+    { "__newindex", proxy_resultset_set},
 	{ "__gc", proxy_resultset_gc },
 	{ NULL, NULL },
 };

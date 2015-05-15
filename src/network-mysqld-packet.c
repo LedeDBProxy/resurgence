@@ -352,6 +352,7 @@ int network_mysqld_proto_get_com_stmt_prepare_result(
 			if (udata->want_eofs == 0) {
 				is_finished = 1;
                 con->valid_prepare_stmt_cnt++;
+                g_debug("%s: now valid_prepare_stmt_cnt:%d", G_STRLOC, con->valid_prepare_stmt_cnt);
 			}
 
             g_message("%s: want_eofs value:%d",
@@ -385,6 +386,7 @@ int network_mysqld_proto_get_com_stmt_prepare_result(
 			if (--udata->want_eofs == 0) {
 				is_finished = 1;
                 con->valid_prepare_stmt_cnt++;
+                g_debug("%s: here valid_prepare_stmt_cnt:%d", G_STRLOC, con->valid_prepare_stmt_cnt);
 			}
             g_message("%s: other want_eofs value:%d",
 					G_STRLOC,

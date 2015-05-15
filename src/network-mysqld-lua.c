@@ -146,8 +146,10 @@ static int proxy_connection_set(lua_State *L) {
 		    g_critical("set backend index for client:%d", st->backend_ndx);
 		}
 	} else if (0 == strcmp(key, "selected_server_ndx")) {
-		int index = luaL_checkinteger(L, 3) - 1;
-        con->server = con->server_list->server[index];
+		int index = luaL_checkinteger(L, 3);
+        if  (con->server_list != NULL) {
+            con->server = con->server_list->server[index];
+        }
 	} else if (0 == strcmp(key, "connection_close")) {
         luaL_checktype(L, 3, LUA_TBOOLEAN);
 

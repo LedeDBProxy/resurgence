@@ -29,9 +29,7 @@
 #include <unistd.h> /* for write() */
 #endif
 
-#ifdef HAVE_SYS_SOCKET_H
 #include <sys/socket.h>	/* for SOCK_STREAM and AF_UNIX/AF_INET */
-#endif
 
 #include <event.h>
 

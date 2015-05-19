@@ -244,7 +244,6 @@ static gint network_address_set_address_un(network_address *addr, const gchar *a
 	g_return_val_if_fail(addr, -1);
 	g_return_val_if_fail(address, -1);
 
-#ifdef HAVE_SYS_UN_H
 	if (strlen(address) >= sizeof(addr->addr.un.sun_path) - 1) {
 		g_critical("unix-path is too long: %s", address);
 		return -1;
@@ -257,9 +256,6 @@ static gint network_address_set_address_un(network_address *addr, const gchar *a
 	network_address_refresh_name(addr);
 
 	return 0;
-#else
-	return -1;
-#endif
 }
 
 /**
@@ -358,7 +354,6 @@ network_address_tostring_inet_ntoa(network_address *addr, gchar *dst, gsize *dst
 		*dst_len = g_strlcpy(dst, addr_str, *dst_len);
 
 		return dst;
-#ifdef HAVE_SYS_UN_H
 	case AF_UNIX:
 		*dst_len = g_strlcpy(dst, addr->addr.un.sun_path, *dst_len);
 		if (*dst_len >= initial_dst_len) {
@@ -372,7 +367,6 @@ network_address_tostring_inet_ntoa(network_address *addr, gchar *dst, gsize *dst
 		*dst_len += 1; /* g_strlcpy() returns the size without \0, we return the size with \0 */
 
 		return dst;
-#endif
 	default:
 		g_set_error(gerr,
 				NETWORK_ADDRESS_ERROR,
@@ -441,7 +435,6 @@ network_address_tostring_inet_ntop(network_address *addr,
 		*dst_len = strlen(addr_str) + 1;
 
 		return addr_str;
-#ifdef HAVE_SYS_UN_H
 	case AF_UNIX:
 		*dst_len = g_strlcpy(dst, addr->addr.un.sun_path, *dst_len);
 
@@ -456,7 +449,6 @@ network_address_tostring_inet_ntop(network_address *addr,
 		*dst_len += 1; /* g_strlcpy() returns the size without \0, we return the size with \0 */
 
 		return dst;
-#endif
 	default:
 		g_set_error(gerr,
 				NETWORK_ADDRESS_ERROR,
@@ -545,7 +537,6 @@ gboolean network_address_is_local(network_address *dst_addr, network_address *sr
 	gsize dst_addr_buf_len = sizeof(dst_addr_buf);
 
 	if (src_addr->addr.common.sa_family != dst_addr->addr.common.sa_family) {
-#ifdef HAVE_SYS_UN_H
 		if (src_addr->addr.common.sa_family == AF_UNIX ||
 		    dst_addr->addr.common.sa_family == AF_UNIX) {
 			/* AF_UNIX is always local,
@@ -555,7 +546,6 @@ gboolean network_address_is_local(network_address *dst_addr, network_address *sr
 			 */
 			return TRUE;
 		}
-#endif
 		g_message("%s: is-local family %d != %d",
 				G_STRLOC,
 				src_addr->addr.common.sa_family,
@@ -587,11 +577,9 @@ gboolean network_address_is_local(network_address *dst_addr, network_address *sr
 				ntohs(dst_addr->addr.ipv6.sin6_port));
 		/* as long as src and dst address are the same, we are fine */
 		return (0 == memcmp(&dst_addr->addr.ipv6.sin6_addr.s6_addr, &src_addr->addr.ipv6.sin6_addr.s6_addr, 16));
-#ifdef HAVE_SYS_UN_H
 	case AF_UNIX:
 		/* we are always local */
 		return TRUE;
-#endif
 	default:
 		g_critical("%s: sa_family = %d", G_STRLOC, src_addr->addr.common.sa_family);
 		return FALSE;

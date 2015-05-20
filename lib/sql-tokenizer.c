@@ -1930,9 +1930,6 @@ char *yytext;
 
 #include <glib-ext.h>
 
-#ifdef WIN32
-#include <io.h>  /* for read */
-#endif
 #include <stdlib.h>
 
 #define YY_DECL int sql_tokenizer_internal(GPtrArray *tokens)
@@ -3630,13 +3627,10 @@ sql_token_id sql_token_get_id(const gchar *name) {
 int sql_tokenizer(GPtrArray *tokens, const gchar *str, gsize len) {
 	YY_BUFFER_STATE state;
 	int ret;
-	static GStaticMutex mutex = G_STATIC_MUTEX_INIT;
 
-	g_static_mutex_lock(&mutex);
 	state = yy_scan_bytes(str,len);
 	ret = sql_tokenizer_internal(tokens);
 	yy_delete_buffer(state);
-	g_static_mutex_unlock(&mutex);
 
 	return ret;
 }

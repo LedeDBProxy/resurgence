@@ -38,6 +38,7 @@
 #ifdef HAVE_PWD_H
 #include <pwd.h>	 /* getpwnam() */
 #endif
+#include <sys/socket.h>	/* for SOCK_STREAM and AF_UNIX/AF_INET */
 
 #include <glib.h>
 #include "chassis-plugin.h"
@@ -46,8 +47,6 @@
 #include "chassis-log.h"
 #include "chassis-stats.h"
 #include "chassis-timings.h"
-
-#include "network-socket.h"
 
 static volatile sig_atomic_t signal_shutdown;
 

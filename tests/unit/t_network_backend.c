@@ -141,3 +141,8 @@ int main(int argc, char **argv) {
 
 	return g_test_run();
 }
+#else
+int main() {
+	return 77;
+}
+#endif

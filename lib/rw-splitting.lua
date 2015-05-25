@@ -41,7 +41,7 @@ if not proxy.global.config.rwsplit then
         mid_idle_connections = 2,
         max_idle_connections = 4,
 
-		is_debug = true,
+		is_debug = false,
 		is_slave_write_forbidden_set = false
 	}
 end
@@ -65,8 +65,7 @@ local is_in_select_calc_found_rows = false
 -- as long as we don't have enough connections in the pool, create new connections
 --
 function connect_server() 
-	local is_debug = true
-	-- local is_debug = proxy.global.config.rwsplit.is_debug
+	local is_debug = proxy.global.config.rwsplit.is_debug
 	-- make sure that we connect to each backend at least ones to 
 	-- keep the connections to the servers alive
 	--
@@ -162,8 +161,8 @@ end
 --
 -- auth.packet is the packet
 function read_auth_result( auth )
-	local is_debug = true
-	-- local is_debug = proxy.global.config.rwsplit.is_debug
+	local is_debug = proxy.global.config.rwsplit.is_debug
+
 	if is_debug then
         print("[read_auth_result] " .. proxy.connection.client.src.name)
         print("  using connection from: " .. proxy.connection.backend_ndx)
@@ -370,7 +369,9 @@ function read_query( packet )
                 elseif ro_server == true then
                     multiple_server_mode = true
                     proxy.connection.backend_ndx = lb.idle_failsafe_rw()
-                    print("  [set multiple_server_mode true]")
+                    if is_debug then
+                        print("  [set multiple_server_mode true]")
+                    end
                     -- TODO if backend_ndx not more than 0
                 end
             elseif ps_cnt > 0 then
@@ -382,7 +383,9 @@ function read_query( packet )
         end
     end
 
-    print("  backend_ndx:" .. proxy.connection.backend_ndx)
+    if is_debug then
+        print("  backend_ndx:" .. proxy.connection.backend_ndx)
+    end
 
     c.is_server_conn_reserved = conn_reserved
 
@@ -405,14 +408,15 @@ function read_query( packet )
 
     if multiple_server_mode == true then
         if cmd.type == proxy.COM_STMT_EXECUTE or cmd.type == proxy.COM_STMT_CLOSE then
-            print("    stmt id before change:" .. cmd.stmt_handler_id)
+            if is_debug then
+                print("    stmt id before change:" .. cmd.stmt_handler_id)
+            end
             local selected_server_ndx = proto.change_stmt_id_from_client_stmt_execute_packet(packet)
-            print("    selected_server_ndx:" .. selected_server_ndx)
+            if is_debug then
+                print("    selected_server_ndx:" .. selected_server_ndx)
+            end
             proxy.connection.selected_server_ndx = selected_server_ndx
-            print("    after change selected_server_ndx")
             -- all related fields are invalid after this such as stmt_handler_id
-	        --local cmd2      = commands.parse(packet)
-            --print("    stmt id after change:" .. cmd2.stmt_handler_id)
         end
     end
 
@@ -461,9 +465,11 @@ function read_query_result( inj )
   	local flags    = res.flags
     local server_index
 
-    print("[read_query_result] " .. proxy.connection.client.src.name)
-    print("   read from server:" .. proxy.connection.server.dst.name)
-    print("   read index from server:" .. proxy.connection.backend_ndx)
+    if is_debug then
+        print("[read_query_result] " .. proxy.connection.client.src.name)
+        print("   read from server:" .. proxy.connection.server.dst.name)
+        print("   read index from server:" .. proxy.connection.backend_ndx)
+    end
 
 	if inj.id ~= 1 and inj.id ~= 3 then
 		-- ignore the result of the USE <default_db>
@@ -491,10 +497,14 @@ function read_query_result( inj )
 
     if multiple_server_mode == true then
         server_index = proxy.connection.selected_server_ndx
-        print("   multiple_server_mode, server index:" .. server_index)
+        if is_debug then
+            print("   multiple_server_mode, server index:" .. server_index)
+        end
 
         if inj.id == 1 then
-            print("change stmt id")
+            if is_debug then
+                print("change stmt id")
+            end
             res.prepared_stmt_id = server_index
         else
             res.executed_stmt_id = server_index
@@ -508,8 +518,7 @@ end
 -- @return nil - close connection 
 --         IGNORE_RESULT - store connection in the pool
 function disconnect_client()
-	local is_debug = true
-	-- local is_debug = proxy.global.config.rwsplit.is_debug
+	local is_debug = proxy.global.config.rwsplit.is_debug
 	if is_debug then
 		print("[disconnect_client] " .. proxy.connection.client.src.name)
 	end

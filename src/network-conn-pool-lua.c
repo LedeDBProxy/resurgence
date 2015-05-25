@@ -221,7 +221,7 @@ int network_connection_pool_lua_add_connection(network_mysqld_con *con) {
     g_debug("%s: call network_connection_pool_lua_add_connection", G_STRLOC);
 
     if (con->server_list != NULL) {
-        int i;
+        int i, checked = 0;
         network_socket *server;
 	    network_backend_t *backend;
         server_list_t *server_list;
@@ -243,6 +243,10 @@ int network_connection_pool_lua_add_connection(network_mysqld_con *con) {
             chassis_event_add_local(con->srv, &(server->event)); 
 
             backend->connected_clients--;
+            checked++;
+            if (checked >= server_list->num) {
+                break;
+            }
         }
     } else {
         con->valid_prepare_stmt_cnt = 0;

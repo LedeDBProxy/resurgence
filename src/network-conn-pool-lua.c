@@ -228,9 +228,16 @@ int network_connection_pool_lua_add_connection(network_mysqld_con *con) {
 
         server_list = con->server_list;
 
-        for (i = 0; i < server_list->num; i++) {
-            server = server_list->server[i];
+        for (i = 0; i < MAX_SERVER_NUM; i++) {
+
+            if (st->backend_ndx_array[i] == 0) {
+                continue;
+            }
+
+            int index = st->backend_ndx_array[i] - 1;
+            server = server_list->server[index];
             backend = st->backend_array[i];
+            g_debug("%s: here add conn fd:%d to pool:%p ", G_STRLOC, server->fd, backend->pool); 
             pool_entry = network_connection_pool_add(backend->pool, server, con->client->src->key);
             event_set(&(server->event), server->fd, EV_READ, network_mysqld_con_idle_handle, pool_entry);
             chassis_event_add_local(con->srv, &(server->event)); 
@@ -241,6 +248,7 @@ int network_connection_pool_lua_add_connection(network_mysqld_con *con) {
         con->valid_prepare_stmt_cnt = 0;
         g_debug("%s: set valid_prepare_stmt_cnt 0", G_STRLOC);
 
+        g_debug("%s: add conn fd:%d to pool:%p", G_STRLOC, con->server->fd, st->backend->pool);
         /* insert the server socket into the connection pool */
         pool_entry = network_connection_pool_add(st->backend->pool, con->server, con->client->src->key);
 
@@ -327,6 +335,8 @@ network_socket *network_connection_pool_lua_swap(network_mysqld_con *con, int ba
         if (st->backend_array == NULL) {
             st->backend_array = g_new0(network_backend_t *, MAX_SERVER_NUM);
             st->backend_array[st->backend_ndx] = st->backend;
+            g_debug("%s: (swap) first server to server list, backend array index:%d, pool:%p, server fd:%d", 
+                G_STRLOC, st->backend_ndx, st->backend->pool, send_sock->fd);
         }
 
         if (con->server_list == NULL) {
@@ -334,14 +344,20 @@ network_socket *network_connection_pool_lua_swap(network_mysqld_con *con, int ba
             con->server_list->server[0] = con->server;
             con->server_list->server[1] = send_sock;
             con->server_list->num = 2;
+            g_debug("%s: (swap) first server to server list, index:0, fd:%d, index:1, fd:%d", 
+                G_STRLOC, con->server->fd, send_sock->fd);
         } else {
+            g_debug("%s: (swap) add server to server list, index:%d, server fd:%d", 
+                G_STRLOC, con->server_list->num, send_sock->fd);
             con->server_list->server[con->server_list->num] = send_sock;
             con->server_list->num++;
+
         }
 
         st->backend_ndx_array[backend_ndx] = con->server_list->num;
         st->backend_array[backend_ndx] = backend;
-        g_debug("%s: (swap) add server to server list", G_STRLOC);
+        g_debug("%s: (swap) add server to server list, backend array index:%d, pool:%p, server fd:%d", 
+                G_STRLOC, backend_ndx, backend->pool, send_sock->fd);
     } else {
 
         g_debug("%s: (swap) take and move the current backend into the pool", G_STRLOC);

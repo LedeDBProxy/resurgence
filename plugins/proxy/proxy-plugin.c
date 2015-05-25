@@ -1769,6 +1769,8 @@ NETWORK_MYSQLD_PLUGIN_PROTO(proxy_connect_server) {
 	if (con->server) {
 		switch (network_socket_connect_finish(con->server)) {
 		case NETWORK_SOCKET_SUCCESS:
+            g_debug("%s.%d: connecting to backend (%s) success, fd:%d",
+					__FILE__, __LINE__, con->server->dst->name->str, con->server->fd);
 			/* increment the connected clients value only if we connected successfully */
 			st->backend->connected_clients++;
 			break;
@@ -1902,6 +1904,9 @@ NETWORK_MYSQLD_PLUGIN_PROTO(proxy_connect_server) {
 			 * call getsockopt() to see if we are done */
 			return NETWORK_SOCKET_ERROR_RETRY;
 		case NETWORK_SOCKET_SUCCESS:
+            g_debug("%s.%d: connecting to backend (%s) success, fd:%d",
+					__FILE__, __LINE__, con->server->dst->name->str, con->server->fd);
+
 			/* increment the connected clients value only if we connected successfully */
 			st->backend->connected_clients++;
 			break;

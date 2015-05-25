@@ -145,6 +145,12 @@ static int proxy_connection_set(lua_State *L) {
 			st->backend_ndx = backend_ndx;
 		    g_critical("set backend index for client:%d", st->backend_ndx);
 		}
+
+        if (con->server) {
+            g_debug("%s.%d: connecting to backend (%s) , use fd:%d, backend_ndx:%d",
+                    __FILE__, __LINE__, con->server->dst->name->str, con->server->fd, st->backend_ndx);
+        }
+
 	} else if (0 == strcmp(key, "selected_server_ndx")) {
 		int index = luaL_checkinteger(L, 3);
         if  (con->server_list != NULL) {

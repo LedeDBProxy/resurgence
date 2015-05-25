@@ -354,7 +354,7 @@ function read_query( packet )
                         end
                     end
 
-                    if session_read_only == 1 then
+                    if ps_cnt == 0 and session_read_only == 1 then
                         local backend_ndx = lb.idle_ro()
 
                         if is_debug then
@@ -408,6 +408,7 @@ function read_query( packet )
             print("    selected_server_ndx:" .. selected_server_ndx)
             proxy.connection.selected_server_ndx = selected_server_ndx
             print("    after change selected_server_ndx")
+            print("    stmt id after change:" .. cmd.stmt_handler_id)
         end
     end
 
@@ -424,6 +425,13 @@ function read_query( packet )
 		proxy.queries:prepend(2, string.char(proxy.COM_INIT_DB) .. c.default_db, { resultset_is_needed = true })
 	end
 
+    if cmd_type == proxy.COM_STMT_EXECUTE then
+        proxy.queries:append(3, packet, { resultset_is_needed = true } )
+    elseif cmd_type == proxy.COM_STMT_PREPARE then
+        proxy.queries:append(1, packet, { resultset_is_needed = true } )
+    end
+
+
 	-- send to master
 	if is_debug then
 		if proxy.connection.backend_ndx > 0 then
@@ -438,13 +446,7 @@ function read_query( packet )
 		print("    COM_QUERY       : " .. tostring(cmd.type == proxy.COM_QUERY))
 	end
 
-    if cmd_type == proxy.COM_STMT_EXECUTE then
-        proxy.queries:append(3, packet, { resultset_is_needed = true } )
-    elseif cmd_type == proxy.COM_STMT_PREPARE then
-        proxy.queries:append(1, packet, { resultset_is_needed = true } )
-    end
-
-	return proxy.PROXY_SEND_QUERY
+  	return proxy.PROXY_SEND_QUERY
 end
 
 ---
@@ -457,6 +459,8 @@ function read_query_result( inj )
     local server_index
 
     print("[read_query_result] " .. proxy.connection.client.src.name)
+    print("   read from server:" .. proxy.connection.server.dst.name)
+    print("   read index from server:" .. proxy.connection.backend_ndx)
 
 	if inj.id ~= 1 and inj.id ~= 3 then
 		-- ignore the result of the USE <default_db>

@@ -143,7 +143,7 @@ static int proxy_connection_set(lua_State *L) {
 			con->server = send_sock;
 		} else {
 			st->backend_ndx = backend_ndx;
-		    g_critical("set backend index for client:%d", st->backend_ndx);
+		    g_debug("set backend index for client:%d", st->backend_ndx);
 		}
 
         if (con->server) {

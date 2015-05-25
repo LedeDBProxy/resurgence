@@ -128,7 +128,7 @@ static gboolean find_idle_conns(gpointer UNUSED_PARAM(_key), gpointer _val, gpoi
 	guint idle_conns_threshold = *(gint *)_user_data;
 	GQueue *conns = _val;
 
-    g_critical("%s: conns length:%d, idle_conns_threshold:%d", G_STRLOC, conns->length, idle_conns_threshold);
+    g_debug("%s: conns length:%d, idle_conns_threshold:%d", G_STRLOC, conns->length, idle_conns_threshold);
 	return (conns->length > idle_conns_threshold);
 }
 
@@ -154,13 +154,13 @@ GQueue *network_connection_pool_get_conns(network_connection_pool *pool, GString
         conns = g_hash_table_find(pool->users, find_idle_conns, &(pool->mid_idle_connections));
         if (conns && conns->length > pool->mid_idle_connections) {
             pool->init_phase = FALSE;
-		    g_critical("%s: (get_conns) init phase complete for user '%s' -> %p", G_STRLOC, username->str, conns);
+		    g_debug("%s: (get_conns) init phase complete for user '%s' -> %p", G_STRLOC, username->str, conns);
         }
     } else {
         conns = g_hash_table_find(pool->users, find_idle_conns, &(pool->min_idle_connections));
     }
 
-	g_critical("%s: (get_conns) try to find max-idling conns for user '%s' -> %p", G_STRLOC, username ? username->str : "", conns);
+	g_debug("%s: (get_conns) try to find max-idling conns for user '%s' -> %p", G_STRLOC, username ? username->str : "", conns);
 
 	return conns;
 }
@@ -220,7 +220,7 @@ network_socket *network_connection_pool_get(network_connection_pool *pool,
 	}
 
     if (!found_entry) {
-		g_critical("%s: (get) no entry for user '%s' -> %p", G_STRLOC, username ? username->str : "", conns);
+		g_debug("%s: (get) no entry for user '%s' -> %p", G_STRLOC, username ? username->str : "", conns);
 		return NULL;
 	}
 
@@ -231,7 +231,7 @@ network_socket *network_connection_pool_get(network_connection_pool *pool,
 	/* remove the idle handler from the socket */	
 	event_del(&(sock->event));
 		
-	g_critical("%s: (get) got socket for user '%s' -> %p", G_STRLOC, username ? username->str : "", sock);
+	g_debug("%s: (get) got socket for user '%s' -> %p", G_STRLOC, username ? username->str : "", sock);
 
 	return sock;
 }

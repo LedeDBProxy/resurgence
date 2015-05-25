@@ -485,7 +485,12 @@ static int proxy_resultset_set(lua_State *L) {
             GString s;
             int err = 0;
             GString *tmp;
-            int index = lua_tointeger(L, -1);
+            int index = lua_tointeger(L, -1) - 1;
+
+            if (index < 0) {
+                luaL_error(L, "%s: index:%d error from prepared_stmt_id", G_STRLOC, index);
+                return 0;
+            }
             tmp = res->result_queue->head->data;
             s.str = tmp->str + 4; /* skip the network-header */
             s.len = tmp->len - 4;
@@ -494,7 +499,6 @@ static int proxy_resultset_set(lua_State *L) {
 
             err = network_mysqld_proto_change_stmt_id_from_server_prepare_ok_packet(&packet, index);
             if (err) {
-                luaL_error(L, "%s: change stmt id_from server prepare ok packet() failed", G_STRLOC);
                 return 0;
             }
         }
@@ -515,7 +519,7 @@ static int proxy_resultset_set(lua_State *L) {
 
             err = network_mysqld_proto_change_stmt_id_from_server_stmt_execute_packet(&packet, index);
             if (err) {
-                luaL_error(L, "%s: change stmt id_from server prepare ok packet() failed", G_STRLOC);
+                luaL_error(L, "%s: change stmt id_from server stmt execute ok packet() failed", G_STRLOC);
                 return 0;
             }
         }

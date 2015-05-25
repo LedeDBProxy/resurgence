@@ -215,9 +215,11 @@ function read_query( packet )
         if is_debug then
             print("read query before valid_prepare_stmt_cnt:" .. ps_cnt)
         end
-	    local b = proxy.global.backends[backend_ndx]
-        if b.type == proxy.BACKEND_TYPE_RO then
-            ro_server = true
+        if backend_ndx > 0 then
+            local b = proxy.global.backends[backend_ndx]
+            if b.type == proxy.BACKEND_TYPE_RO then
+                ro_server = true
+            end
         end
     end
 
@@ -408,7 +410,9 @@ function read_query( packet )
             print("    selected_server_ndx:" .. selected_server_ndx)
             proxy.connection.selected_server_ndx = selected_server_ndx
             print("    after change selected_server_ndx")
-            print("    stmt id after change:" .. cmd.stmt_handler_id)
+            -- all related fields are invalid after this such as stmt_handler_id
+	        --local cmd2      = commands.parse(packet)
+            --print("    stmt id after change:" .. cmd2.stmt_handler_id)
         end
     end
 
@@ -430,7 +434,6 @@ function read_query( packet )
     elseif cmd_type == proxy.COM_STMT_PREPARE then
         proxy.queries:append(1, packet, { resultset_is_needed = true } )
     end
-
 
 	-- send to master
 	if is_debug then

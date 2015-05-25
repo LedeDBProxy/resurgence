@@ -1779,7 +1779,7 @@ int network_mysqld_proto_change_stmt_id_from_server_prepare_ok_packet(network_pa
 	if (err) return -1;
 
 	if (0x00 != packet_type) {
-		g_critical("%s: expected the first byte to be %02x, got %02x",
+		g_debug("%s: expected the first byte to be %02x, got %02x",
 				G_STRLOC,
 				0x00,
 				packet_type);
@@ -1823,7 +1823,7 @@ int network_mysqld_proto_change_stmt_id_from_server_stmt_execute_packet(network_
 	return 0;
 }
 
-int network_mysqld_proto_change_stmt_id_from_client_stmt_execute_packet(network_packet *packet, int *server_index) {
+int network_mysqld_proto_change_stmt_id_from_client_stmt_packet(network_packet *packet, int *server_index) {
 	guint8 packet_type;
 	int err = 0;
     int *p = NULL;
@@ -1831,10 +1831,11 @@ int network_mysqld_proto_change_stmt_id_from_client_stmt_execute_packet(network_
 	err = err || network_mysqld_proto_get_int8(packet, &packet_type);
 	if (err) return -1;
 
-	if (COM_STMT_EXECUTE != packet_type) {
-		g_critical("%s: expected the first byte to be %02x, got %02x",
+	if (COM_STMT_EXECUTE != packet_type && COM_STMT_CLOSE!= packet_type) {
+		g_critical("%s: expected the first byte to be %02x or %02x, got %02x",
 				G_STRLOC,
 				COM_STMT_EXECUTE,
+				COM_STMT_CLOSE,
 				packet_type);
 		return -1;
 	}

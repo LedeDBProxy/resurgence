@@ -752,9 +752,9 @@ static int lua_proto_change_stmt_id_from_client_stmt_execute_packet(lua_State *L
     packet.data = &s;
     packet.offset = 0;
 
-    err = err || network_mysqld_proto_change_stmt_id_from_client_stmt_execute_packet(&packet, &index);
+    err = err || network_mysqld_proto_change_stmt_id_from_client_stmt_packet(&packet, &index);
     if (err) {
-        luaL_error(L, "%s: network_mysqld_proto_change_stmt_id_from_client_stmt_execute_packet() failed", G_STRLOC);
+        luaL_error(L, "%s: network_mysqld_proto_change_stmt_id_from_client_stmt_packet() failed", G_STRLOC);
         return 0;
     }
 

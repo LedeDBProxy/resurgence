@@ -41,7 +41,7 @@ if not proxy.global.config.rwsplit then
         mid_idle_connections = 2,
         max_idle_connections = 4,
 
-		is_debug = false,
+		is_debug = true,
 		is_slave_write_forbidden_set = false
 	}
 end
@@ -468,6 +468,7 @@ function read_query_result( inj )
     if is_debug then
         print("[read_query_result] " .. proxy.connection.client.src.name)
         print("   read from server:" .. proxy.connection.server.dst.name)
+        print("   proxy used port:" .. proxy.connection.server.src.name)
         print("   read index from server:" .. proxy.connection.backend_ndx)
     end
 
@@ -493,7 +494,13 @@ function read_query_result( inj )
 		return proxy.PROXY_IGNORE_RESULT
 	end
 
-	is_in_transaction = flags.in_trans
+    if res.query_status and res.query_status == 255 then
+        if  is_in_transaction then
+            print("   query_status error, reserve is_in_transaction value")
+        end
+    else
+        is_in_transaction = flags.in_trans
+    end
 
     if multiple_server_mode == true then
         server_index = proxy.connection.selected_server_ndx

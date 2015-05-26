@@ -530,9 +530,12 @@ function disconnect_client()
 		print("[disconnect_client] " .. proxy.connection.client.src.name)
 	end
     
-    if not is_backend_conn_keepalive then 
+    if not is_backend_conn_keepalive or is_in_transaction then 
         if is_debug then
             print("  set connection_close true ")
+            if is_in_transaction then
+                print(" is_in_transaction is still true") 
+            end
         end
         proxy.connection.connection_close = true
     else

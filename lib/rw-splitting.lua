@@ -494,9 +494,9 @@ function read_query_result( inj )
 		return proxy.PROXY_IGNORE_RESULT
 	end
 
-    if res.query_status and res.query_status == 255 then
-        if  is_in_transaction then
-            print("   query_status error, reserve is_in_transaction value")
+    if res.query_status and res.query_status ~= 0 then
+        if is_in_transaction then
+            print("   query_status: " .. res.query_status .. " error, reserve origin is_in_transaction value")
         end
     else
         is_in_transaction = flags.in_trans

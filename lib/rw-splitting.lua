@@ -233,7 +233,7 @@ function read_query( packet )
 		end
 	end
 
-	if cmd.type == proxy.COM_QUIT and is_backend_conn_keepalive  then
+	if cmd.type == proxy.COM_QUIT and is_backend_conn_keepalive and not is_in_transaction then
 		-- don't send COM_QUIT to the backend. We manage the connection
 		-- in all aspects.
 		-- proxy.response = {

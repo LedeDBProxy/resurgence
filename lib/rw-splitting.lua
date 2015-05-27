@@ -411,11 +411,7 @@ function read_query( packet )
             if is_debug then
                 print("    stmt id before change:" .. cmd.stmt_handler_id)
             end
-            local selected_server_ndx = proto.change_stmt_id_from_client_stmt_execute_packet(packet)
-            if is_debug then
-                print("    selected_server_ndx:" .. selected_server_ndx)
-            end
-            proxy.connection.selected_server_ndx = selected_server_ndx
+            proxy.connection.change_server = cmd.stmt_handler_id
             -- all related fields are invalid after this such as stmt_handler_id
         end
     end
@@ -510,7 +506,7 @@ function read_query_result( inj )
 
         if inj.id == 1 then
             if is_debug then
-                print("change stmt id")
+                print("    change stmt id")
             end
             res.prepared_stmt_id = server_index
         else

@@ -151,10 +151,25 @@ static int proxy_connection_set(lua_State *L) {
                     __FILE__, __LINE__, con->server->dst->name->str, con->server->fd, st->backend_ndx);
         }
 
-	} else if (0 == strcmp(key, "selected_server_ndx")) {
-		int index = luaL_checkinteger(L, 3);
+	} else if (0 == strcmp(key, "change_server")) {
+		int stmt_id = luaL_checkinteger(L, 3);
+		int index = (stmt_id & 0xffff0000) >> 16;
         if  (con->server_list != NULL) {
+            if (index >= con->server_list->num) {
+		        return luaL_error(L, "proxy.selected_server_ndx.%s is not too big", key);
+            }
             con->server = con->server_list->server[index];
+
+            if (index > 0) {
+                network_packet packet;
+                int err = 0;
+                injection *inj;
+                inj = g_queue_peek_head(st->injected.queries);
+                packet.data = inj->query;
+                packet.offset = 0;
+
+                network_mysqld_proto_change_stmt_id_from_client_stmt_packet(&packet);
+            }
         }
 	} else if (0 == strcmp(key, "connection_close")) {
         luaL_checktype(L, 3, LUA_TBOOLEAN);

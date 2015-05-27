@@ -1823,9 +1823,9 @@ int network_mysqld_proto_change_stmt_id_from_server_stmt_execute_packet(network_
 	return 0;
 }
 
-int network_mysqld_proto_change_stmt_id_from_client_stmt_packet(network_packet *packet, int *server_index) {
+int network_mysqld_proto_change_stmt_id_from_client_stmt_packet(network_packet *packet) {
 	guint8 packet_type;
-	int err = 0;
+	int err = 0, orig_value;
     int *p = NULL;
 
 	err = err || network_mysqld_proto_get_int8(packet, &packet_type);
@@ -1841,9 +1841,11 @@ int network_mysqld_proto_change_stmt_id_from_client_stmt_packet(network_packet *
 	}
 
     p = (int *)(((unsigned char *)packet->data->str) + packet->offset);
+    orig_value = *p;
 
-    *server_index = (*p & 0xffff0000) >> 16;
 	*p = *p & 0x00007fff;
+
+    g_debug("%s.%d: change stmt for backend, orig:%d, now:%d", __FILE__, __LINE__, orig_value, *p);
 
 	return 0;
 }

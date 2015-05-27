@@ -211,9 +211,6 @@ function read_query( packet )
 
     if is_prepared then
         ps_cnt = proxy.connection.valid_prepare_stmt_cnt
-        if is_debug then
-            print("read query before valid_prepare_stmt_cnt:" .. ps_cnt)
-        end
         if backend_ndx > 0 then
             local b = proxy.global.backends[backend_ndx]
             if b.type == proxy.BACKEND_TYPE_RO then
@@ -225,7 +222,7 @@ function read_query( packet )
 	-- looks like we have to forward this statement to a backend
 	if is_debug then
 		print("[read_query] " .. proxy.connection.client.src.name)
-		print("  current backend   = " .. proxy.connection.backend_ndx)
+		print("  current backend   = " .. backend_ndx)
 		print("  client default db = " .. c.default_db)
 		print("  client username   = " .. c.username)
 		if cmd.type == proxy.COM_QUERY then 
@@ -242,7 +239,7 @@ function read_query( packet )
 	
 		if is_debug then
             print("  valid_prepare_stmt_cnt:" .. ps_cnt)
-			print("  (QUIT) current backend   = " .. proxy.connection.backend_ndx)
+			print("  (QUIT) current backend   = " .. backend_ndx)
 		end
 
 		return proxy.PROXY_SEND_NONE
@@ -254,8 +251,9 @@ function read_query( packet )
 	if cmd.type == proxy.COM_BINLOG_DUMP then
 		-- if we don't have a backend selected, let's pick the master
 		--
-		if proxy.connection.backend_ndx == 0 then
-			proxy.connection.backend_ndx = lb.idle_failsafe_rw()
+		if backend_ndx == 0 then
+            backend_ndx = lb.idle_failsafe_rw()
+			proxy.connection.backend_ndx = backend_ndx
 		end
 
 		return
@@ -303,7 +301,7 @@ function read_query( packet )
             -- if we ask for the last-insert-id we have to ask it on the original 
             -- connection
             if not is_insert_id then
-                local backend_ndx = lb.idle_ro()
+                backend_ndx = lb.idle_ro()
 
                 if is_debug then
                     print("  [pure select statement] ")
@@ -356,7 +354,7 @@ function read_query( packet )
                     end
 
                     if ps_cnt == 0 and session_read_only == 1 then
-                        local backend_ndx = lb.idle_ro()
+                        backend_ndx = lb.idle_ro()
 
                         if is_debug then
                             print("  [pure readonly statement]:" .. backend_ndx)
@@ -368,7 +366,8 @@ function read_query( packet )
                     end
                 elseif ro_server == true then
                     multiple_server_mode = true
-                    proxy.connection.backend_ndx = lb.idle_failsafe_rw()
+                    backend_ndx = lb.idle_failsafe_rw()
+                    proxy.connection.backend_ndx = backend_ndx
                     if is_debug then
                         print("  [set multiple_server_mode true]")
                     end
@@ -384,13 +383,13 @@ function read_query( packet )
     end
 
     if is_debug then
-        print("  backend_ndx:" .. proxy.connection.backend_ndx)
+        print("  backend_ndx:" .. backend_ndx)
     end
 
     c.is_server_conn_reserved = conn_reserved
 
-	if proxy.connection.backend_ndx == 0 then
-        local backend_ndx = lb.idle_failsafe_rw()
+	if backend_ndx == 0 then
+        backend_ndx = lb.idle_failsafe_rw()
         if backend_ndx <= 0 and proxy.global.config.rwsplit.is_slave_write_forbidden_set then
             backend_ndx = lb.idle_ro()
         end
@@ -402,7 +401,7 @@ function read_query( packet )
 	--
 	-- in case the master is down, we have to close the client connections
 	-- otherwise we can go on
-	if proxy.connection.backend_ndx == 0 then
+	if backend_ndx == 0 then
 		return proxy.PROXY_SEND_QUERY
 	end
 
@@ -437,8 +436,8 @@ function read_query( packet )
 
 	-- send to master
 	if is_debug then
-		if proxy.connection.backend_ndx > 0 then
-			local b = proxy.global.backends[proxy.connection.backend_ndx]
+		if backend_ndx > 0 then
+			local b = proxy.global.backends[backend_ndx]
 			print("  sending to backend : " .. b.dst.name)
 			print("    is_slave         : " .. tostring(b.type == proxy.BACKEND_TYPE_RO))
 			print("    server default db: " .. s.default_db)

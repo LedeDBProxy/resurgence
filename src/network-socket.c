@@ -609,8 +609,9 @@ static network_socket_retval_t network_socket_write_writev(network_socket *con, 
 		}
 	}
 
-    g_debug("%s: send (src:%s, dst:%s) fd: %d", 
+    g_debug("%s: network socket:%p, send (src:%s, dst:%s) fd: %d", 
 					G_STRLOC,
+                    con,
 					con->src->name->str,
 					con->dst->name->str,
 					con->fd);

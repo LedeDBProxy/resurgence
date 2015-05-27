@@ -134,11 +134,13 @@ static int proxy_connection_set(lua_State *L) {
 		int backend_ndx = luaL_checkinteger(L, 3) - 1;
 		network_socket *send_sock;
 			
+        g_debug("proxy_connection_set:%p, back ndx:%d", con, st->backend_ndx);
 		if (backend_ndx == -1) {
 			/** drop the backend for now
 			 */
-		    g_debug("session drop the backend for now");
+		    g_debug("session drop the backend for now:%p, server:%p", con, con->server);
 			network_connection_pool_lua_add_connection(con); 
+            g_debug("session dropped the backend :%p, server:%p, back ndx:%d", con, con->server, st->backend_ndx);
 		} else if (NULL != (send_sock = network_connection_pool_lua_swap(con, backend_ndx))) {
 			con->server = send_sock;
 		} else {
@@ -156,9 +158,11 @@ static int proxy_connection_set(lua_State *L) {
 		int index = (stmt_id & 0xffff0000) >> 16;
         if  (con->server_list != NULL) {
             if (index >= con->server_list->num) {
-		        return luaL_error(L, "proxy.selected_server_ndx.%s is not too big", key);
+		        return luaL_error(L, "proxy.selected_server_ndx.%s is too big", key);
             }
             con->server = con->server_list->server[index];
+		    g_debug("change server conn:%p, server:%p stmt_id:%d, fd:%d", 
+                    con, con->server, stmt_id, con->server->fd);
 
             if (index > 0) {
                 network_packet packet;
@@ -170,6 +174,8 @@ static int proxy_connection_set(lua_State *L) {
 
                 network_mysqld_proto_change_stmt_id_from_client_stmt_packet(&packet);
             }
+        } else {
+		    g_debug("conn:%p, server list null, stmt id:%d, index:%d", con, stmt_id, index);
         }
 	} else if (0 == strcmp(key, "connection_close")) {
         luaL_checktype(L, 3, LUA_TBOOLEAN);

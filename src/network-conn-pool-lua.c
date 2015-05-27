@@ -314,9 +314,10 @@ network_socket *network_connection_pool_lua_swap(network_mysqld_con *con, int ba
     g_debug("%s: (swap) check server switch check for conn:%p, valid_prepare_stmt_cnt:%d, orig back ndx:%d, now:%d", 
             G_STRLOC, con, con->valid_prepare_stmt_cnt, st->backend_ndx, backend_ndx);
     /**
-     * TODO only valid for prepare statement,not valid for data partition
+     * TODO only valid for successional prepare statements,not valid for data partition
      */
-    if (st->backend_ndx != -1 && st->backend_ndx != backend_ndx && backend->type == BACKEND_TYPE_RW) {
+    if (st->backend_ndx != -1 && con->valid_prepare_stmt_cnt > 0 && st->backend_ndx != backend_ndx 
+            && backend->type == BACKEND_TYPE_RW) {
         server_switch = TRUE;
         g_debug("%s: (swap) server_switch is true", G_STRLOC);
     }

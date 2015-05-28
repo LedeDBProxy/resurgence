@@ -514,10 +514,9 @@ function read_query_result( inj )
 	local is_debug = proxy.global.config.rwsplit.is_debug
 	local res      = assert(inj.resultset)
   	local flags    = res.flags
-    local server_index
-    local backend_ndx = proxy.connection.backend_ndx
 
     if is_debug then
+        local backend_ndx = proxy.connection.backend_ndx
         print("[read_query_result] " .. proxy.connection.client.src.name)
         print("   backend_ndx:" .. backend_ndx)
         print("   read from server:" .. proxy.connection.server.dst.name)
@@ -557,7 +556,7 @@ function read_query_result( inj )
 
     if multiple_server_mode == true then
         if inj.id == 3 or inj.id == 4 then
-            server_index = proxy.connection.selected_server_ndx
+            local server_index = proxy.connection.selected_server_ndx
             if is_debug then
                 print("   multiple_server_mode, server index:" .. server_index)
             end

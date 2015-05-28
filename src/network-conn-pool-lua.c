@@ -95,6 +95,8 @@ static int proxy_pool_users_get(lua_State *L) {
 	GString *s = g_string_new(key);
 	GQueue **q_p = NULL;
 
+    g_debug("%s: call proxy_pool_users_get", G_STRLOC);
+
 	q_p = lua_newuserdata(L, sizeof(*q_p)); 
 	*q_p = network_connection_pool_get_conns(pool, s, NULL);
 	g_string_free(s, TRUE);

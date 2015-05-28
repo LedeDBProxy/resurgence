@@ -153,7 +153,7 @@ static int proxy_connection_set(lua_State *L) {
                     __FILE__, __LINE__, con->server->dst->name->str, con->server->fd, st->backend_ndx);
         }
 
-	} else if (0 == strcmp(key, "change_server")) {
+	} else if (0 == strcmp(key, "change_server_by_stmt_id")) {
 		int stmt_id = luaL_checkinteger(L, 3);
 		int index = (stmt_id & 0xffff0000) >> 16;
         if  (con->server_list != NULL) {
@@ -177,7 +177,18 @@ static int proxy_connection_set(lua_State *L) {
         } else {
 		    g_debug("conn:%p, server list null, stmt id:%d, index:%d", con, stmt_id, index);
         }
-	} else if (0 == strcmp(key, "connection_close")) {
+    } else if (0 == strcmp(key, "change_server_by_rw")) {
+		int backend_ndx = luaL_checkinteger(L, 3) - 1;
+        int index = st->backend_ndx_array[backend_ndx];
+        g_debug("conn:%p, change_server_by_rw, backend ndx:%d, index:%d", 
+                    con, backend_ndx, index);
+        if  (con->server_list != NULL) {
+            con->server = con->server_list->server[index];
+        } else {
+            g_debug("conn:%p, server list null when change_server_by_rw, backend ndx:%d, index:%d", 
+                    con, backend_ndx, index);
+        }
+    } else if (0 == strcmp(key, "connection_close")) {
         luaL_checktype(L, 3, LUA_TBOOLEAN);
 
         st->connection_close = lua_toboolean(L, 3);

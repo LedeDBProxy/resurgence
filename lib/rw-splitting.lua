@@ -201,6 +201,7 @@ function read_query( packet )
     local ps_cnt   = 0
     local conn_reserved = false
     local ro_server = false
+    local rw_op = true
     local backend_ndx = proxy.connection.backend_ndx
 
 	local r = auto_config.handle(cmd)
@@ -252,14 +253,16 @@ function read_query( packet )
 		-- if we don't have a backend selected, let's pick the master
 		--
 		if backend_ndx == 0 then
-            backend_ndx = lb.idle_failsafe_rw()
-			proxy.connection.backend_ndx = backend_ndx
-		end
+            local rw_backend_ndx = lb.idle_failsafe_rw()
+            if rw_backend_ndx > 0 then
+                backend_ndx = rw_backend_ndx
+                proxy.connection.backend_ndx = backend_ndx
+            end
+        end
 
 		return
 	end
 
-	proxy.queries:append(1, packet, { resultset_is_needed = true })
 
 	-- read/write splitting 
 	--
@@ -301,13 +304,17 @@ function read_query( packet )
             -- if we ask for the last-insert-id we have to ask it on the original 
             -- connection
             if not is_insert_id then
-                backend_ndx = lb.idle_ro()
+                local ro_backend_ndx = lb.idle_ro()
+                if ro_backend_ndx > 0 then
+                    backend_ndx = ro_backend_ndx
+                end
 
                 if is_debug then
-                    print("  [pure select statement] ")
+                    print("  [pure select statement] " .. backend_ndx)
                 end
 
                 if backend_ndx > 0 then
+                    rw_op = false
                     proxy.connection.backend_ndx = backend_ndx
                 end
             else
@@ -319,6 +326,21 @@ function read_query( packet )
         else
             if is_debug then
                 print("  [query but not select statement, reuse connection] ")
+            end
+        end
+
+        if ro_server == true and rw_op == true then
+            if ps_cnt > 0 then 
+                multiple_server_mode = true
+                if is_debug then
+                    print("  [set multiple_server_mode true in complex env]")
+                end
+            end
+
+            local rw_backend_ndx = lb.idle_failsafe_rw()
+            if rw_backend_ndx > 0 then
+                backend_ndx = rw_backend_ndx
+                proxy.connection.backend_ndx = backend_ndx
             end
         end
     else
@@ -354,7 +376,10 @@ function read_query( packet )
                     end
 
                     if ps_cnt == 0 and session_read_only == 1 then
-                        backend_ndx = lb.idle_ro()
+                        local ro_backend_ndx = lb.idle_ro()
+                        if ro_backend_ndx > 0 then
+                            backend_ndx = ro_backend_ndx
+                        end
 
                         if is_debug then
                             print("  [pure readonly statement]:" .. backend_ndx)
@@ -366,8 +391,11 @@ function read_query( packet )
                     end
                 elseif ro_server == true then
                     multiple_server_mode = true
-                    backend_ndx = lb.idle_failsafe_rw()
-                    proxy.connection.backend_ndx = backend_ndx
+                    local rw_backend_ndx = lb.idle_failsafe_rw()
+                    if rw_backend_ndx > 0 then
+                        backend_ndx = rw_backend_ndx
+                        proxy.connection.backend_ndx = backend_ndx
+                    end
                     if is_debug then
                         print("  [set multiple_server_mode true]")
                     end
@@ -389,12 +417,17 @@ function read_query( packet )
     c.is_server_conn_reserved = conn_reserved
 
 	if backend_ndx == 0 then
-        backend_ndx = lb.idle_failsafe_rw()
-        if backend_ndx <= 0 and proxy.global.config.rwsplit.is_slave_write_forbidden_set then
-            backend_ndx = lb.idle_ro()
+        local rw_backend_ndx = lb.idle_failsafe_rw()
+        if rw_backend_ndx <= 0 and proxy.global.config.rwsplit.is_slave_write_forbidden_set then
+            local ro_backend_ndx = lb.idle_ro()
+            if ro_backend_ndx > 0 then
+                backend_ndx = ro_backend_ndx
+                proxy.connection.backend_ndx = backend_ndx
+            end
+        elseif rw_backend_ndx > 0 then
+            backend_ndx = rw_backend_ndx
+            proxy.connection.backend_ndx = backend_ndx
         end
-
-        proxy.connection.backend_ndx = backend_ndx
 	end
 
 	-- by now we should have a backend
@@ -402,6 +435,7 @@ function read_query( packet )
 	-- in case the master is down, we have to close the client connections
 	-- otherwise we can go on
 	if backend_ndx == 0 then
+	    proxy.queries:append(1, packet, { resultset_is_needed = true })
 		return proxy.PROXY_SEND_QUERY
 	end
 
@@ -410,8 +444,13 @@ function read_query( packet )
             if is_debug then
                 print("    stmt id before change:" .. cmd.stmt_handler_id)
             end
-            proxy.connection.change_server = cmd.stmt_handler_id
+            proxy.connection.change_server_by_stmt_id = cmd.stmt_handler_id
             -- all related fields are invalid after this such as stmt_handler_id
+        elseif cmd.type == COM_QUERY then
+            if is_debug then
+                print("    change server by backend index")
+            end
+            proxy.connection.change_server_by_rw = backend_ndx
         end
     end
 
@@ -431,7 +470,9 @@ function read_query( packet )
     if cmd_type == proxy.COM_STMT_EXECUTE then
         proxy.queries:append(3, packet, { resultset_is_needed = true } )
     elseif cmd_type == proxy.COM_STMT_PREPARE then
-        proxy.queries:append(1, packet, { resultset_is_needed = true } )
+        proxy.queries:append(4, packet, { resultset_is_needed = true } )
+    else
+	    proxy.queries:append(1, packet, { resultset_is_needed = true })
     end
 
 	-- send to master
@@ -467,7 +508,7 @@ function read_query_result( inj )
         print("   read index from server:" .. proxy.connection.backend_ndx)
     end
 
-	if inj.id ~= 1 and inj.id ~= 3 then
+	if inj.id ~= 1 and inj.id ~= 3 and inj.id ~= 4 then
 		-- ignore the result of the USE <default_db>
 		-- the DB might not exist on the backend, what do do ?
 		--
@@ -498,18 +539,20 @@ function read_query_result( inj )
     end
 
     if multiple_server_mode == true then
-        server_index = proxy.connection.selected_server_ndx
-        if is_debug then
-            print("   multiple_server_mode, server index:" .. server_index)
-        end
-
-        if inj.id == 1 then
+        if inj.id == 3 or inj.id == 4 then
+            server_index = proxy.connection.selected_server_ndx
             if is_debug then
-                print("    change stmt id")
+                print("   multiple_server_mode, server index:" .. server_index)
             end
-            res.prepared_stmt_id = server_index
-        else
-            res.executed_stmt_id = server_index
+
+            if inj.id == 1 then
+                if is_debug then
+                    print("    change stmt id")
+                end
+                res.prepared_stmt_id = server_index
+            else
+                res.executed_stmt_id = server_index
+            end
         end
     end
 end

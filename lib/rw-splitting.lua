@@ -323,9 +323,24 @@ function read_query( packet )
                     print("  [this select statement should use the same connection] ")
                 end
             end
-        else
-            if is_debug then
-                print("  [query but not select statement, reuse connection] ")
+        else 
+            if stmt.token_name == "TK_SQL_SHOW" or stmt.token_name == "TK_SQL_USE" or stmt.token_name == "TK_SQL_DESC"
+                or stmt.token_name == "TK_SQL_EXPLAIN" or stmt.token_name == "TK_SQL_SET" then
+                rw_op = false
+                
+                local ro_backend_ndx = lb.idle_ro()
+                if ro_backend_ndx > 0 then
+                    backend_ndx = ro_backend_ndx
+                end
+
+                if backend_ndx > 0 then
+                    rw_op = false
+                    proxy.connection.backend_ndx = backend_ndx
+                end
+
+                if is_debug then
+                    print("  [rw operation is false]")
+                end
             end
         end
 
@@ -341,6 +356,9 @@ function read_query( packet )
             if rw_backend_ndx > 0 then
                 backend_ndx = rw_backend_ndx
                 proxy.connection.backend_ndx = backend_ndx
+                if is_debug then
+                    print("  [use rw server connection]")
+                end
             end
         end
     else

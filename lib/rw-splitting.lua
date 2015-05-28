@@ -263,7 +263,6 @@ function read_query( packet )
 		return
 	end
 
-
 	-- read/write splitting 
 	--
 	-- send all non-transactional SELECTs to a slave

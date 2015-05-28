@@ -161,8 +161,9 @@ static int proxy_connection_set(lua_State *L) {
 		        return luaL_error(L, "proxy.selected_server_ndx.%s is too big", key);
             }
             con->server = con->server_list->server[index];
-		    g_debug("change server conn:%p, server:%p stmt_id:%d, fd:%d", 
-                    con, con->server, stmt_id, con->server->fd);
+            st->backend_ndx = st->backend_ndx_array[index] - 1;
+		    g_debug("change server conn:%p, server:%p stmt_id:%d, fd:%d, new back ndx:%d", 
+                    con, con->server, stmt_id, con->server->fd, st->backend_ndx);
 
             if (index > 0) {
                 network_packet packet;

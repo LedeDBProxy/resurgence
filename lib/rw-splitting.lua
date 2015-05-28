@@ -420,15 +420,8 @@ function read_query( packet )
                 end
             elseif ps_cnt > 0 then
                 conn_reserved = true
-                if is_debug then
-                    print("  [prepare keeping connection]")
-                end
             end
         end
-    end
-
-    if is_debug then
-        print("  backend_ndx:" .. backend_ndx)
     end
 
     c.is_server_conn_reserved = conn_reserved
@@ -469,6 +462,11 @@ function read_query( packet )
             end
             proxy.connection.change_server_by_rw = backend_ndx
         end
+    end
+
+    if is_debug then
+        backend_ndx = proxy.connection.backend_ndx
+        print("  backend_ndx:" .. backend_ndx)
     end
 
 	local s = proxy.connection.server
@@ -517,9 +515,11 @@ function read_query_result( inj )
 	local res      = assert(inj.resultset)
   	local flags    = res.flags
     local server_index
+    local backend_ndx = proxy.connection.backend_ndx
 
     if is_debug then
         print("[read_query_result] " .. proxy.connection.client.src.name)
+        print("   backend_ndx:" .. backend_ndx)
         print("   read from server:" .. proxy.connection.server.dst.name)
         print("   proxy used port:" .. proxy.connection.server.src.name)
         print("   read index from server:" .. proxy.connection.backend_ndx)

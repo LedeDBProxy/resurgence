@@ -449,6 +449,15 @@ function read_query( packet )
 		return proxy.PROXY_SEND_QUERY
 	end
 
+    if cmd.type == proxy.COM_STMT_EXECUTE then
+        proxy.queries:append(3, packet, { resultset_is_needed = true } )
+    elseif cmd.type == proxy.COM_STMT_PREPARE then
+        proxy.queries:append(4, packet, { resultset_is_needed = true } )
+    else
+	    proxy.queries:append(1, packet, { resultset_is_needed = true })
+    end
+
+    -- attension: change stmt id after append the query
     if multiple_server_mode == true then
         if cmd.type == proxy.COM_STMT_EXECUTE or cmd.type == proxy.COM_STMT_CLOSE then
             if is_debug then
@@ -482,13 +491,7 @@ function read_query( packet )
 		proxy.queries:prepend(2, string.char(proxy.COM_INIT_DB) .. c.default_db, { resultset_is_needed = true })
 	end
 
-    if cmd_type == proxy.COM_STMT_EXECUTE then
-        proxy.queries:append(3, packet, { resultset_is_needed = true } )
-    elseif cmd_type == proxy.COM_STMT_PREPARE then
-        proxy.queries:append(4, packet, { resultset_is_needed = true } )
-    else
-	    proxy.queries:append(1, packet, { resultset_is_needed = true })
-    end
+
 
 	-- send to master
 	if is_debug then
@@ -522,6 +525,7 @@ function read_query_result( inj )
         print("   read from server:" .. proxy.connection.server.dst.name)
         print("   proxy used port:" .. proxy.connection.server.src.name)
         print("   read index from server:" .. proxy.connection.backend_ndx)
+        print("   inj id:" .. inj.id)
     end
 
 	if inj.id ~= 1 and inj.id ~= 3 and inj.id ~= 4 then
@@ -554,21 +558,21 @@ function read_query_result( inj )
         is_in_transaction = flags.in_trans
     end
 
+    if is_debug then
+        print("   check multiple_server_mode")
+    end
+
     if multiple_server_mode == true then
-        if inj.id == 3 or inj.id == 4 then
+        if is_debug then
+            print("   multiple_server_mode true")
+        end
+        if inj.id == 4 then
             local server_index = proxy.connection.selected_server_ndx
             if is_debug then
                 print("   multiple_server_mode, server index:" .. server_index)
+                print("    change stmt id")
             end
-
-            if inj.id == 1 then
-                if is_debug then
-                    print("    change stmt id")
-                end
-                res.prepared_stmt_id = server_index
-            else
-                res.executed_stmt_id = server_index
-            end
+            res.prepared_stmt_id = server_index
         end
     end
 end

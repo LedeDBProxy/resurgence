@@ -502,7 +502,7 @@ static int proxy_resultset_set(lua_State *L) {
                 return 0;
             }
         }
-	} else if (strleq(key, keysize, C("executed_stmt_id"))) {
+	} /*else if (strleq(key, keysize, C("executed_stmt_id"))) {
 		if (!res->result_queue) {
 			luaL_error(L, ".resultset.raw isn't available if 'resultset_is_needed ~= true'");
         } else {
@@ -512,7 +512,7 @@ static int proxy_resultset_set(lua_State *L) {
             GString *tmp;
             int index = lua_tointeger(L, -1);
             tmp = res->result_queue->head->data;
-            s.str = tmp->str + 4; /* skip the network-header */
+            s.str = tmp->str + 4; 
             s.len = tmp->len - 4;
             packet.data = &s;
             packet.offset = 0;
@@ -523,7 +523,7 @@ static int proxy_resultset_set(lua_State *L) {
                 return 0;
             }
         }
-	}
+	}*/
     
 	return 1;
 }

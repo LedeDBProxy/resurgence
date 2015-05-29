@@ -158,7 +158,7 @@ static int proxy_connection_set(lua_State *L) {
 		int index = (stmt_id & 0xffff0000) >> 16;
         if  (con->server_list != NULL) {
             if (index >= con->server_list->num) {
-		        return luaL_error(L, "proxy.selected_server_ndx.%s is too big", key);
+		        return luaL_error(L, "proxy.change_server_by_stmt_id %s is too big", key);
             }
             con->server = con->server_list->server[index];
             st->backend_ndx = st->backend_ndx_array[index] - 1;
@@ -170,10 +170,13 @@ static int proxy_connection_set(lua_State *L) {
                 int err = 0;
                 injection *inj;
                 inj = g_queue_peek_head(st->injected.queries);
-                packet.data = inj->query;
-                packet.offset = 0;
-
-                network_mysqld_proto_change_stmt_id_from_client_stmt_packet(&packet);
+                if (inj != NULL) {
+                    packet.data = inj->query;
+                    packet.offset = 0;
+                    network_mysqld_proto_change_stmt_id_from_client_stmt_packet(&packet);
+                } else {
+		            luaL_error(L, "inj is null:%p", con);
+                }
             }
         } else {
 		    g_debug("conn:%p, server list null, stmt id:%d, index:%d", con, stmt_id, index);

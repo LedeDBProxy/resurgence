@@ -1803,36 +1803,6 @@ int network_mysqld_proto_change_stmt_id_from_server_prepare_ok_packet(network_pa
 	return 0;
 }
 
-/*int network_mysqld_proto_change_stmt_id_from_server_stmt_execute_packet(network_packet *packet, int server_index) {
-	guint8 packet_type;
-	int err = 0;
-    int *p = NULL;
-
-	err = err || network_mysqld_proto_get_int8(packet, &packet_type);
-	if (err) return -1;
-
-	if (COM_STMT_EXECUTE != packet_type) {
-		g_critical("%s: expected the first byte to be %02x, got %02x",
-				G_STRLOC,
-				COM_STMT_EXECUTE,
-				packet_type);
-		return -1;
-	}
-
-    p = (int *)(((unsigned char *)packet->data->str) + packet->offset);
-
-    g_debug("%s:  from execute cmd, stmt id:%d, server index:%d",
-				G_STRLOC,
-				*p,
-				server_index);
-
-	*p = *p & 0x00007fff;
-
-    *p = *p | (server_index << 16);
-
-	return 0;
-}*/
-
 int network_mysqld_proto_change_stmt_id_from_client_stmt_packet(network_packet *packet) {
 	guint8 packet_type;
 	int err = 0, orig_value;

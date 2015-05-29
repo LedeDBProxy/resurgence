@@ -114,7 +114,9 @@ function connect_server()
             s.state ~= proxy.BACKEND_STATE_DOWN and
             rw_ndx == 0 then
             if cur_idle == 0 and s.connected_clients >= pool.max_idle_connections then
-                print("pool:" .. i .. " is full")
+                if is_debug then
+                    print("pool:" .. i .. " is full")
+                end
                 is_backend_conn_keepalive = false
             end
             rw_ndx = i
@@ -491,8 +493,6 @@ function read_query( packet )
 		proxy.queries:prepend(2, string.char(proxy.COM_INIT_DB) .. c.default_db, { resultset_is_needed = true })
 	end
 
-
-
 	-- send to master
 	if is_debug then
 		if backend_ndx > 0 then
@@ -551,15 +551,11 @@ function read_query_result( inj )
 	end
 
     if res.query_status and res.query_status ~= 0 then
-        if is_in_transaction then
+        if is_debug and is_in_transaction then
             print("   query_status: " .. res.query_status .. " error, reserve origin is_in_transaction value")
         end
     else
         is_in_transaction = flags.in_trans
-    end
-
-    if is_debug then
-        print("   check multiple_server_mode")
     end
 
     if multiple_server_mode == true then

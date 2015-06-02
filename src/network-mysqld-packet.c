@@ -93,7 +93,10 @@ int network_mysqld_proto_get_com_query_result(network_packet *packet, network_my
 					is_finished = 1;
 				}
 
-				query->server_status = ok_packet->server_status;
+                query->server_status = ok_packet->server_status;
+                g_debug("%s: server status in ok packet, got: %d",
+                        G_STRLOC,
+                        ok_packet->server_status);
 				query->warning_count = ok_packet->warnings;
 				query->affected_rows = ok_packet->affected_rows;
 				query->insert_id     = ok_packet->insert_id;
@@ -180,6 +183,10 @@ int network_mysqld_proto_get_com_query_result(network_packet *packet, network_my
 #endif
 					/* track the server_status of the 1st EOF packet */
 					query->server_status = eof_packet->server_status;
+                    g_debug("%s: server status in eof packet, got: %d",
+                            G_STRLOC,
+                            eof_packet->server_status);
+
 				}
 
 				network_mysqld_eof_packet_free(eof_packet);
@@ -223,6 +230,10 @@ int network_mysqld_proto_get_com_query_result(network_packet *packet, network_my
 						query->server_status = eof_packet->server_status;
 					}
 					query->warning_count = eof_packet->warnings;
+
+                    g_debug("%s: server status, got: %d",
+                            G_STRLOC,
+                            eof_packet->server_status);
 
 					if (query->server_status & SERVER_MORE_RESULTS_EXISTS) {
 						query->state = PARSE_COM_QUERY_INIT;
@@ -931,6 +942,9 @@ int network_mysqld_proto_get_ok_packet(network_packet *packet, network_mysqld_ok
 		ok_packet->server_status = server_status;
 		ok_packet->warnings      = warning_count;
 	}
+    g_debug("%s: server status, got: %d",
+            G_STRLOC,
+            ok_packet->server_status);
 
 	return err ? -1 : 0;
 }
@@ -1094,10 +1108,18 @@ int network_mysqld_proto_get_eof_packet(network_packet *packet, network_mysqld_e
 		if (!err) {
 			eof_packet->server_status = server_status;
 			eof_packet->warnings      = warning_count;
+            g_debug("%s: server status, got: %d",
+                    G_STRLOC,
+                    eof_packet->server_status);
+
+
 		}
 	} else {
 		eof_packet->server_status = 0;
 		eof_packet->warnings      = 0;
+        g_debug("%s: init server status: %d",
+                    G_STRLOC,
+                    eof_packet->server_status);
 	}
 
 	return err ? -1 : 0;

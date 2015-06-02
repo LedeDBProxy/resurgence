@@ -431,7 +431,7 @@ static int proxy_resultset_get(lua_State *L) {
         
 		lua_pushboolean(L, (res->qstat.server_status & SERVER_STATUS_AUTOCOMMIT) != 0);
 		lua_setfield(L, -2, "auto_commit");
-		
+
 		lua_pushboolean(L, (res->qstat.server_status & SERVER_QUERY_NO_GOOD_INDEX_USED) != 0);
 		lua_setfield(L, -2, "no_good_index_used");
 		

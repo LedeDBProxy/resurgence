@@ -1601,7 +1601,13 @@ NETWORK_MYSQLD_PLUGIN_PROTO(proxy_read_query_result) {
 				inj->qstat.server_status = com_query->server_status;
 				inj->qstat.warning_count = com_query->warning_count;
 				inj->qstat.query_status  = com_query->query_status;
-			}
+                g_debug("%s: server status, got: %d",
+                        G_STRLOC,
+                        com_query->server_status);
+			} else {
+                g_debug("%s: no chance to get server status",
+                        G_STRLOC);
+            }
 			inj->ts_read_query_result_last = chassis_get_rel_microseconds();
 			/* g_get_current_time(&(inj->ts_read_query_result_last)); */
 		}

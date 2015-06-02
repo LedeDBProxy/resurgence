@@ -100,7 +100,7 @@ typedef struct {
 
 	gboolean is_authed;           /** did a client already authed this connection */
 	gboolean is_server_conn_reserved;
-	gboolean is_need_quick_peek_excuted;
+	gboolean is_need_quick_peek_executed;
 
 	/**
 	 * store the default-db of the socket

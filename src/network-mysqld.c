@@ -466,6 +466,9 @@ int network_mysqld_con_send_ok_full(network_socket *con, guint64 affected_rows, 
 	ok_packet->affected_rows = affected_rows;
 	ok_packet->insert_id     = insert_id;
 	ok_packet->server_status = server_status;
+    g_debug("%s: server status: %d",
+            G_STRLOC,
+            ok_packet->server_status);
 	ok_packet->warnings      = warnings;
 
 	network_mysqld_proto_append_ok_packet(packet, ok_packet);
@@ -1597,9 +1600,9 @@ void network_mysqld_con_handle(int event_fd, short events, void *user_data) {
 				case NETWORK_SOCKET_SUCCESS:
 					break;
                 case NETWORK_SOCKET_WAIT_FOR_EVENT:
-                    if (con->client->is_need_quick_peek_excuted) {
+                    if (con->client->is_need_quick_peek_executed) {
                         timeout = con->wait_clt_next_sql;
-                        con->client->is_need_quick_peek_excuted = 0;
+                        con->client->is_need_quick_peek_executed = 0;
                         g_debug("%s: set a short timeout value", G_STRLOC);
                     } else {
                         timeout = con->read_timeout;
@@ -1840,8 +1843,8 @@ void network_mysqld_con_handle(int event_fd, short events, void *user_data) {
             if (con->resultset_is_finished) {
                 con->client->last_visit_time = time(0);
                 if (!con->client->is_server_conn_reserved) {
-                    con->client->is_need_quick_peek_excuted = 1;
-                    g_debug("%s: set is_need_quick_peek_excuted true",
+                    con->client->is_need_quick_peek_executed = 1;
+                    g_debug("%s: set is_need_quick_peek_executed true",
                             G_STRLOC);
                 }
             }

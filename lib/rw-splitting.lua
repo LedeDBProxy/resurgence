@@ -215,11 +215,12 @@ function read_query( packet )
 
     if is_prepared then
         ps_cnt = proxy.connection.valid_prepare_stmt_cnt
-        if backend_ndx > 0 then
-            local b = proxy.global.backends[backend_ndx]
-            if b.type == proxy.BACKEND_TYPE_RO then
-                ro_server = true
-            end
+    end
+
+    if backend_ndx > 0 then
+        local b = proxy.global.backends[backend_ndx]
+        if b.type == proxy.BACKEND_TYPE_RO then
+            ro_server = true
         end
     end
 

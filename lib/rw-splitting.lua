@@ -395,17 +395,19 @@ function read_query( packet )
                 tokens     = tokens or assert(tokenizer.tokenize(cmd.query))
                 local stmt = tokenizer.first_stmt_token(tokens)
 
+                local session_read_only = 0
+
                 if stmt.token_name == "TK_SQL_SELECT" then
-                    local session_read_only = 1
+                    session_read_only = 1
                     for i = 2, #tokens do
                         local token = tokens[i]
                         if (token.token_name == "TK_COMMENT") then
                             if is_debug then
-                                print("  [check readonly for ps]")
+                                print("  [check trans for ps]")
                             end
-                            local _, _, readonly= string.find(token.text, "sesson_read_only=%s*(%d)")
-                            if readonly then
-                                session_read_only = 1
+                            local _, _, in_trans = string.find(token.text, "in_trans=%s*(%d)")
+                            if in_trans ~= 0 then
+                                is_in_transaction = true
                                 break
                             end
                         end
@@ -422,25 +424,28 @@ function read_query( packet )
                             end
                         end
                     end
+                end
 
-                elseif ro_server == true then
-                    local rw_backend_ndx = lb.idle_failsafe_rw()
-                    if rw_backend_ndx > 0 then
-                        multiple_server_mode = true
-                        backend_ndx = rw_backend_ndx
-                        proxy.connection.backend_ndx = backend_ndx
-                        if is_debug then
-                            print("  [set multiple_server_mode true]")
+                if session_read_only == 0 or is_in_transaction == true then
+                    if ro_server == true then
+                        local rw_backend_ndx = lb.idle_failsafe_rw()
+                        if rw_backend_ndx > 0 then
+                            multiple_server_mode = true
+                            backend_ndx = rw_backend_ndx
+                            proxy.connection.backend_ndx = backend_ndx
+                            if is_debug then
+                                print("  [set multiple_server_mode true]")
+                            end
+                        else
+                            if is_debug then
+                                print("  [no rw connections yet")
+                            end
+                            proxy.response = {
+                                type = proxy.MYSQLD_PACKET_ERR,
+                                errmsg = "3, master connections are too small"
+                            }
+                            return proxy.PROXY_SEND_RESULT
                         end
-                    else
-                        if is_debug then
-                            print("  [no rw connections yet")
-                        end
-                        proxy.response = {
-                            type = proxy.MYSQLD_PACKET_ERR,
-                            errmsg = "3, master connections are too small"
-                        }
-				        return proxy.PROXY_SEND_RESULT
                     end
                 end
 
@@ -470,6 +475,9 @@ function read_query( packet )
 	-- in case the master is down, we have to close the client connections
 	-- otherwise we can go on
 	if backend_ndx == 0 then
+        if is_debug then
+            print("    backend_ndx is zero")
+        end
 	    proxy.queries:append(1, packet, { resultset_is_needed = true })
 		return proxy.PROXY_SEND_QUERY
 	end

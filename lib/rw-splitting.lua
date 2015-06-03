@@ -261,6 +261,15 @@ function read_query( packet )
             if rw_backend_ndx > 0 then
                 backend_ndx = rw_backend_ndx
                 proxy.connection.backend_ndx = backend_ndx
+            else
+                if is_debug then
+                    print("  [no rw connections yet")
+                end
+                proxy.response = {
+                    type = proxy.MYSQLD_PACKET_ERR,
+                    errmsg = "1,master connections are too small"
+                }
+                return proxy.PROXY_SEND_RESULT
             end
         end
 
@@ -307,69 +316,75 @@ function read_query( packet )
             -- if we ask for the last-insert-id we have to ask it on the original 
             -- connection
             if not is_insert_id then
+                rw_op = false
                 local ro_backend_ndx = lb.idle_ro()
                 if ro_backend_ndx > 0 then
                     backend_ndx = ro_backend_ndx
-                end
-
-                if is_debug then
-                    print("  [pure select statement] " .. backend_ndx)
-                end
-
-                if backend_ndx > 0 then
-                    rw_op = false
                     proxy.connection.backend_ndx = backend_ndx
+
+                    if is_debug then
+                        print("  [use ro server: " .. backend_ndx .. "]")
+                    end
                 end
+
             else
                 conn_reserved = true
                 if is_debug then
                     print("  [this select statement should use the same connection] ")
                 end
             end
+
         else 
+
             if stmt.token_name == "TK_SQL_SHOW" or stmt.token_name == "TK_SQL_DESC"
                 or stmt.token_name == "TK_SQL_EXPLAIN" then
                 rw_op = false
-                
                 local ro_backend_ndx = lb.idle_ro()
                 if ro_backend_ndx > 0 then
                     backend_ndx = ro_backend_ndx
-                end
-
-                if backend_ndx > 0 then
-                    rw_op = false
                     proxy.connection.backend_ndx = backend_ndx
-                end
 
-                if is_debug then
-                    print("  [rw operation is false]")
+                    if is_debug then
+                        print("  [use ro server: " .. backend_ndx .. "]")
+                    end
                 end
             end
         end
 
         if ro_server == true and rw_op == true then
-            if ps_cnt > 0 then 
-                multiple_server_mode = true
-                if is_debug then
-                    print("  [set multiple_server_mode true in complex env]")
-                end
-            end
-
             local rw_backend_ndx = lb.idle_failsafe_rw()
             if rw_backend_ndx > 0 then
                 backend_ndx = rw_backend_ndx
                 proxy.connection.backend_ndx = backend_ndx
                 if is_debug then
-                    print("  [use rw server connection]")
+                    print("  [use rw server:" .. backend_ndx .."]")
                 end
+                if ps_cnt > 0 then 
+                    multiple_server_mode = true
+                    if is_debug then
+                        print("  [set multiple_server_mode true in complex env]")
+                    end
+                end
+            else
+                if is_debug then
+                    print("  [no rw connections yet")
+                end
+                proxy.response = {
+                    type = proxy.MYSQLD_PACKET_ERR,
+                    errmsg = "2, master connections are too small"
+                }
+                return proxy.PROXY_SEND_RESULT
             end
         end
+
     else
+
         if is_in_transaction then
             conn_reserved = true
             if is_debug then
                 print("  [transaction statement, should use the same connection] ")
             end
+
         else
             if cmd.type == proxy.COM_STMT_PREPARE then
                 is_prepared = true
@@ -400,16 +415,14 @@ function read_query( packet )
                         local ro_backend_ndx = lb.idle_ro()
                         if ro_backend_ndx > 0 then
                             backend_ndx = ro_backend_ndx
-                        end
-
-                        if is_debug then
-                            print("  [pure readonly statement]:" .. backend_ndx)
-                        end
-
-                        if backend_ndx > 0 then
                             proxy.connection.backend_ndx = backend_ndx
+
+                            if is_debug then
+                                print("  [use ro server: " .. backend_ndx .. "]")
+                            end
                         end
                     end
+
                 elseif ro_server == true then
                     local rw_backend_ndx = lb.idle_failsafe_rw()
                     if rw_backend_ndx > 0 then
@@ -425,11 +438,12 @@ function read_query( packet )
                         end
                         proxy.response = {
                             type = proxy.MYSQLD_PACKET_ERR,
-                            errmsg = "master connections are too small"
+                            errmsg = "3, master connections are too small"
                         }
 				        return proxy.PROXY_SEND_RESULT
                     end
                 end
+
             elseif ps_cnt > 0 or not is_auto_commit then
                 conn_reserved = true
             end
@@ -451,8 +465,6 @@ function read_query( packet )
         end
 	end
 
-    c.is_server_conn_reserved = conn_reserved
-
 	-- by now we should have a backend
 	--
 	-- in case the master is down, we have to close the client connections
@@ -461,6 +473,8 @@ function read_query( packet )
 	    proxy.queries:append(1, packet, { resultset_is_needed = true })
 		return proxy.PROXY_SEND_QUERY
 	end
+
+    c.is_server_conn_reserved = conn_reserved
 
     if is_debug then
         print("    cmd type:" .. cmd.type)

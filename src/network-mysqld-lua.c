@@ -106,7 +106,7 @@ static int proxy_connection_get(lua_State *L) {
 
 		network_socket_lua_getmetatable(L);
 		lua_setmetatable(L, -2); /* tie the metatable to the table   (sp -= 1) */
-	} else if(strleq(key, keysize, C("valid_prepare_stmt_cnt"))){
+	} else if(strleq(key, keysize, C("valid_prepare_stmt_cnt"))) {
 		lua_pushinteger(L, con->valid_prepare_stmt_cnt);
 	} else {
 		lua_pushnil(L);

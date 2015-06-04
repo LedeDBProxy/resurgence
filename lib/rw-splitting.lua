@@ -276,6 +276,13 @@ function read_query( packet )
 		return
 	end
 
+    print("   charset, cmd type:" .. cmd.type)
+    print("   charset, query type:" .. proxy.COM_QUERY)
+
+    if is_in_transaction then
+        print("  in tran, cmd type:" .. cmd.type)
+    end
+
 	-- read/write splitting 
 	--
 	-- send all non-transactional SELECTs to a slave
@@ -285,7 +292,7 @@ function read_query( packet )
 
         local stmt = tokenizer.first_stmt_token(tokens)
 
-        if stmt.token_name == "TK_SQL_SELECT" then
+       if stmt.token_name == "TK_SQL_SELECT" then
             is_in_select_calc_found_rows = false
             local is_insert_id = false
 
@@ -336,6 +343,21 @@ function read_query( packet )
 
         else 
 
+            -- We assume charset set will happen before transaction
+            if stmt.token_name == "TK_SQL_SET" then
+                local token_len = #tokens
+                if token_len  > 2 then
+                    local token = tokens[2]
+                    print("  token name:" .. token.token_name)
+                    print("  token value:" .. token.text)
+                    if token.token_name == "TK_LITERAL" and token.text== "NAMES" then
+                        local charset = tokens[3]
+                        print("   charset:" .. charset.token_name)
+                        print("   charset:" .. charset.text)
+                    end
+                end
+            end
+ 
             if stmt.token_name == "TK_SQL_SHOW" or stmt.token_name == "TK_SQL_DESC"
                 or stmt.token_name == "TK_SQL_EXPLAIN" then
                 rw_op = false

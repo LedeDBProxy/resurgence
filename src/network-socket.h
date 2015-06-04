@@ -109,6 +109,11 @@ typedef struct {
 	 * statement balancing
 	 */	
 	GString *default_db;     /** default-db of this side of the connection */
+
+    GString *charset_client;
+    GString *charset_connection;
+    GString *charset_results;
+
 } network_socket;
 
 #define MAX_SERVER_NUM 64

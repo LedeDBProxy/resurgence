@@ -38,8 +38,8 @@ local auto_config = require("proxy.auto-config")
 if not proxy.global.config.rwsplit then
 	proxy.global.config.rwsplit = {
         min_idle_connections = 1,
-        mid_idle_connections = 2,
-        max_idle_connections = 4,
+        mid_idle_connections = 1,
+        max_idle_connections = 1,
 
 		is_debug = true,
 		is_slave_write_forbidden_set = false
@@ -170,6 +170,7 @@ function read_auth_result( auth )
         print("[read_auth_result] " .. proxy.connection.client.src.name)
         print("  using connection from: " .. proxy.connection.backend_ndx)
         print("  server address: " .. proxy.connection.server.dst.name)
+        print("  server charset: " .. proxy.connection.server.character_set_client)
     end
 	if auth.packet:byte() == proxy.MYSQLD_PACKET_OK then
 		-- auth was fine, disconnect from the server
@@ -206,6 +207,12 @@ function read_query( packet )
     local ro_server = false
     local rw_op = true
     local backend_ndx = proxy.connection.backend_ndx
+    local is_charset_client = false
+    local is_charset_connection = false
+    local is_charset_results = false
+    local charset_client 
+    local charset_connection
+    local charset_results
 
 	local r = auto_config.handle(cmd)
 	if r then return r end
@@ -276,13 +283,6 @@ function read_query( packet )
 		return
 	end
 
-    print("   charset, cmd type:" .. cmd.type)
-    print("   charset, query type:" .. proxy.COM_QUERY)
-
-    if is_in_transaction then
-        print("  in tran, cmd type:" .. cmd.type)
-    end
-
 	-- read/write splitting 
 	--
 	-- send all non-transactional SELECTs to a slave
@@ -348,12 +348,48 @@ function read_query( packet )
                 local token_len = #tokens
                 if token_len  > 2 then
                     local token = tokens[2]
-                    print("  token name:" .. token.token_name)
-                    print("  token value:" .. token.text)
-                    if token.token_name == "TK_LITERAL" and token.text== "NAMES" then
-                        local charset = tokens[3]
-                        print("   charset:" .. charset.token_name)
-                        print("   charset:" .. charset.text)
+                    if token.token_name == "TK_LITERAL" then
+                        if token.text == "NAMES" then
+                            local charset = tokens[3]
+                            is_charset_client = true
+                            is_charset_connection = true
+                            is_charset_results = true
+                            proxy.connection.client.character_set_client = charset.text
+                            proxy.connection.client.character_set_connection = charset.text
+                            proxy.connection.client.character_set_results = charset.text
+                            charset_client = charset.text
+                            charset_connection = charset.text
+                            charset_results = charset.text
+                        else
+                            if token_len > 3 then
+                                local nxt_token = tokens[3]
+                                if nxt_token.token_name == "TK_EQ" then
+                                    local nxt_nxt_token = tokens[4]
+                                    if token.text == "character_set_client" then
+                                        proxy.connection.client.character_set_client = nxt_nxt_token.text
+                                        charset_client = nxt_nxt_token.text
+                                        is_charset_client = true
+                                    elseif token.text == "character_set_connection" then
+                                        proxy.connection.client.character_set_connection = nxt_nxt_token.text
+                                        charset_connection = nxt_nxt_token.text
+                                        is_charset_connection = true
+                                    elseif token.text == "character_set_results" then
+                                        proxy.connection.client.character_set_results = nxt_nxt_token.text
+                                        charset_esults = nxt_nxt_token.text
+                                        is_charset_results = true
+                                    elseif token.text == "autocommit" then
+                                        if nxt_nxt_token.text == "0" then
+                                            is_auto_commit = false
+                                            if is_debug then
+                                                print("  [set is_auto_commit false]" )
+                                            end
+                                        else
+                                            is_auto_commit = true
+                                        end
+                                    end
+                                end
+                            end
+                        end
                     end
                 end
             end
@@ -402,6 +438,26 @@ function read_query( packet )
     else
 
         if is_in_transaction then
+            if cmd.type == proxy.COM_QUERY then
+                tokens     = tokens or assert(tokenizer.tokenize(cmd.query))
+                local stmt = tokenizer.first_stmt_token(tokens)
+                if stmt.token_name == "TK_SQL_SET" then
+                    local token_len = #tokens
+                    if token_len  > 3 then
+                        local token = tokens[2]
+                        local nxt_token = tokens[4]
+                        if token.text == "autocommit" then
+                            if nxt_token.text == "1" then
+                                is_auto_commit = true
+                                if is_debug then
+                                    print("  [set is_auto_commit true after trans]" )
+                                end
+                            end
+                        end
+                    end
+                end
+            end
+
             conn_reserved = true
             if is_debug then
                 print("  [transaction statement, should use the same connection] ")
@@ -540,6 +596,96 @@ function read_query( packet )
 
 	local s = proxy.connection.server
 
+    if not is_charset_client then
+        local clt_charset_client = proxy.connection.client.character_set_client
+        local srv_charset_client = proxy.connection.server.character_set_client
+
+        if is_debug then
+            if clt_charset_client ~= nil then
+                print("  client charset_client:" .. clt_charset_client)
+            end
+            srv_charset_client = proxy.connection.server.character_set_client
+            if srv_charset_client ~= nil then
+                print("  server charset_client:" .. srv_charset_client)
+            end
+        end
+
+        if clt_charset_client ~= srv_charset_client then
+            if is_debug then
+                print("  change server charset_client:")
+            end
+            if clt_charset_client ~= nil then
+                proxy.queries:prepend(5,
+                string.char(proxy.COM_QUERY) .. "SET character_set_client = " .. clt_charset_client,
+                { resultset_is_needed = true })
+            end
+
+            proxy.connection.server.character_set_client = clt_charset_client
+        end
+    else
+        proxy.connection.server.character_set_client = charset_client
+    end
+
+    if not is_charset_connection then
+        local clt_charset_conn = proxy.connection.client.character_set_connection
+        local srv_charset_conn = proxy.connection.server.character_set_connection
+
+        if is_debug then
+            if clt_charset_conn ~= nil then
+                print("  client charset_connection:" .. clt_charset_conn)
+            end
+            if srv_charset_conn ~= nil then
+                print("  server charset_connection:" .. srv_charset_conn)
+            end
+        end
+
+        if clt_charset_conn ~= srv_charset_conn then
+            if is_debug then
+                print("  change server charset_client:")
+            end
+            if clt_charset_conn ~= nil then
+                proxy.queries:prepend(6,
+                string.char(proxy.COM_QUERY) .. "SET character_set_connection = " .. clt_charset_conn,
+                { resultset_is_needed = true })
+            end
+            proxy.connection.server.character_set_connection = clt_charset_conn
+        end
+    else
+        proxy.connection.server.character_set_connection = charset_connection
+    end
+
+    if not is_charset_results then
+        local clt_charset_results = proxy.connection.client.character_set_results
+        local srv_charset_results = proxy.connection.server.character_set_results
+
+        if is_debug then
+            if clt_charset_results ~= nil then
+                print("  client charset_results:" .. clt_charset_results)
+            end
+            if srv_charset_results ~= nil then
+                print("  server charset_results:" .. srv_charset_results)
+            end
+        end
+
+        if clt_charset_results ~= srv_charset_results then
+            if is_debug then
+                print("  change server charset_client:")
+            end
+            if clt_charset_results == nil then
+                proxy.queries:prepend(7,
+                string.char(proxy.COM_QUERY) .. "SET character_set_results = NULL",
+                { resultset_is_needed = true })
+            else
+                proxy.queries:prepend(7,
+                string.char(proxy.COM_QUERY) .. "SET character_set_results = " .. clt_charset_results,
+                { resultset_is_needed = true })
+            end
+            proxy.connection.server.character_set_results = clt_charset_results
+        end
+    else
+        proxy.connection.server.character_set_results = charset_results
+    end
+
 	-- if client and server db don't match, adjust the server-side 
 	--
 	-- skip it if we send a INIT_DB anyway
@@ -616,9 +762,7 @@ function read_query_result( inj )
             end
         elseif inj.id ~= 4 then
             is_in_transaction = flags.in_trans
-            is_auto_commit = flags.auto_commit
-
-            if not is_auto_commit then
+            if not is_in_transaction and not is_auto_commit then
                 is_in_transaction = true
                 if is_debug then
                     print("   set is_in_transaction true")

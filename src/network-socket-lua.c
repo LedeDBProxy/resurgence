@@ -55,18 +55,21 @@ static int proxy_socket_get(lua_State *L) {
         } else {
             lua_pushnil(L);
         }
+        return 1;
     } else if(strleq(key, keysize, C("character_set_connection"))) {
         if (sock->charset_connection != NULL) {
             lua_pushlstring(L, sock->charset_connection->str, sock->charset_connection->len);
         } else {
             lua_pushnil(L);
         }
+        return 1;
     } else if(strleq(key, keysize, C("character_set_results"))) {
         if (sock->charset_results != NULL) {
             lua_pushlstring(L, sock->charset_results->str, sock->charset_results->len);
         } else {
             lua_pushnil(L);
         }
+        return 1;
     }
 
       
@@ -121,27 +124,18 @@ static int proxy_socket_set(lua_State *L) {
         if (lua_isstring(L, -1)) {
             size_t s_len = 0;
             const char *s = lua_tolstring(L, -1, &s_len);
-            if (sock->charset_client == NULL) {
-                sock->charset_client = g_string_new(NULL);
-            }
             g_string_assign_len(sock->charset_client, s, s_len);
         }
     } else if (strleq(key, keysize, C("character_set_connection"))) {
         if (lua_isstring(L, -1)) {
             size_t s_len = 0;
             const char *s = lua_tolstring(L, -1, &s_len);
-            if (sock->charset_connection == NULL) {
-                sock->charset_connection = g_string_new(NULL);
-            }
             g_string_assign_len(sock->charset_connection, s, s_len);
         }
     } else if (strleq(key, keysize, C("character_set_results"))) {
         if (lua_isstring(L, -1)) {
             size_t s_len = 0;
             const char *s = lua_tolstring(L, -1, &s_len);
-            if (sock->charset_results == NULL) {
-                sock->charset_results = g_string_new(NULL);
-            }
             g_string_assign_len(sock->charset_results, s, s_len);
         }
     }

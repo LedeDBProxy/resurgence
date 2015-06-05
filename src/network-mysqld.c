@@ -248,6 +248,7 @@ network_mysqld_con *network_mysqld_con_new() {
 	con = g_new0(network_mysqld_con, 1);
 	con->timestamps = chassis_timestamps_new();
 	con->parse.command = -1;
+
 	con->auth_switch_to_method = g_string_new(NULL);
 	con->auth_switch_to_round  = 0;
 	con->auth_switch_to_data   = g_string_new(NULL);;

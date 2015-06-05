@@ -94,7 +94,11 @@ network_socket *network_socket_new() {
 	s->recv_queue = network_queue_new();
 	s->recv_queue_raw = network_queue_new();
 
-	s->default_db = g_string_new(NULL);
+    s->default_db = g_string_new(NULL);
+    s->charset_client = g_string_new(NULL);
+    s->charset_connection = g_string_new(NULL);
+    s->charset_results = g_string_new(NULL);
+
 	s->fd           = -1;
 	s->socket_type  = SOCK_STREAM; /* let's default to TCP */
 	s->packet_id_is_reset = TRUE;
@@ -127,7 +131,10 @@ void network_socket_free(network_socket *s) {
 		closesocket(s->fd);
 	}
 
-	g_string_free(s->default_db, TRUE);
+    g_string_free(s->default_db, TRUE);
+    g_string_free(s->charset_client, TRUE);
+    g_string_free(s->charset_connection, TRUE);
+    g_string_free(s->charset_results, TRUE);
 
 	g_free(s);
 }

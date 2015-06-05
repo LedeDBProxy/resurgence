@@ -178,6 +178,8 @@ typedef int socklen_t;
 
 #define CRASHME() do { char *_crashme = NULL; *_crashme = 0; } while(0);
 
+static char* charset[64] = {NULL, "big5", NULL, NULL, NULL, NULL, NULL, NULL, "latin1", NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, "gb2312", NULL, NULL, NULL, "gbk", NULL, NULL, NULL, NULL, "utf8", NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, "utf8mb4", NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, "binary"};
+
 struct chassis_plugin_config {
 	gchar *address;                   /**< listening address of the proxy */
 
@@ -785,6 +787,13 @@ NETWORK_MYSQLD_PLUGIN_PROTO(proxy_read_auth) {
 	}
 
 	if (got_all_data) {
+
+        char *client_charset = charset[auth->charset];
+
+        g_string_assign(recv_sock->charset_client,     client_charset);
+        g_string_assign(recv_sock->charset_results,    client_charset);
+        g_string_assign(recv_sock->charset_connection, client_charset);
+
 		/**
 		 * looks like we finished parsing, call the lua function
 		 */
@@ -1052,7 +1061,10 @@ NETWORK_MYSQLD_PLUGIN_PROTO(proxy_read_auth_result) {
 	 *
 	 * to the server-side 
 	 */
-	g_string_assign_len(recv_sock->default_db, S(send_sock->default_db));
+    g_string_assign_len(recv_sock->default_db, S(send_sock->default_db));
+    g_string_assign_len(recv_sock->charset_client, S(send_sock->charset_client));
+    g_string_assign_len(recv_sock->charset_connection, S(send_sock->charset_connection));
+    g_string_assign_len(recv_sock->charset_results, S(send_sock->charset_results));
 
 	if (con->server->response) {
 		/* in case we got the connection from the pool it has the response from the previous auth */

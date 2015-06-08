@@ -207,6 +207,9 @@ function read_query( packet )
     local ro_server = false
     local rw_op = true
     local backend_ndx = proxy.connection.backend_ndx
+    local charset_str
+    local is_charset_reset = false
+    local is_charset_set = false
     local is_charset_client = false
     local is_charset_connection = false
     local is_charset_results = false
@@ -351,6 +354,7 @@ function read_query( packet )
                     if token.token_name == "TK_LITERAL" then
                         if token.text == "NAMES" then
                             local charset = tokens[3]
+                            is_charset_set = true
                             is_charset_client = true
                             is_charset_connection = true
                             is_charset_results = true
@@ -594,6 +598,35 @@ function read_query( packet )
 
 	local s = proxy.connection.server
 
+    if not is_charset_set then
+        local clt_charset = proxy.connection.client.charset
+        local srv_charset = proxy.connection.server.charset
+
+        if is_debug then
+            if clt_charset ~= nil then
+                print("  client charset:" .. clt_charset)
+            end
+            if srv_charset ~= nil then
+                print("  server charset:" .. srv_charset)
+            end
+        end
+
+
+        if clt_charset ~= srv_charset then
+            if is_debug then
+                print("  change charset")
+            end
+            if clt_charset ~= nil then
+                is_charset_reset = true
+                charset_str = clt_charset
+            end
+
+            proxy.connection.server.charset = clt_charset
+        end
+    else
+        proxy.connection.server.charset = proxy.connection.client.charset
+    end
+
     if not is_charset_client then
         local clt_charset_client = proxy.connection.client.character_set_client
         local srv_charset_client = proxy.connection.server.character_set_client
@@ -602,7 +635,6 @@ function read_query( packet )
             if clt_charset_client ~= nil then
                 print("  client charset_client:" .. clt_charset_client)
             end
-            srv_charset_client = proxy.connection.server.character_set_client
             if srv_charset_client ~= nil then
                 print("  server charset_client:" .. srv_charset_client)
             end
@@ -610,7 +642,7 @@ function read_query( packet )
 
         if clt_charset_client ~= srv_charset_client then
             if is_debug then
-                print("  change server charset_client:")
+                print("  change server charset_client")
             end
             if clt_charset_client ~= nil then
                 proxy.queries:prepend(5,
@@ -639,7 +671,7 @@ function read_query( packet )
 
         if clt_charset_conn ~= srv_charset_conn then
             if is_debug then
-                print("  change server charset_client:")
+                print("  change server charset conn:")
             end
             if clt_charset_conn ~= nil then
                 proxy.queries:prepend(6,
@@ -667,7 +699,7 @@ function read_query( packet )
 
         if clt_charset_results ~= srv_charset_results then
             if is_debug then
-                print("  change server charset_client:")
+                print("  change server charset results")
             end
             if clt_charset_results == nil then
                 proxy.queries:prepend(7,
@@ -682,6 +714,12 @@ function read_query( packet )
         end
     else
         proxy.connection.server.character_set_results = charset_results
+    end
+
+    if is_charset_reset then
+        proxy.queries:prepend(8,
+        string.char(proxy.COM_QUERY) .. "SET NAMES " .. charset_str,
+        { resultset_is_needed = true })
     end
 
 	-- if client and server db don't match, adjust the server-side 

@@ -50,11 +50,11 @@ static int proxy_socket_get(lua_State *L) {
 	} else if (strleq(key, keysize, C("dst"))) {
 		return network_address_lua_push(L, sock->dst);
 	} else if(strleq(key, keysize, C("charset"))) {
-        if (sock->charset->len > 0) {
-            lua_pushlstring(L, sock->charset->str, sock->charset->len);
-        } else {
-            lua_pushnil(L);
+
+        if (sock->charset->len == 0) {
+            g_string_assign_len(sock->charset, "latin1", strlen("latin1"));
         }
+        lua_pushlstring(L, sock->charset->str, sock->charset->len);
         return 1;
 
 	} else if(strleq(key, keysize, C("character_set_client"))) {

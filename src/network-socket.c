@@ -95,6 +95,7 @@ network_socket *network_socket_new() {
 	s->recv_queue_raw = network_queue_new();
 
     s->default_db = g_string_new(NULL);
+    s->charset = g_string_new(NULL);
     s->charset_client = g_string_new(NULL);
     s->charset_connection = g_string_new(NULL);
     s->charset_results = g_string_new(NULL);
@@ -134,6 +135,7 @@ void network_socket_free(network_socket *s) {
     g_string_free(s->default_db, TRUE);
     g_string_free(s->charset_client, TRUE);
     g_string_free(s->charset_connection, TRUE);
+    g_string_free(s->charset, TRUE);
     g_string_free(s->charset_results, TRUE);
 
 	g_free(s);

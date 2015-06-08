@@ -789,6 +789,8 @@ NETWORK_MYSQLD_PLUGIN_PROTO(proxy_read_auth) {
 	if (got_all_data) {
 
         char *client_charset = charset[auth->charset];
+        recv_sock->charset_code = auth->charset;
+	    g_debug("sock:%p, set charset:%s", recv_sock, charset[recv_sock->charset_code]);
 
         g_string_assign(recv_sock->charset_client,     client_charset);
         g_string_assign(recv_sock->charset_results,    client_charset);
@@ -846,8 +848,9 @@ NETWORK_MYSQLD_PLUGIN_PROTO(proxy_read_auth) {
 					g_string_append_len(com_change_user, S(con->client->response->auth_plugin_data));
 
 					g_string_append_len(com_change_user, con->client->default_db->str, con->client->default_db->len + 1);
-
-					network_mysqld_proto_append_int16(com_change_user, con->client->response->charset);
+					network_mysqld_proto_append_int16(com_change_user, con->client->charset_code);
+	                g_debug("sock:%p, change user, set charset:%s",con->client, charset[con->client->charset_code]);
+					/* network_mysqld_proto_append_int16(com_change_user, con->client->response->charset); */
 
 					if (con->client->challenge->capabilities & CLIENT_PLUGIN_AUTH) {
 						g_string_append_len(com_change_user, con->client->response->auth_plugin_name->str, con->client->response->auth_plugin_name->len + 1);

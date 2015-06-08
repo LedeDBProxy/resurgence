@@ -102,6 +102,8 @@ typedef struct {
 	gboolean is_server_conn_reserved;
 	gboolean is_need_quick_peek_executed;
 
+    guint8    charset_code;
+
 	/**
 	 * store the default-db of the socket
 	 *
@@ -110,6 +112,7 @@ typedef struct {
 	 */	
 	GString *default_db;     /** default-db of this side of the connection */
 
+    GString *charset;
     GString *charset_client;
     GString *charset_connection;
     GString *charset_results;

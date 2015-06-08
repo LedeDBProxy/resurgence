@@ -354,9 +354,7 @@ function read_query( packet )
                             is_charset_client = true
                             is_charset_connection = true
                             is_charset_results = true
-                            proxy.connection.client.character_set_client = charset.text
-                            proxy.connection.client.character_set_connection = charset.text
-                            proxy.connection.client.character_set_results = charset.text
+                            proxy.connection.client.charset = charset.text
                             charset_client = charset.text
                             charset_connection = charset.text
                             charset_results = charset.text

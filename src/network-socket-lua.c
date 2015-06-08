@@ -49,22 +49,30 @@ static int proxy_socket_get(lua_State *L) {
 		return network_address_lua_push(L, sock->src);
 	} else if (strleq(key, keysize, C("dst"))) {
 		return network_address_lua_push(L, sock->dst);
+	} else if(strleq(key, keysize, C("charset"))) {
+        if (sock->charset->len > 0) {
+            lua_pushlstring(L, sock->charset->str, sock->charset->len);
+        } else {
+            lua_pushnil(L);
+        }
+        return 1;
+
 	} else if(strleq(key, keysize, C("character_set_client"))) {
-        if (sock->charset_client != NULL) {
+        if (sock->charset_client->len > 0) {
             lua_pushlstring(L, sock->charset_client->str, sock->charset_client->len);
         } else {
             lua_pushnil(L);
         }
         return 1;
     } else if(strleq(key, keysize, C("character_set_connection"))) {
-        if (sock->charset_connection != NULL) {
+        if (sock->charset_connection->len > 0) {
             lua_pushlstring(L, sock->charset_connection->str, sock->charset_connection->len);
         } else {
             lua_pushnil(L);
         }
         return 1;
     } else if(strleq(key, keysize, C("character_set_results"))) {
-        if (sock->charset_results != NULL) {
+        if (sock->charset_results->len > 0) {
             lua_pushlstring(L, sock->charset_results->str, sock->charset_results->len);
         } else {
             lua_pushnil(L);
@@ -98,10 +106,10 @@ static int proxy_socket_get(lua_State *L) {
 			return 1;
 		} else if (strleq(key, keysize, C("auth_plugin_name"))) {
 			lua_pushlstring(L, S(sock->challenge->auth_plugin_name));
-			return 1;
-		}
-	}
-	g_critical("%s: sock->challenge: %p, sock->response: %p (looking for %s)", 
+            return 1;
+        }
+    }
+    g_critical("%s: sock->challenge: %p, sock->response: %p (looking for %s)", 
 			G_STRLOC,
 			(void *)sock->challenge,
 			(void *)sock->response,
@@ -120,6 +128,35 @@ static int proxy_socket_set(lua_State *L) {
 
     if (strleq(key, keysize, C("is_server_conn_reserved"))) {
         sock->is_server_conn_reserved = lua_toboolean(L, -1);
+    } else if (strleq(key, keysize, C("charset"))) {
+        if (lua_isstring(L, -1)) {
+            size_t s_len = 0;
+            const char *s = lua_tolstring(L, -1, &s_len);
+            g_string_assign_len(sock->charset, s, s_len);
+            g_string_assign_len(sock->charset_client, s, s_len);
+            g_string_assign_len(sock->charset_connection, s, s_len);
+            g_string_assign_len(sock->charset_results, s, s_len);
+
+            if (strleq(s, s_len, C("latin1"))) {
+                sock->charset_code = 8;
+            } else if (strleq(s, s_len, C("utf8"))) {
+                sock->charset_code = 33;
+            } else if (strleq(s, s_len, C("binary"))) {
+                sock->charset_code = 63;
+            } else if (strleq(s, s_len, C("utf8mb4"))) {
+                sock->charset_code = 45;
+            } else if (strleq(s, s_len, C("gb2312"))) {
+                sock->charset_code = 24;
+            } else if (strleq(s, s_len, C("gbk"))) {
+                sock->charset_code = 28;
+            } else if (strleq(s, s_len, C("big5"))) {
+                sock->charset_code = 1;
+            } else {
+                g_critical("charset is unknown:%s", s);
+            }
+
+            g_critical("conn:%p, charset code:%d", sock, sock->charset_code);
+        }
     } else if (strleq(key, keysize, C("character_set_client"))) {
         if (lua_isstring(L, -1)) {
             size_t s_len = 0;

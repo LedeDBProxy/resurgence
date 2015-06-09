@@ -213,6 +213,7 @@ function read_query( packet )
     local is_charset_client = false
     local is_charset_connection = false
     local is_charset_results = false
+    local sql_mode_set = false
     local charset_client 
     local charset_connection
     local charset_results
@@ -388,6 +389,12 @@ function read_query( packet )
                                         else
                                             is_auto_commit = true
                                         end
+                                    elseif token.text == "sql_mode" then
+                                        if is_debug then
+                                            print("   sql mode:" .. nxt_nxt_token.text)
+                                        end
+                                        proxy.connection.client.sql_mode = nxt_nxt_token.text
+                                        sql_mode_set = true
                                     end
                                 end
                             end
@@ -593,10 +600,78 @@ function read_query( packet )
 
     if is_debug then
         backend_ndx = proxy.connection.backend_ndx
-        print("  backend_ndx:" .. backend_ndx)
+        if is_debug then
+            print("  backend_ndx:" .. backend_ndx)
+        end
     end
 
 	local s = proxy.connection.server
+    local sql_mode = proxy.connection.client.sql_mode
+    local srv_sql_mode = proxy.connection.server.sql_mode
+
+    if is_debug then
+        if sql_mode ~= nil then
+            print("  client sql mode:" .. sql_mode)
+        else
+            print("  client sql mode nil")
+        end
+        if srv_sql_mode ~= nil then
+            print("  server sql mode:" .. srv_sql_mode)
+        else
+            print("  server sql mode nil")
+        end
+    end
+
+    if sql_mode == nil then
+        sql_mode = ""
+    end
+
+    if srv_sql_mode == nil then 
+        srv_sql_mode = ""
+    end
+
+    local sql_mode_check = true
+    if sql_mode == "" and srv_sql_mode == "" then
+        sql_mode_check = false
+    end
+
+    if sql_mode_check then
+        if not sql_mode_set then
+
+            if sql_mode ~= srv_sql_mode then
+                if is_debug then
+                    print("  change sql mode")
+                end
+
+                if sql_mode ~= nil then
+                    if is_debug then
+                        print("   sql mode:" .. sql_mode)
+                    end
+                    local modes = tokenizer.tokenize(sql_mode)
+                    local num = 9
+
+                    proxy.queries:prepend(num,
+                    string.char(proxy.COM_QUERY) .. "SET sql_mode='" .. modes[1].text .. "'",
+                    { resultset_is_needed = true })
+
+                    for i = 2, #modes do
+                        num = num + 1
+                        proxy.queries:prepend(num,
+                        string.char(proxy.COM_QUERY) .. "SET sql_mode='" .. modes[i].text .. "'",
+                        { resultset_is_needed = true })
+                    end
+                end
+                proxy.connection.server.server_sql_mode = sql_mode
+            end
+        else
+            if sql_mode ~= srv_sql_mode then
+                proxy.connection.server.server_sql_mode = sql_mode
+                if is_debug then
+                    print("  set server sql mode:" .. sql_mode)
+                end
+            end
+        end
+    end
 
     if not is_charset_set then
         local clt_charset = proxy.connection.client.charset

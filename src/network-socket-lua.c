@@ -78,6 +78,13 @@ static int proxy_socket_get(lua_State *L) {
             lua_pushnil(L);
         }
         return 1;
+    } else if(strleq(key, keysize, C("sql_mode"))) {
+        if (sock->sql_mode->len > 0) {
+            lua_pushlstring(L, sock->sql_mode->str, sock->sql_mode->len);
+        } else {
+            lua_pushnil(L);
+        }
+        return 1;
     }
 
       
@@ -174,6 +181,29 @@ static int proxy_socket_set(lua_State *L) {
             size_t s_len = 0;
             const char *s = lua_tolstring(L, -1, &s_len);
             g_string_assign_len(sock->charset_results, s, s_len);
+        }
+    } else if (strleq(key, keysize, C("sql_mode"))) {
+        if (lua_isstring(L, -1)) {
+            size_t s_len = 0;
+            const char *s = lua_tolstring(L, -1, &s_len);
+            if (sock->sql_mode->len == 0 || s_len == 0) {
+                g_string_assign_len(sock->sql_mode, s, s_len);
+                if (s_len == 0) {
+                    g_debug("%s: empty sql mode for conn:%p", G_STRLOC, sock);
+                }
+            } else {
+                g_string_append_len(sock->sql_mode, " ", 1);
+                g_string_append_len(sock->sql_mode, s, s_len);
+            }
+        }
+    } else if (strleq(key, keysize, C("server_sql_mode"))) {
+        if (lua_isstring(L, -1)) {
+            size_t s_len = 0;
+            const char *s = lua_tolstring(L, -1, &s_len);
+            g_string_assign_len(sock->sql_mode, s, s_len);
+            if (s_len == 0) {
+                g_debug("%s: empty sql mode for conn:%p", G_STRLOC, sock);
+            }
         }
     }
 

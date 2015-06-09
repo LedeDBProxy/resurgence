@@ -99,6 +99,7 @@ network_socket *network_socket_new() {
     s->charset_client = g_string_new(NULL);
     s->charset_connection = g_string_new(NULL);
     s->charset_results = g_string_new(NULL);
+    s->sql_mode = g_string_new(NULL);
 
 	s->fd           = -1;
 	s->socket_type  = SOCK_STREAM; /* let's default to TCP */
@@ -137,6 +138,7 @@ void network_socket_free(network_socket *s) {
     g_string_free(s->charset_connection, TRUE);
     g_string_free(s->charset, TRUE);
     g_string_free(s->charset_results, TRUE);
+    g_string_free(s->sql_mode, TRUE);
 
 	g_free(s);
 }

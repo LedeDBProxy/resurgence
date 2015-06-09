@@ -116,6 +116,7 @@ typedef struct {
     GString *charset_client;
     GString *charset_connection;
     GString *charset_results;
+    GString *sql_mode;
 
 } network_socket;
 

@@ -643,13 +643,13 @@ function read_query( packet )
                     print("  change sql mode")
                 end
 
-                if sql_mode ~= nil then
-                    if is_debug then
-                        print("   sql mode:" .. sql_mode)
-                    end
+                if sql_mode ~= "" then
                     local modes = tokenizer.tokenize(sql_mode)
                     local num = 9
-
+                    if is_debug then
+                        print("   sql mode:" .. sql_mode)
+                        print("   sql mode num:" .. #modes)
+                    end
                     proxy.queries:prepend(num,
                     string.char(proxy.COM_QUERY) .. "SET sql_mode='" .. modes[1].text .. "'",
                     { resultset_is_needed = true })
@@ -660,6 +660,10 @@ function read_query( packet )
                         string.char(proxy.COM_QUERY) .. "SET sql_mode='" .. modes[i].text .. "'",
                         { resultset_is_needed = true })
                     end
+                else
+                    proxy.queries:prepend(9,
+                    string.char(proxy.COM_QUERY) .. "SET sql_mode=''",
+                    { resultset_is_needed = true })
                 end
                 proxy.connection.server.server_sql_mode = sql_mode
             end

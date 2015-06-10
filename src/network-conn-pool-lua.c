@@ -123,11 +123,17 @@ static int proxy_pool_get(lua_State *L) {
 
 	if (strleq(key, keysize, C("max_idle_connections"))) {
 		lua_pushinteger(L, pool->max_idle_connections);
-	} else if (strleq(key, keysize, C("mid_idle_connections"))) {
-		lua_pushinteger(L, pool->mid_idle_connections);
-	} else if (strleq(key, keysize, C("min_idle_connections"))) {
-		lua_pushinteger(L, pool->min_idle_connections);
-	} else if (strleq(key, keysize, C("users"))) {
+    } else if (strleq(key, keysize, C("mid_idle_connections"))) {
+        lua_pushinteger(L, pool->mid_idle_connections);
+    } else if (strleq(key, keysize, C("min_idle_connections"))) {
+        lua_pushinteger(L, pool->min_idle_connections);
+    } else if (strleq(key, keysize, C("stop_phase"))) {
+        lua_pushboolean(L, pool->stop_phase == TRUE);
+    } else if (strleq(key, keysize, C("init_phase"))) {
+        lua_pushboolean(L, pool->init_phase == TRUE);
+    } else if (strleq(key, keysize, C("init_time"))) {
+        lua_pushinteger(L, time(0) - pool->init_time);
+    } else if (strleq(key, keysize, C("users"))) {
 		network_connection_pool **pool_p;
 
 		pool_p = lua_newuserdata(L, sizeof(*pool_p)); 
@@ -154,6 +160,13 @@ static int proxy_pool_set(lua_State *L) {
 		pool->mid_idle_connections = lua_tointeger(L, -1);
 	} else if (strleq(key, keysize, C("min_idle_connections"))) {
 		pool->min_idle_connections = lua_tointeger(L, -1);
+	} else if (strleq(key, keysize, C("init_phase"))) {
+        pool->init_phase = lua_toboolean(L, -1);
+        if (pool->init_phase) {
+            pool->init_time = time(0);
+        }
+	} else if (strleq(key, keysize, C("stop_phase"))) {
+        pool->stop_phase = lua_toboolean(L, -1);
 	} else {
 		return luaL_error(L, "proxy.backend[...].%s is not writable", key);
 	}

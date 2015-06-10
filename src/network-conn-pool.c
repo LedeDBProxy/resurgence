@@ -98,7 +98,10 @@ network_connection_pool *network_connection_pool_new(void) {
     pool->max_idle_connections = 100;
     pool->mid_idle_connections = 50;
     pool->min_idle_connections = 10;
+    pool->use_mid_idle = TRUE;
+    pool->init_time = time(0);
     pool->init_phase = TRUE;
+    pool->stop_phase = FALSE;
 	pool->users = g_hash_table_new_full(g_hash_table_string_hash, g_hash_table_string_equal, g_hash_table_string_free, g_queue_free_all);
 
 	return pool;
@@ -150,10 +153,10 @@ GQueue *network_connection_pool_get_conns(network_connection_pool *pool, GString
 	 * min_idle waiting
 	 */
 
-    if (pool->init_phase) {
+    if (pool->use_mid_idle) {
         conns = g_hash_table_find(pool->users, find_idle_conns, &(pool->mid_idle_connections));
         if (conns && conns->length > pool->mid_idle_connections) {
-            pool->init_phase = FALSE;
+            pool->use_mid_idle = FALSE;
 		    g_debug("%s: (get_conns) init phase complete for user '%s' -> %p", G_STRLOC, username->str, conns);
         }
     } else {

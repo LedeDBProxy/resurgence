@@ -33,7 +33,11 @@ typedef struct {
 	guint max_idle_connections;
 	guint mid_idle_connections;
 	guint min_idle_connections;
+    
+    time_t   init_time;
     gboolean init_phase;
+    gboolean use_mid_idle;
+    gboolean stop_phase;
 } network_connection_pool;
 
 typedef struct {

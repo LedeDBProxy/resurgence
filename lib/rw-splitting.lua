@@ -38,8 +38,9 @@ local auto_config = require("proxy.auto-config")
 if not proxy.global.config.rwsplit then
 	proxy.global.config.rwsplit = {
         min_idle_connections = 1,
-        mid_idle_connections = 1,
-        max_idle_connections = 1,
+        mid_idle_connections = 10,
+        max_idle_connections = 20,
+        max_init_time = 30,
 
 		is_debug = true,
 		is_slave_write_forbidden_set = false
@@ -72,9 +73,9 @@ function connect_server()
 	--
 	-- on read_query we can switch the backends again to another backend
 
-	if is_debug then
-		print("[connect_server] " .. proxy.connection.client.src.name)
-	end
+    if is_debug then
+        print("[connect_server] " .. proxy.connection.client.src.name)
+    end
 
 	local rw_ndx = 0
 
@@ -83,51 +84,108 @@ function connect_server()
 		local s        = proxy.global.backends[i]
 		local pool     = s.pool -- we don't have a username yet, try to find a connections which is idling
 		local cur_idle = pool.users[""].cur_idle_connections
+        local init_phase = pool.init_phase
+        local min_idle_conns
+        local mid_idle_conns
+        local max_idle_conns
+        local connected_clients
+
 
 		pool.min_idle_connections = proxy.global.config.rwsplit.min_idle_connections
 		pool.mid_idle_connections = proxy.global.config.rwsplit.mid_idle_connections
 		pool.max_idle_connections = proxy.global.config.rwsplit.max_idle_connections
-		
+	
+        if init_phase then
+            local init_time = pool.init_time
+            local max_init_time = proxy.global.config.rwsplit.max_init_time
+
+            if init_time == 0 then
+                init_time = 1
+            elseif init_time > max_init_time then
+                init_time = max_init_time
+            end
+            min_idle_conns = proxy.global.config.rwsplit.min_idle_connections
+            mid_idle_conns = math.floor(proxy.global.config.rwsplit.mid_idle_connections * init_time / max_init_time)
+            max_idle_conns = math.floor(proxy.global.config.rwsplit.max_idle_connections * init_time / max_init_time)
+
+	        print("  init time = " .. init_time)
+            if mid_idle_conns < min_idle_conns then
+                mid_idle_conns = min_idle_conns
+            end
+
+            if max_idle_conns < mid_idle_conns then
+                max_idle_conns = mid_idle_conns + 1
+            end
+        else
+            min_idle_conns = proxy.global.config.rwsplit.min_idle_connections
+            mid_idle_conns = proxy.global.config.rwsplit.mid_idle_connections
+            max_idle_conns = proxy.global.config.rwsplit.max_idle_connections
+        end
+
+        connected_clients = s.connected_clients
+
+        if pool.stop_phase then
+            if is_debug then
+                print("  connection will be rejected")
+            end
+            proxy.response = {
+                type = proxy.MYSQLD_PACKET_ERR,
+                errmsg = "proxy stops serving requests now"
+            }
+            return proxy.PROXY_SEND_RESULT
+        end
+	
 		if is_debug then
-			print("  [".. i .."].connected_clients = " .. s.connected_clients)
+			print("  [".. i .."].connected_clients = " .. connected_clients)
 			print("  [".. i .."].pool.cur_idle     = " .. cur_idle)
-			print("  [".. i .."].pool.max_idle     = " .. pool.max_idle_connections)
-			print("  [".. i .."].pool.mid_idle     = " .. pool.mid_idle_connections)
-			print("  [".. i .."].pool.min_idle     = " .. pool.min_idle_connections)
+			print("  [".. i .."].pool.max_idle     = " .. max_idle_conns)
+			print("  [".. i .."].pool.mid_idle     = " .. mid_idle_conns)
+			print("  [".. i .."].pool.min_idle     = " .. min_idle_conns)
 			print("  [".. i .."].type = " .. s.type)
 			print("  [".. i .."].state = " .. s.state)
-		end
+		 end
 
 		-- prefer connections to the master 
         if s.type == proxy.BACKEND_TYPE_RW and
             s.state ~= proxy.BACKEND_STATE_DOWN and
-            ((cur_idle < pool.min_idle_connections and s.connected_clients < pool.max_idle_connections)
+            ((cur_idle < min_idle_conns and connected_clients < max_idle_conns)
             or cur_idle > 0) then
             proxy.connection.backend_ndx = i
             break
         elseif s.type == proxy.BACKEND_TYPE_RO and
             s.state ~= proxy.BACKEND_STATE_DOWN and
-            ((cur_idle < pool.min_idle_connections and s.connected_clients < pool.max_idle_connections)
+            ((cur_idle < min_idle_conns and connected_clients < max_idle_conns)
             or cur_idle > 0) then
             proxy.connection.backend_ndx = i
             break
         elseif s.type == proxy.BACKEND_TYPE_RW and
             s.state ~= proxy.BACKEND_STATE_DOWN and
             rw_ndx == 0 then
-            if cur_idle == 0 and s.connected_clients >= pool.max_idle_connections then
-                if is_debug then
-                    print("pool:" .. i .. " is full")
+            if cur_idle == 0 and connected_clients >= max_idle_conns then
+                -- if is_debug then
+                --    print("pool:" .. i .. " is full")
+                -- end
+                if init_phase then 
+                    if is_debug then
+                        print("  connection will be rejected because init phase")
+                    end
+                    proxy.response = {
+                        type = proxy.MYSQLD_PACKET_ERR,
+                        errmsg = "proxy stops serving requests now"
+                    }
+                    return proxy.PROXY_SEND_RESULT
+                else
+                    is_backend_conn_keepalive = false
                 end
-                is_backend_conn_keepalive = false
             end
             rw_ndx = i
         end
 	end
 
 	if proxy.connection.backend_ndx == 0 then
-		if is_debug then
-			print("  [" .. rw_ndx .. "] taking master as default")
-        end
+		--if is_debug then
+		--	print("  [" .. rw_ndx .. "] taking master as default")
+        --end
         proxy.connection.backend_ndx = rw_ndx
     else
         is_backend_conn_keepalive = true
@@ -140,9 +198,9 @@ function connect_server()
 	-- ok, did we got a backend ?
 
 	if proxy.connection.server then 
-		if is_debug then
-			print("  using pooled connection from: " .. proxy.connection.backend_ndx)
-		end
+		--if is_debug then
+		--	print("  using pooled connection from: " .. proxy.connection.backend_ndx)
+		--end
 
         use_pool_conn = true
 
@@ -150,9 +208,9 @@ function connect_server()
 		return proxy.PROXY_IGNORE_RESULT
 	end
 
-	if is_debug then
-		print("  [" .. proxy.connection.backend_ndx .. "] idle-conns below min-idle")
-	end
+	--if is_debug then
+	--	print("  [" .. proxy.connection.backend_ndx .. "] idle-conns below min-idle")
+	--end
 
 	-- open a new connection 
 end
@@ -164,26 +222,26 @@ end
 --
 -- auth.packet is the packet
 function read_auth_result( auth )
-	local is_debug = proxy.global.config.rwsplit.is_debug
+	-- local is_debug = proxy.global.config.rwsplit.is_debug
 
-	if is_debug then
-        print("[read_auth_result] " .. proxy.connection.client.src.name)
-        print("  using connection from: " .. proxy.connection.backend_ndx)
-        print("  server address: " .. proxy.connection.server.dst.name)
-        print("  server charset: " .. proxy.connection.server.character_set_client)
-    end
+	--if is_debug then
+    --    print("[read_auth_result] " .. proxy.connection.client.src.name)
+    --    print("  using connection from: " .. proxy.connection.backend_ndx)
+    --    print("  server address: " .. proxy.connection.server.dst.name)
+    --    print("  server charset: " .. proxy.connection.server.character_set_client)
+    --end
 	if auth.packet:byte() == proxy.MYSQLD_PACKET_OK then
 		-- auth was fine, disconnect from the server
         if not use_pool_conn and is_backend_conn_keepalive then
             proxy.connection.backend_ndx = 0
-        else
-            if is_debug then
-                print("  no need to put the connection to pool ... ok")
-            end
+        --else
+            --if is_debug then
+            --    print("  no need to put the connection to pool ... ok")
+            --end
         end
-        if is_debug then
-            print("  (read_auth_result) ... ok")
-        end
+        --if is_debug then
+        --    print("  (read_auth_result) ... ok")
+        --end
 	elseif auth.packet:byte() == proxy.MYSQLD_PACKET_EOF then
 		-- we received either a 
 		-- 
@@ -199,7 +257,7 @@ end
 --- 
 -- read/write splitting
 function read_query( packet )
-	local is_debug = proxy.global.config.rwsplit.is_debug
+	--local is_debug = proxy.global.config.rwsplit.is_debug
 	local cmd      = commands.parse(packet)
 	local c        = proxy.connection.client
     local ps_cnt   = 0
@@ -232,6 +290,16 @@ function read_query( packet )
         local b = proxy.global.backends[backend_ndx]
         if b.type == proxy.BACKEND_TYPE_RO then
             ro_server = true
+        end
+        if b.pool.stop_phase then
+            if is_debug then
+                print("  stop serving requests")
+            end
+            proxy.response = {
+                type = proxy.MYSQLD_PACKET_ERR,
+                errmsg = "proxy stops serving requests now"
+            }
+            return proxy.PROXY_SEND_RESULT
         end
     end
 

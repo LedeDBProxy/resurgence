@@ -127,9 +127,17 @@ static int proxy_pool_get(lua_State *L) {
         lua_pushinteger(L, pool->mid_idle_connections);
     } else if (strleq(key, keysize, C("min_idle_connections"))) {
         lua_pushinteger(L, pool->min_idle_connections);
+    } else if (strleq(key, keysize, C("serve_req_after_init"))) {
+        lua_pushboolean(L, pool->serve_req_after_init == TRUE);
     } else if (strleq(key, keysize, C("stop_phase"))) {
         lua_pushboolean(L, pool->stop_phase == TRUE);
     } else if (strleq(key, keysize, C("init_phase"))) {
+        int diff = time(0) - pool->init_time;
+        if (diff > pool->max_init_last_time) {
+            pool->init_phase = FALSE;
+        } else {
+            pool->init_phase = TRUE;
+        }
         lua_pushboolean(L, pool->init_phase == TRUE);
     } else if (strleq(key, keysize, C("init_time"))) {
         lua_pushinteger(L, time(0) - pool->init_time);
@@ -160,10 +168,18 @@ static int proxy_pool_set(lua_State *L) {
 		pool->mid_idle_connections = lua_tointeger(L, -1);
 	} else if (strleq(key, keysize, C("min_idle_connections"))) {
 		pool->min_idle_connections = lua_tointeger(L, -1);
+	} else if (strleq(key, keysize, C("set_init_time"))) {
+        if (lua_tointeger(L, -1) != 0) {
+            pool->init_time = time(0);
+            pool->serve_req_after_init = FALSE;
+        }
+	} else if (strleq(key, keysize, C("serve_req_after_init"))) {
+        pool->serve_req_after_init = lua_toboolean(L, -1);
 	} else if (strleq(key, keysize, C("init_phase"))) {
         pool->init_phase = lua_toboolean(L, -1);
         if (pool->init_phase) {
             pool->init_time = time(0);
+            pool->serve_req_after_init = FALSE;
         }
 	} else if (strleq(key, keysize, C("stop_phase"))) {
         pool->stop_phase = lua_toboolean(L, -1);

@@ -35,6 +35,8 @@ typedef struct {
 	guint min_idle_connections;
     
     time_t   init_time;
+    int      max_init_last_time;
+    gboolean serve_req_after_init;
     gboolean init_phase;
     gboolean use_mid_idle;
     gboolean stop_phase;

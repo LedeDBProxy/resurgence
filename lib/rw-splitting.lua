@@ -95,10 +95,20 @@ function connect_server()
 		pool.mid_idle_connections = proxy.global.config.rwsplit.mid_idle_connections
 		pool.max_idle_connections = proxy.global.config.rwsplit.max_idle_connections
 	
+        connected_clients = s.connected_clients
+
+        if connected_clients > 0 then
+            pool.serve_req_after_init = true
+        end
         if init_phase then
             local init_time = pool.init_time
-            local max_init_time = proxy.global.config.rwsplit.max_init_time
+            if init_time > 0 and not pool.serve_req_after_init then
+                pool.set_init_time = 1
+                init_time = pool.init_time
+                print("  reset init")
+            end
 
+            local max_init_time = proxy.global.config.rwsplit.max_init_time
             if init_time == 0 then
                 init_time = 1
             elseif init_time > max_init_time then
@@ -122,7 +132,6 @@ function connect_server()
             max_idle_conns = proxy.global.config.rwsplit.max_idle_connections
         end
 
-        connected_clients = s.connected_clients
 
         if pool.stop_phase then
             if is_debug then

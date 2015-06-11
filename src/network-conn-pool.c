@@ -100,7 +100,9 @@ network_connection_pool *network_connection_pool_new(void) {
     pool->min_idle_connections = 10;
     pool->use_mid_idle = TRUE;
     pool->init_time = time(0);
+    pool->max_init_last_time = 60;
     pool->init_phase = TRUE;
+    pool->serve_req_after_init = FALSE;
     pool->stop_phase = FALSE;
 	pool->users = g_hash_table_new_full(g_hash_table_string_hash, g_hash_table_string_equal, g_hash_table_string_free, g_queue_free_all);
 

@@ -40,7 +40,7 @@ if not proxy.global.config.rwsplit then
         min_idle_connections = 1,
         mid_idle_connections = 10,
         max_idle_connections = 20,
-        max_init_time = 30,
+        max_init_time = 10,
 
 		is_debug = true,
 		is_slave_write_forbidden_set = false
@@ -51,6 +51,7 @@ end
 -- read/write splitting sends all non-transactional SELECTs to the slaves
 --
 -- is_in_transaction tracks the state of the transactions
+local is_passed_but_req_rejected = false
 local is_in_transaction       = false
 local is_auto_commit          = true
 local is_prepared             = false
@@ -78,29 +79,35 @@ function connect_server()
     end
 
 	local rw_ndx = 0
+    local connected_clients = 0
+    local max_idle_conns = 0
+    local init_phase = false
+    local cur_idle = 0
 
 	-- init all backends 
 	for i = 1, #proxy.global.backends do
 		local s        = proxy.global.backends[i]
 		local pool     = s.pool -- we don't have a username yet, try to find a connections which is idling
-		local cur_idle = pool.users[""].cur_idle_connections
-        local init_phase = pool.init_phase
+		cur_idle = pool.users[""].cur_idle_connections
+        init_phase = pool.init_phase
         local min_idle_conns
         local mid_idle_conns
-        local max_idle_conns
-        local connected_clients
 
-
-		pool.min_idle_connections = proxy.global.config.rwsplit.min_idle_connections
-		pool.mid_idle_connections = proxy.global.config.rwsplit.mid_idle_connections
-		pool.max_idle_connections = proxy.global.config.rwsplit.max_idle_connections
-	
         connected_clients = s.connected_clients
 
         if connected_clients > 0 then
+            print("  no need to init pool connections")
             pool.serve_req_after_init = true
+        else
+            print("  init pool connections")
+            pool.min_idle_connections = proxy.global.config.rwsplit.min_idle_connections
+            pool.mid_idle_connections = proxy.global.config.rwsplit.mid_idle_connections
+            pool.max_idle_connections = proxy.global.config.rwsplit.max_idle_connections
+            pool.max_init_time = proxy.global.config.rwsplit.max_init_time
         end
+
         if init_phase then
+            print("  init phase now")
             local init_time = pool.init_time
             if init_time > 0 and not pool.serve_req_after_init then
                 pool.set_init_time = 1
@@ -119,13 +126,15 @@ function connect_server()
             max_idle_conns = math.floor(proxy.global.config.rwsplit.max_idle_connections * init_time / max_init_time)
 
 	        print("  init time = " .. init_time)
+	        print("  max_idle_conns = " .. max_idle_conns)
             if mid_idle_conns < min_idle_conns then
                 mid_idle_conns = min_idle_conns
             end
 
-            if max_idle_conns < mid_idle_conns then
+            if max_idle_conns <= mid_idle_conns then
                 max_idle_conns = mid_idle_conns + 1
             end
+
         else
             min_idle_conns = proxy.global.config.rwsplit.min_idle_connections
             mid_idle_conns = proxy.global.config.rwsplit.mid_idle_connections
@@ -171,9 +180,9 @@ function connect_server()
             s.state ~= proxy.BACKEND_STATE_DOWN and
             rw_ndx == 0 then
             if cur_idle == 0 and connected_clients >= max_idle_conns then
-                -- if is_debug then
-                --    print("pool:" .. i .. " is full")
-                -- end
+                if is_debug then
+                   print("pool:" .. i .. " is full")
+                end
                 if init_phase then 
                     if is_debug then
                         print("  connection will be rejected because init phase")
@@ -190,6 +199,11 @@ function connect_server()
             rw_ndx = i
         end
 	end
+
+    if init_phase and (connected_clients + cur_idle) > max_idle_conns then
+        is_passed_but_req_rejected = true
+		print("  is_passed_but_req_rejected is true")
+    end
 
 	if proxy.connection.backend_ndx == 0 then
 		--if is_debug then
@@ -290,6 +304,15 @@ function read_query( packet )
 
 	local tokens
 	local norm_query
+
+    if is_passed_but_req_rejected then
+        proxy.response = {
+            type = proxy.MYSQLD_PACKET_ERR,
+            errmsg = "too many connections"
+        }
+        return proxy.PROXY_SEND_RESULT
+    end
+
 
     if is_prepared then
         ps_cnt = proxy.connection.valid_prepare_stmt_cnt

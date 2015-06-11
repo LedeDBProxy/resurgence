@@ -139,8 +139,11 @@ static int proxy_pool_get(lua_State *L) {
             pool->init_phase = TRUE;
         }
         lua_pushboolean(L, pool->init_phase == TRUE);
+        g_debug("%s: init time:%u, diff:%d, max diff", G_STRLOC, pool->init_time, diff, pool->max_init_last_time);
     } else if (strleq(key, keysize, C("init_time"))) {
-        lua_pushinteger(L, time(0) - pool->init_time);
+        int diff = time(0) - pool->init_time;
+        lua_pushinteger(L, diff);
+        g_debug("%s: init time:%u, diff:%d", G_STRLOC, pool->init_time, diff);
     } else if (strleq(key, keysize, C("users"))) {
 		network_connection_pool **pool_p;
 
@@ -168,6 +171,8 @@ static int proxy_pool_set(lua_State *L) {
 		pool->mid_idle_connections = lua_tointeger(L, -1);
 	} else if (strleq(key, keysize, C("min_idle_connections"))) {
 		pool->min_idle_connections = lua_tointeger(L, -1);
+	} else if (strleq(key, keysize, C("max_init_time"))) {
+		pool->max_init_last_time = lua_tointeger(L, -1);
 	} else if (strleq(key, keysize, C("set_init_time"))) {
         if (lua_tointeger(L, -1) != 0) {
             pool->init_time = time(0);

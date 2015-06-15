@@ -37,9 +37,9 @@ local auto_config = require("proxy.auto-config")
 -- connection pool
 if not proxy.global.config.rwsplit then
 	proxy.global.config.rwsplit = {
-        min_idle_connections = 1,
-        mid_idle_connections = 10,
-        max_idle_connections = 20,
+        min_idle_connections = 2,
+        mid_idle_connections = 4,
+        max_idle_connections = 8,
         max_init_time = 10,
 
 		is_debug = true,
@@ -79,10 +79,15 @@ function connect_server()
     end
 
 	local rw_ndx = 0
-    local connected_clients = 0
     local max_idle_conns = 0
+    local mid_idle_conns = 0
     local init_phase = false
     local cur_idle = 0
+    local connected_clients = 0
+    local total_clients = 0
+    local total_available_conns = 0
+
+    total_clients = proxy.connection.stat_clients + 1
 
 	-- init all backends 
 	for i = 1, #proxy.global.backends do
@@ -91,8 +96,6 @@ function connect_server()
 		cur_idle = pool.users[""].cur_idle_connections
         init_phase = pool.init_phase
         local min_idle_conns
-        local mid_idle_conns
-
         connected_clients = s.connected_clients
 
         if connected_clients > 0 then
@@ -131,14 +134,15 @@ function connect_server()
                 mid_idle_conns = min_idle_conns
             end
 
-            if max_idle_conns <= mid_idle_conns then
-                max_idle_conns = mid_idle_conns + 1
-            end
+            max_idle_conns = mid_idle_conns + 1
 
+            total_available_conns = total_available_conns + mid_idle_conns
         else
             min_idle_conns = proxy.global.config.rwsplit.min_idle_connections
             mid_idle_conns = proxy.global.config.rwsplit.mid_idle_connections
             max_idle_conns = proxy.global.config.rwsplit.max_idle_connections
+
+            total_available_conns = total_available_conns + max_idle_conns
         end
 
 
@@ -163,6 +167,7 @@ function connect_server()
 			print("  [".. i .."].state = " .. s.state)
 		 end
 
+
 		-- prefer connections to the master 
         if s.type == proxy.BACKEND_TYPE_RW and
             s.state ~= proxy.BACKEND_STATE_DOWN and
@@ -180,9 +185,6 @@ function connect_server()
             s.state ~= proxy.BACKEND_STATE_DOWN and
             rw_ndx == 0 then
             if cur_idle == 0 and connected_clients >= max_idle_conns then
-                if is_debug then
-                   print("pool:" .. i .. " is full")
-                end
                 if init_phase then 
                     if is_debug then
                         print("  connection will be rejected because init phase")
@@ -200,9 +202,16 @@ function connect_server()
         end
 	end
 
-    if init_phase and (connected_clients + cur_idle) > max_idle_conns then
+    proxy.connection.stat_clients_add = true
+
+    if init_phase and total_available_conns < total_clients then
         is_passed_but_req_rejected = true
-		print("  is_passed_but_req_rejected is true")
+        if is_debug then
+            print("  total available conn:" .. total_available_conns .. ",total clients:" .. total_clients)
+            print("  is_passed_but_req_rejected set true")
+        end
+    else
+        is_passed_but_req_rejected = false
     end
 
 	if proxy.connection.backend_ndx == 0 then
@@ -214,13 +223,14 @@ function connect_server()
         is_backend_conn_keepalive = true
     end
 
+
 	-- pick a random backend
 	--
 	-- we someone have to skip DOWN backends
 
 	-- ok, did we got a backend ?
 
-	if proxy.connection.server then 
+	if cur_idle > 0 and proxy.connection.server then 
 		--if is_debug then
 		--	print("  using pooled connection from: " .. proxy.connection.backend_ndx)
 		--end
@@ -304,14 +314,6 @@ function read_query( packet )
 
 	local tokens
 	local norm_query
-
-    if is_passed_but_req_rejected then
-        proxy.response = {
-            type = proxy.MYSQLD_PACKET_ERR,
-            errmsg = "too many connections"
-        }
-        return proxy.PROXY_SEND_RESULT
-    end
 
 
     if is_prepared then
@@ -705,6 +707,14 @@ function read_query( packet )
         end
     end
 
+    if is_passed_but_req_rejected then
+        proxy.response = {
+            type = proxy.MYSQLD_PACKET_ERR,
+            errmsg = "too many connections"
+        }
+        return proxy.PROXY_SEND_RESULT
+    end
+
 	local s = proxy.connection.server
     local sql_mode = proxy.connection.client.sql_mode
     local srv_sql_mode = proxy.connection.server.sql_mode
@@ -1012,6 +1022,10 @@ function disconnect_client()
 		print("[disconnect_client] " .. proxy.connection.client.src.name)
 	end
     
+    proxy.connection.stat_clients_sub = true
+
+    print("total clients:" .. proxy.connection.stat_clients)
+
     if not is_backend_conn_keepalive or is_in_transaction or not is_auto_commit then 
         if is_debug then
             print("  set connection_close true ")

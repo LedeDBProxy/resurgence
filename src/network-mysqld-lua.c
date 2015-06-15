@@ -108,6 +108,8 @@ static int proxy_connection_get(lua_State *L) {
 		lua_setmetatable(L, -2); /* tie the metatable to the table   (sp -= 1) */
 	} else if(strleq(key, keysize, C("valid_prepare_stmt_cnt"))) {
 		lua_pushinteger(L, con->valid_prepare_stmt_cnt);
+	} else if(strleq(key, keysize, C("stat_clients"))) {
+		lua_pushinteger(L, con->srv->priv->active_clients);
 	} else {
 		lua_pushnil(L);
 	}
@@ -196,6 +198,14 @@ static int proxy_connection_set(lua_State *L) {
         luaL_checktype(L, 3, LUA_TBOOLEAN);
 
         st->connection_close = lua_toboolean(L, 3);
+    } else if (0 == strcmp(key, "stat_clients_add")) {
+        con->srv->priv->active_clients++;
+    } else if (0 == strcmp(key, "stat_clients_sub")) {
+        if (con->srv->priv->active_clients <= 0) {
+		    g_debug("conn:%p, active clients less than one:%d", con, con->srv->priv->active_clients);
+        } else {
+            con->srv->priv->active_clients--;
+        }
 	} else {
 		return luaL_error(L, "proxy.connection.%s is not writable", key);
 	}

@@ -79,7 +79,7 @@ function connect_server()
     end
 
 	local rw_ndx = 0
-    local connected_clients = 0
+    local candidate_clients = 0
     local max_idle_conns = 0
     local init_phase = false
     local cur_idle = 0
@@ -92,8 +92,9 @@ function connect_server()
         init_phase = pool.init_phase
         local min_idle_conns
         local mid_idle_conns
+        local connected_clients = s.connected_clients
 
-        connected_clients = s.connected_clients
+        candidate_clients = s.candidate_clients
 
         if connected_clients > 0 then
             print("  no need to init pool connections")
@@ -199,8 +200,9 @@ function connect_server()
             rw_ndx = i
         end
 	end
-
-    if init_phase and (connected_clients + cur_idle) > max_idle_conns then
+   
+    print("  candidate clients:" .. candidate_clients)
+    if init_phase and candidate_clients > max_idle_conns then
         is_passed_but_req_rejected = true
 		print("  is_passed_but_req_rejected is true")
     end
@@ -304,14 +306,6 @@ function read_query( packet )
 
 	local tokens
 	local norm_query
-
-    if is_passed_but_req_rejected then
-        proxy.response = {
-            type = proxy.MYSQLD_PACKET_ERR,
-            errmsg = "too many connections"
-        }
-        return proxy.PROXY_SEND_RESULT
-    end
 
 
     if is_prepared then
@@ -703,6 +697,14 @@ function read_query( packet )
         if is_debug then
             print("  backend_ndx:" .. backend_ndx)
         end
+    end
+
+    if is_passed_but_req_rejected then
+        proxy.response = {
+            type = proxy.MYSQLD_PACKET_ERR,
+            errmsg = "too many connections"
+        }
+        return proxy.PROXY_SEND_RESULT
     end
 
 	local s = proxy.connection.server

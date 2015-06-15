@@ -1919,6 +1919,10 @@ NETWORK_MYSQLD_PLUGIN_PROTO(proxy_connect_server) {
 		con->server = network_socket_new();
 		network_address_copy(con->server->dst, st->backend->addr);
 
+        st->backend->candidate_clients++;
+        g_message("%s.%d: %s:%d", __FILE__, __LINE__, "connect clients is added, now value", 
+                st->backend->candidate_clients);
+
 		switch(network_socket_connect(con->server)) {
 		case NETWORK_SOCKET_ERROR_RETRY:
 			/* the socket is non-blocking already, 
@@ -2111,6 +2115,14 @@ NETWORK_MYSQLD_PLUGIN_PROTO(proxy_disconnect_client) {
 
 	if (st == NULL) return NETWORK_SOCKET_SUCCESS;
 	
+    if (st->backend) {
+        st->backend->candidate_clients--;
+        g_message("%s.%d: %s:%d, conn:%p", __FILE__, __LINE__, "connect clients is subtracted, now value", 
+                st->backend->candidate_clients, con);
+    } else {
+        g_message("%s.%d:%s, conn:%p", __FILE__, __LINE__, "connect clients failed to subtract, now value", con);
+    }
+
 	/**
 	 * let the lua-level decide if we want to keep the connection in the pool
 	 */

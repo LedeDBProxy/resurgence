@@ -37,9 +37,9 @@ local auto_config = require("proxy.auto-config")
 -- connection pool
 if not proxy.global.config.rwsplit then
 	proxy.global.config.rwsplit = {
-        min_idle_connections = 2,
-        mid_idle_connections = 4,
-        max_idle_connections = 8,
+        min_idle_connections = 1,
+        mid_idle_connections = 40,
+        max_idle_connections = 80,
         max_init_time = 10,
 
 		is_debug = true,
@@ -129,6 +129,7 @@ function connect_server()
             max_idle_conns = math.floor(proxy.global.config.rwsplit.max_idle_connections * init_time / max_init_time)
 
 	        print("  init time = " .. init_time)
+	        print("  min_idle_conns = " .. min_idle_conns)
 	        print("  max_idle_conns = " .. max_idle_conns)
             if mid_idle_conns < min_idle_conns then
                 mid_idle_conns = min_idle_conns
@@ -204,6 +205,7 @@ function connect_server()
 
     proxy.connection.stat_clients_add = true
 
+    -- fuzzy check which is not accurate
     if init_phase and total_available_conns < total_clients then
         is_passed_but_req_rejected = true
         if is_debug then

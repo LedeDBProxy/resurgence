@@ -78,6 +78,11 @@ function connect_server()
         print("[connect_server] " .. proxy.connection.client.src.name)
     end
 
+    if not proxy.global.stat_clients then
+        proxy.global.stat_clients = 0
+    end
+    proxy.global.stat_clients = proxy.global.stat_clients + 1
+
 	local rw_ndx = 0
     local max_idle_conns = 0
     local mid_idle_conns = 0
@@ -87,7 +92,7 @@ function connect_server()
     local total_clients = 0
     local total_available_conns = 0
 
-    total_clients = proxy.connection.stat_clients + 1
+    total_clients = proxy.global.stat_clients + 1
 
 	-- init all backends 
 	for i = 1, #proxy.global.backends do
@@ -146,7 +151,6 @@ function connect_server()
             total_available_conns = total_available_conns + max_idle_conns
         end
 
-
         if pool.stop_phase then
             if is_debug then
                 print("  connection will be rejected")
@@ -202,8 +206,6 @@ function connect_server()
             rw_ndx = i
         end
 	end
-
-    proxy.connection.stat_clients_add = true
 
     -- fuzzy check which is not accurate
     if init_phase and total_available_conns < total_clients then
@@ -1024,9 +1026,9 @@ function disconnect_client()
 		print("[disconnect_client] " .. proxy.connection.client.src.name)
 	end
     
-    proxy.connection.stat_clients_sub = true
+    proxy.global.stat_clients = proxy.global.stat_clients - 1
 
-    print("total clients:" .. proxy.connection.stat_clients)
+    print("total clients:" .. proxy.global.stat_clients)
 
     if not is_backend_conn_keepalive or is_in_transaction or not is_auto_commit then 
         if is_debug then

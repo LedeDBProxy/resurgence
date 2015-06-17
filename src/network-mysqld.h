@@ -406,7 +406,6 @@ NETWORK_API network_socket_retval_t network_mysqld_write_len(chassis *srv, netwo
 NETWORK_API network_socket_retval_t network_mysqld_con_get_packet(chassis G_GNUC_UNUSED*chas, network_socket *con);
 
 struct chassis_private {
-    int active_clients;
 
 	GPtrArray *cons;                          /**< array(network_mysqld_con) */
 

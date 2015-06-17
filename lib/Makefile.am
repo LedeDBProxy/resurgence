@@ -104,7 +104,6 @@ EXTRA_DIST += \
 	CMakeLists.txt
 
 DISTCLEANFILES = \
-	sql-tokenizer.c \
 	sql-tokenizer-keywords.c
 
 noinst_PROGRAMS=sql-tokenizer-gen

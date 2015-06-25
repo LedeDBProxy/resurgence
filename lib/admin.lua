@@ -27,6 +27,9 @@ function set_error(errmsg)
 end
 
 function read_query(packet)
+    if packet:byte() == proxy.COM_INIT_DB or packet:byte() == proxy.COM_QUIT then
+        return proxy.MYSQLD_PACKET_OK
+    end
 	if packet:byte() ~= proxy.COM_QUERY then
 		set_error("[admin] we only handle text-based queries (COM_QUERY)")
 		return proxy.PROXY_SEND_RESULT

@@ -95,6 +95,37 @@ function read_query(packet)
 		rows[#rows + 1] = { "ADD MASTER $backend", "add MySQL instance to the master list" }
 		rows[#rows + 1] = { "REMOVE BACKEND $backend_id", "remove one MySQL instance" }
         rows[#rows + 1] = { "SELECT VERSION", "display the version of MySQL proxy" }
+	elseif string.find(query:lower(), "select conn_num from backends where") then
+        local parameters = string.match(query:lower(), "select conn_num from backends where (.+)$")
+        local backend_id, user = string.match(parameters, "backend_ndx = (.+) and user = \"(.+)\"")
+
+        if backend_id == nil  or user == nil then
+            set_error("sql format is wrong")
+            return proxy.PROXY_SEND_RESULT
+        end
+
+        fields = {
+			{ name = "address",
+			  type = proxy.MYSQL_TYPE_STRING },
+			{ name = "connection_num",
+			  type = proxy.MYSQL_TYPE_LONG },
+		}
+        local id = tonumber(backend_id)
+        if id > 0 and id <= #proxy.global.backends then
+            local b = proxy.global.backends[id]
+            local pool = b.pool
+
+            rows[#rows + 1] = {
+                b.dst.name,          -- configured backend address
+                pool.users[user].cur_idle_connections -- currently connected clients
+            }
+        else
+            rows[#rows + 1] = {
+                "",
+                0
+            }
+        end
+
 	elseif string.find(query:lower(), "add slave") then
         local server = string.match(query:lower(), "add slave%s+(.+)$")
         proxy.global.backends.slave_add = server

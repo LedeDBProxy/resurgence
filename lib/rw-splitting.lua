@@ -124,6 +124,9 @@ function connect_server()
             end
 
             local max_init_time = proxy.global.config.rwsplit.max_init_time
+            if max_init_time <= 0 then
+                max_init_time = 1
+            end
             if init_time == 0 then
                 init_time = 1
             elseif init_time > max_init_time then

@@ -112,8 +112,6 @@ function read_query(packet)
         end
 
         fields = {
-			{ name = "address",
-			  type = proxy.MYSQL_TYPE_STRING },
 			{ name = "connection_num",
 			  type = proxy.MYSQL_TYPE_LONG },
 		}
@@ -123,7 +121,6 @@ function read_query(packet)
             local pool = b.pool
 
             rows[#rows + 1] = {
-                b.dst.name,          -- configured backend address
                 pool.users[user].cur_idle_connections -- currently connected clients
             }
         else

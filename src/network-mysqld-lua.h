@@ -69,6 +69,7 @@ typedef struct {
 	int backend_ndx;               /**< [lua] index into the backend-array */
 
 	gboolean connection_close;     /**< [lua] set by the lua code to close a connection */
+	gboolean to_be_closed_after_serve_req;
 
 	struct timeval interval;       /**< The interval to be used for evt_timer, currently unused. */
 	struct event evt_timer;        /**< The event structure used to implement the timer callback, currently unused. */

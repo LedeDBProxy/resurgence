@@ -355,19 +355,21 @@ function read_query( packet )
         end
     end
 
-    if cmd.type == proxy.COM_QUIT and is_backend_conn_keepalive and not is_in_transaction then
-        -- don't send COM_QUIT to the backend. We manage the connection
-        -- in all aspects.
-        -- proxy.response = {
-        --	type = proxy.MYSQLD_PACKET_OK,
-        -- }
+    if cmd.type == proxy.COM_QUIT then
+        if backend_ndx <= 0 or (is_backend_conn_keepalive and not is_in_transaction) then
+            -- don't send COM_QUIT to the backend. We manage the connection
+            -- in all aspects.
+            -- proxy.response = {
+            --	type = proxy.MYSQLD_PACKET_OK,
+            -- }
 
-        if is_debug then
-            print("  valid_prepare_stmt_cnt:" .. ps_cnt)
-            print("  (QUIT) current backend   = " .. backend_ndx)
+            if is_debug then
+                print("  valid_prepare_stmt_cnt:" .. ps_cnt)
+                print("  (QUIT) current backend   = " .. backend_ndx)
+            end
+
+            return proxy.PROXY_SEND_NONE
         end
-
-        return proxy.PROXY_SEND_NONE
     end
 
     -- COM_BINLOG_DUMP packet can't be balanced
@@ -963,6 +965,10 @@ function read_query_result( inj )
         print("   read index from server:" .. proxy.connection.backend_ndx)
         print("   inj id:" .. inj.id)
         print("   res status:" .. res.query_status)
+    end
+
+    if not is_backend_conn_keepalive then
+        proxy.connection.to_be_closed_after_serve_req = true
     end
 
     if inj.id ~= 1 and inj.id ~= 3 and inj.id ~= 4 then

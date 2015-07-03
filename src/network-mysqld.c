@@ -1736,7 +1736,7 @@ void network_mysqld_con_handle(int event_fd, short events, void *user_data) {
                 g_debug("%s: conn:%p, sub, now valid_prepare_stmt_cnt:%d", G_STRLOC, con, con->valid_prepare_stmt_cnt);
 
                 if (con->valid_prepare_stmt_cnt == 0) {
-                    g_debug("%s: add prepare server connection returned to pool",
+                    g_debug("%s: try to add prepare server connection returned to pool",
                                 G_STRLOC);
                     network_connection_pool_lua_add_connection(con);
                 }

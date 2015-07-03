@@ -244,6 +244,8 @@ int network_connection_pool_lua_add_connection(network_mysqld_con *con) {
 	network_connection_pool_entry *pool_entry = NULL;
 	network_mysqld_con_lua_t *st = con->plugin_con_state;
 
+    if (st->to_be_closed_after_serve_req) return 0;
+
 	/* con-server is already disconnected, got out */
 	if (!con->server) return 0;
 

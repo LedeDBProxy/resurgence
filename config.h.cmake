@@ -1,3 +1,4 @@
+#cmakedefine HAVE_EVENT_BASE_NEW
 #cmakedefine HAVE_EVENT_BASE_FREE
 #cmakedefine HAVE_EVENT_H
 #cmakedefine HAVE_INTTYPES_H

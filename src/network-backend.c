@@ -84,12 +84,13 @@ void network_backends_free(network_backends_t *bs) {
  * FIXME: 1) remove _set_address, make this function callable with result of same
  *        2) differentiate between reasons for "we didn't add" (now -1 in all cases)
  */
-int network_backends_add(network_backends_t *bs, const  gchar *address, backend_type_t type) {
+int network_backends_add(network_backends_t *bs, const  gchar *address, backend_type_t type, backend_state_t state) {
 	network_backend_t *new_backend;
 	guint i;
 
 	new_backend = network_backend_new();
 	new_backend->type = type;
+	new_backend->state = state;
 
 	if (0 != network_address_set_address(new_backend->addr, address)) {
 		network_backend_free(new_backend);
@@ -111,8 +112,9 @@ int network_backends_add(network_backends_t *bs, const  gchar *address, backend_
 
 	g_ptr_array_add(bs->backends, new_backend);
 
-	g_message("added %s backend: %s", (type == BACKEND_TYPE_RW) ?
-			"read/write" : "read-only", address);
+	g_message("added %s backend: %s, state: %s", (type == BACKEND_TYPE_RW) ?
+			"read/write" : "read-only", address, (state == BACKEND_STATE_UNKNOWN) ?
+			"online" : "maintaining");
 
 	return 0;
 }

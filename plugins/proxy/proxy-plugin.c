@@ -2445,14 +2445,14 @@ int network_mysqld_proxy_plugin_apply_config(chassis *chas, chassis_plugin_confi
 
 	for (i = 0; config->backend_addresses && config->backend_addresses[i]; i++) {
 		if (-1 == network_backends_add(g->backends, config->backend_addresses[i],
-				BACKEND_TYPE_RW)) {
+				BACKEND_TYPE_RW, BACKEND_STATE_DOWN)) {
 			return -1;
 		}
 	}
 	
 	for (i = 0; config->read_only_backend_addresses && config->read_only_backend_addresses[i]; i++) {
 		if (-1 == network_backends_add(g->backends,
-				config->read_only_backend_addresses[i], BACKEND_TYPE_RO)) {
+				config->read_only_backend_addresses[i], BACKEND_TYPE_RO, BACKEND_STATE_DOWN)) {
 			return -1;
 		}
 	}

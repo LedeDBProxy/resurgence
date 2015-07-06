@@ -196,7 +196,7 @@ static int proxy_backends_set(lua_State *L) {
 			if (lua_isnumber(L, -1))
 				state = lua_tointeger(L, -1);
 			else
-				state = BACKEND_STATE_MAINTINANCE;
+				state = BACKEND_STATE_MAINTAINING;
 			lua_pop(L,1);
 
 			if (replace_flag) {

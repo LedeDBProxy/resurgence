@@ -1787,6 +1787,11 @@ NETWORK_MYSQLD_PLUGIN_PROTO(proxy_connect_server) {
 	gboolean use_pooled_connection = FALSE;
 	network_backend_t *cur;
 
+	if (con->server && st->backend->state == BACKEND_STATE_MAINTAINING) {
+		con->server = NULL;
+		return NETWORK_SOCKET_ERROR_RETRY;	
+	}
+
 	if (con->server) {
 		switch (network_socket_connect_finish(con->server)) {
 		case NETWORK_SOCKET_SUCCESS:
@@ -1859,7 +1864,8 @@ NETWORK_MYSQLD_PLUGIN_PROTO(proxy_connect_server) {
 	cur = network_backends_get(g->backends, st->backend_ndx);
 
 	if (cur) {
-		if (cur->state == BACKEND_STATE_DOWN) {
+		if (cur->state == BACKEND_STATE_DOWN || 
+			cur->state == BACKEND_STATE_MAINTAINING) {
 			st->backend_ndx = -1;
 		}
 	}
@@ -1889,6 +1895,7 @@ NETWORK_MYSQLD_PLUGIN_PROTO(proxy_connect_server) {
 			 * skip backends which are down or not writable
 			 */	
 			if (cur->state == BACKEND_STATE_DOWN ||
+				cur->state == BACKEND_STATE_MAINTAINING ||
 			    cur->type != BACKEND_TYPE_RW) continue;
 	
 			if (cur->connected_clients < min_connected_clients) {

@@ -123,8 +123,7 @@ int network_backends_add(network_backends_t *bs, const  gchar *address, backend_
 int network_backends_remove(network_backends_t *bs, guint index) {
     network_backend_t* b = bs->backends->pdata[index];
     if (b != NULL) {
-        if (b->addr) network_address_free(b->addr);
-        if (b->uuid) g_string_free(b->uuid, TRUE);
+		network_backend_free(b);
         g_ptr_array_remove_index(bs->backends, index);
     }
     return 0;

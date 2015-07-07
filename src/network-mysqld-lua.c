@@ -200,6 +200,10 @@ static int proxy_connection_set(lua_State *L) {
         luaL_checktype(L, 3, LUA_TBOOLEAN);
 
         st->to_be_closed_after_serve_req = lua_toboolean(L, 3);
+	} else if (0 == strcmp(key, "wait_clt_next_sql")) {
+		int timeout = luaL_checkinteger(L, 3);
+        con->wait_clt_next_sql.tv_sec = timeout / 1000;
+        con->wait_clt_next_sql.tv_usec =1000 * (timeout - con->wait_clt_next_sql.tv_sec * 1000);
 	}else {
 		return luaL_error(L, "proxy.connection.%s is not writable", key);
 	}

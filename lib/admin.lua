@@ -68,6 +68,9 @@ function read_query(packet)
 
 	local rows = { }
 	local fields = { }
+	local affected_rows = nil
+	local insert_id = 0
+	local warnings = 0
 	local query_lower = query:lower()
 
 	if query_lower == "select * from backends" then
@@ -160,22 +163,16 @@ function read_query(packet)
 										type = types_2_int["ro"], 
 										state = states_2_int["unknown"],
 										}
-		fields = {
-			{ name = "status",
-			type = proxy.MYSQL_TYPE_STRING },
-		}
-		rows[#rows + 1] = { "please use 'SELECT * FROM backends' to check if it succeeded " }
+		affected_rows = 1
+		insert_id = #proxy.global.backends
 	elseif string.find(query_lower, "add master") then
 		local server = string.match(query_lower, "add master%s+(.+)$")
 		proxy.global.backends.backend_add = { address = server,
 										type = types_2_int["ro"], 
 										state = states_2_int["unknown"],
 										}
-		fields = {
-			{ name = "status",
-			type = proxy.MYSQL_TYPE_STRING },
-		}
-		rows[#rows + 1] = { "please use 'SELECT * FROM backends' to check if it succeeded " }
+		affected_rows = 1
+		insert_id = #proxy.global.backends
 	elseif string.find(query_lower, "insert into backends") then
 		local nodeaddr, nodetype, nodestate = string.match(query_lower, 
 			[[%(['"]([0-9:.]+)['"],['"](r[ow])['"],['"](%a+)['"]%)]])
@@ -202,16 +199,8 @@ function read_query(packet)
 										state = states_2_int[nodestate],
 										}
 
-		rows[#rows + 1] = { "add " .. nodetype.." node "..nodeaddr .. " state ".. nodestate }
-			
-		fields = {
-			{ name = "status",
-			type = proxy.MYSQL_TYPE_STRING },
-		}
-
-		if #rows == 0 then
-			rows[#rows + 1] = { "nothing to do." }
-		end
+		affected_rows = 1
+		insert_id = #proxy.global.backends
 
 	elseif string.find(query_lower, "update backends set ") then
 		local nodetype = string.match(query_lower, " type[ ]?=[ ]?['\"](r[ow])['\"]")
@@ -254,6 +243,8 @@ function read_query(packet)
 			end
 		end
 
+		affected_rows = 0
+
 		for k, nodeaddr in ipairs(addrlist) do
 
 			if not node_ndx and nodeaddr then
@@ -280,18 +271,20 @@ function read_query(packet)
 				if new_type == b.type and
 					new_state == b.state then
 					rows[#rows + 1] = { "backends ".. node_ndx .." is not changed." }
+					warnings = warnings + 1
 				else
 					
 					rows[#rows + 1] = { "update backends ".. node_ndx .." from ".. 
 							types[b.type + 1].." "..states[b.state + 1] .." to "..
 							types[new_type + 1] .." ".. states[new_state + 1] }
 
-					
 					proxy.global.backends.backend_replace = {backend_ndx = node_ndx -1,
 												address = nodeaddr,
 												type = new_type, 
 												state = new_state,
 												}
+
+					affected_rows = affected_rows + 1
 					
 				end
 			else
@@ -303,9 +296,6 @@ function read_query(packet)
 
 		end
 
-		if #rows == 0 then
-			rows[#rows + 1] = { "no rows matched for update." }
-		end
 	elseif string.find(query_lower, "remove backend") or 
 			string.find(query_lower, "delete from backend") then
 		local server_id = tonumber(string.match(query_lower, 
@@ -338,6 +328,7 @@ function read_query(packet)
 				type = proxy.MYSQL_TYPE_STRING },
 			}
 			rows[#rows + 1] = { "please use 'SELECT * FROM backends' to check if it succeeded " }
+			affected_rows = 1;	
 		end
 	else
 		set_error("use 'SELECT * FROM help' to see the supported commands")
@@ -346,10 +337,23 @@ function read_query(packet)
 
 	proxy.response = {
 		type = proxy.MYSQLD_PACKET_OK,
-		resultset = {
+	}
+	if type(affected_rows) == "nil" then
+		proxy.response.resultset = {
 			fields = fields,
 			rows = rows
 		}
-	}
+	else
+		proxy.response.affected_rows = affected_rows
+		proxy.response.insert_id = insert_id
+		proxy.response.warnings = warnings
+		local message = ""
+		for i=1, #rows do
+			message = message..rows[i][1].."\n"
+		end
+		if #message > 0 then
+			proxy.response.message = message
+		end
+	end
 	return proxy.PROXY_SEND_RESULT
 end

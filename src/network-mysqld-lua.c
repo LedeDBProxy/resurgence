@@ -806,6 +806,7 @@ int network_mysqld_con_lua_handle_proxy_response(network_mysqld_con *con, const 
 		} else {
 			guint64 affected_rows = 0;
 			guint64 insert_id = 0;
+			guint16 warnings = 0;
 
 			lua_getfield(L, -2, "affected_rows"); /* proxy.response.affected_rows */
 			if (lua_isnumber(L, -1)) {
@@ -813,13 +814,19 @@ int network_mysqld_con_lua_handle_proxy_response(network_mysqld_con *con, const 
 			}
 			lua_pop(L, 1);
 
-			lua_getfield(L, -2, "insert_id"); /* proxy.response.affected_rows */
+			lua_getfield(L, -2, "insert_id"); /* proxy.response.insert_id*/
 			if (lua_isnumber(L, -1)) {
 				insert_id = lua_tonumber(L, -1);
 			}
 			lua_pop(L, 1);
 
-			network_mysqld_con_send_ok_full(con->client, affected_rows, insert_id, 0x0002, 0);
+			lua_getfield(L, -2, "warnings"); /* proxy.response.warnings*/
+			if (lua_isnumber(L, -1)) {
+				warnings = lua_tonumber(L, -1);
+			}
+			lua_pop(L, 1);
+
+			network_mysqld_con_send_ok_full(con->client, affected_rows, insert_id, 0x0002, warnings);
 		}
 
 		/**

@@ -157,18 +157,67 @@ static int proxy_backends_set(lua_State *L) {
     network_backends_t *bs = *(network_backends_t **)luaL_checkself(L);
 	gsize keysize = 0;
 	const char *key = luaL_checklstring(L, 2, &keysize);
+	const gchar * address = NULL;
+	backend_state_t state = BACKEND_STATE_DOWN;
+	backend_type_t type = BACKEND_TYPE_UNKNOWN;
+	int backend_ndx = -1;
+	int add_flag = 0;
+	int replace_flag = 0;
 
-	if (strleq(key, keysize, C("slave_add"))) {
-        const gchar *address = lua_tostring(L, -1);
-        network_backends_add(bs, address, BACKEND_TYPE_RO);
-	} else if (strleq(key, keysize, C("master_add"))) {
-        const gchar *address = lua_tostring(L, -1);
-        network_backends_add(bs, address, BACKEND_TYPE_RW);
-	} else if (strleq(key, keysize, C("backend_remove"))) {
+	if (strleq(key, keysize, C("backend_remove"))) {
+	/*we should do remove first because we trade update as delete ,then add*/
         network_backends_remove(bs, lua_tointeger(L, -1));
+	} else if (strleq(key, keysize, C("backend_add"))) {
+		add_flag = 1;
+	} else if (strleq(key, keysize, C("backend_replace"))) {
+		replace_flag = 1;
 	} else {
 		return luaL_error(L, "proxy.global.backends.%s is not writable", key);
 	}
+
+	if (add_flag || replace_flag) {
+
+		if (lua_istable(L, -1)) {
+			lua_pushstring(L,"address");
+			lua_gettable(L,-2);
+			address = lua_tostring(L, -1);
+			lua_pop(L,1);
+
+			lua_pushstring(L,"type");
+			lua_gettable(L,-2);
+			if (lua_isnumber(L, -1))
+				type = lua_tointeger(L, -1);
+			else
+				type = BACKEND_TYPE_RO;
+			lua_pop(L,1);
+
+			lua_pushstring(L,"state");
+			lua_gettable(L,-2);
+			if (lua_isnumber(L, -1))
+				state = lua_tointeger(L, -1);
+			else
+				state = BACKEND_STATE_MAINTAINING;
+			lua_pop(L,1);
+
+			if (replace_flag) {
+				lua_pushstring(L,"backend_ndx");
+				lua_gettable(L,-2);
+				if (lua_isnumber(L, -1))
+					backend_ndx = lua_tointeger(L, -1);
+				else {
+					lua_pop(L,1);
+					return luaL_error(L, "replace must have backend_ndx been set.");
+				}
+				lua_pop(L,1);
+				network_backends_remove(bs, backend_ndx);
+			}
+
+			network_backends_add(bs, address, type, state);
+		}
+		else
+			return luaL_error(L, "backends must be an table have key address, type and state");
+	}
+
 	return 1;
 }
 

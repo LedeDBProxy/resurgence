@@ -514,7 +514,8 @@ function read_query( packet )
                 end
             end
 
-            if stmt.token_name == "TK_SQL_SHOW" or stmt.token_name == "TK_SQL_DESC"
+            if stmt.token_name == "TK_SQL_USE" or stmt.token_name == "TK_SQL_SET" or
+                stmt.token_name == "TK_SQL_SHOW" or stmt.token_name == "TK_SQL_DESC"
                 or stmt.token_name == "TK_SQL_EXPLAIN" then
                 rw_op = false
                 local ro_backend_ndx = lb.idle_ro()

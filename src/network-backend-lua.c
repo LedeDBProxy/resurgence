@@ -209,10 +209,10 @@ static int proxy_backends_set(lua_State *L) {
 					return luaL_error(L, "replace must have backend_ndx been set.");
 				}
 				lua_pop(L,1);
-				network_backends_remove(bs, backend_ndx);
+				network_backends_modify(bs, backend_ndx, type, state);
+			} else /*add_flag*/ {
+				network_backends_add(bs, address, type, state);
 			}
-
-			network_backends_add(bs, address, type, state);
 		}
 		else
 			return luaL_error(L, "backends must be an table have key address, type and state");

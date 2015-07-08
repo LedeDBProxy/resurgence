@@ -180,6 +180,25 @@ int network_backends_check(network_backends_t *bs) {
 	return backends_woken_up;
 }
 
+/**
+ * modify the backends to new type and new state.
+ *
+ * @returns   0 for success -1 for error.
+ */
+
+int network_backends_modify(network_backends_t * bs, guint ndx, backend_type_t type, backend_state_t state) {
+	GTimeVal now;
+	g_get_current_time(&now);
+	if (ndx >= network_backends_count(bs)) return -1;
+	network_backend_t * cur = bs->backends->pdata[ndx];
+	if (cur->type != type) cur->type = type;
+	if (cur->state != state) {
+		cur->state = state;
+		cur->state_since = now;
+	}
+	return 0;
+}
+
 network_backend_t *network_backends_get(network_backends_t *bs, guint ndx) {
 	if (ndx >= network_backends_count(bs)) return NULL;
 

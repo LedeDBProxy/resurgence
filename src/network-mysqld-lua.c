@@ -108,6 +108,12 @@ static int proxy_connection_get(lua_State *L) {
 		lua_setmetatable(L, -2); /* tie the metatable to the table   (sp -= 1) */
 	} else if(strleq(key, keysize, C("valid_prepare_stmt_cnt"))) {
 		lua_pushinteger(L, con->valid_prepare_stmt_cnt);
+	} else if(strleq(key, keysize, C("is_still_in_trans"))) {
+        luaL_checktype(L, 3, LUA_TBOOLEAN);
+        gboolean is_still_in_trans = lua_toboolean(L, 3);
+        if (is_still_in_trans) {
+            con->is_still_in_trans = 1;
+        }
 	} else {
 		lua_pushnil(L);
 	}
@@ -196,6 +202,12 @@ static int proxy_connection_set(lua_State *L) {
         luaL_checktype(L, 3, LUA_TBOOLEAN);
 
         st->connection_close = lua_toboolean(L, 3);
+    } else if (0 == strcmp(key, "is_still_in_trans")) {
+        luaL_checktype(L, 3, LUA_TBOOLEAN);
+        gboolean is_still_in_trans = lua_toboolean(L, 3);
+        if (is_still_in_trans) {
+            con->is_still_in_trans = 1;
+        }
 	} else if (0 == strcmp(key, "to_be_closed_after_serve_req")) {
         luaL_checktype(L, 3, LUA_TBOOLEAN);
 

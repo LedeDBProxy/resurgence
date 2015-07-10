@@ -135,6 +135,12 @@ static int proxy_socket_set(lua_State *L) {
 
     if (strleq(key, keysize, C("is_server_conn_reserved"))) {
         sock->is_server_conn_reserved = lua_toboolean(L, -1);
+    } else if (strleq(key, keysize, C("default_db"))) {
+        size_t s_len = 0;
+        const char *s = lua_tolstring(L, -1, &s_len);
+        if (s != NULL && s_len > 0) { 
+            g_string_assign_len(sock->default_db, s, s_len);
+        }
     } else if (strleq(key, keysize, C("charset"))) {
         if (lua_isstring(L, -1)) {
             size_t s_len = 0;

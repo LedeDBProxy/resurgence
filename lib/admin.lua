@@ -175,7 +175,7 @@ function read_query(packet)
 		insert_id = #proxy.global.backends
 	elseif string.find(query_lower, "insert into backends") then
 		local nodeaddr, nodetype, nodestate = string.match(query_lower, 
-			[[%(['"]([0-9:.]+)['"],['"](r[ow])['"],['"](%a+)['"]%)]])
+			[[%(%s?['"]([0-9:.]+)['"]%s?,%s?['"](r[ow])['"]%s?,%s?['"](%a+)['"]%s?%)]])
 
 		if not nodeaddr or not nodetype or not nodestate then
 			set_error("invalid values to insert, try insert ('addr','type','state')")
@@ -271,7 +271,8 @@ function read_query(packet)
 				if new_type == b.type and
 					new_state == b.state then
 					rows[#rows + 1] = { "backends ".. node_ndx .." is not changed." }
-					warnings = warnings + 1
+					--warnings = warnings + 1
+					affected_rows = affected_rows + 1
 				else
 					
 					rows[#rows + 1] = { "update backends ".. node_ndx .." from ".. 

@@ -1604,10 +1604,10 @@ void network_mysqld_con_handle(int event_fd, short events, void *user_data) {
                     if (con->client->is_need_quick_peek_executed) {
                         timeout = con->wait_clt_next_sql;
                         con->client->is_need_quick_peek_executed = 0;
-                        g_debug("%s: set a short timeout value", G_STRLOC);
+                        g_debug("%s: set a short timeout value,conn:%p", G_STRLOC, con);
                     } else {
                         timeout = con->read_timeout;
-                        g_debug("%s: set a long timeout value", G_STRLOC);
+                        g_debug("%s: set a long timeout value:%p", G_STRLOC, con);
                     }
 
 					WAIT_FOR_EVENT(con->client, EV_READ, &timeout);

@@ -79,10 +79,10 @@ int chassis_frontend_init_glib() {
 		return -1;
 	}
 
-	if (!GLIB_CHECK_VERSION(2, 32, 0)) {
+	#if !GLIB_CHECK_VERSION(2, 32, 0)
 		/*GLIB below 2.32 must call thread_init*/
 		g_thread_init(NULL);	
-	}
+	#endif
 
 	return 0;
 }

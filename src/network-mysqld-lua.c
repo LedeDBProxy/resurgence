@@ -720,6 +720,8 @@ int network_mysqld_con_lua_handle_proxy_response(network_mysqld_con *con, const 
 
 			fields = network_mysqld_proto_fielddefs_new();
 		
+            g_debug("%s.%d: handle resultset content", __FILE__, __LINE__);
+
 			for (i = 1, field_count = 0; ; i++, field_count++) {
 				lua_rawgeti(L, -1, i);
 				

@@ -490,7 +490,7 @@ function read_query( packet )
                                         is_charset_connection = true
                                     elseif token.text == "character_set_results" then
                                         proxy.connection.client.character_set_results = nxt_nxt_token.text
-                                        charset_esults = nxt_nxt_token.text
+                                        charset_results = nxt_nxt_token.text
                                         is_charset_results = true
                                     elseif token.text == "autocommit" then
                                         if nxt_nxt_token.text == "0" then
@@ -717,7 +717,7 @@ function read_query( packet )
             end
             proxy.connection.change_server_by_stmt_id = cmd.stmt_handler_id
             -- all related fields are invalid after this such as stmt_handler_id
-        elseif cmd.type == COM_QUERY then
+        elseif cmd.type == proxy.COM_QUERY then
             if is_debug then
                 print("    change server by backend index")
             end

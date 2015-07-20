@@ -178,20 +178,23 @@ function connect_server()
 
         -- prefer connections to the master 
         if s.type == proxy.BACKEND_TYPE_RW and
-            s.state ~= proxy.BACKEND_STATE_DOWN and
+            (s.state == proxy.BACKEND_STATE_UP or
+            s.state == proxy.BACKEND_STATE_UNKNOWN) and
             ((cur_idle < min_idle_conns and connected_clients < max_idle_conns)
             or cur_idle > 0) then
             proxy.connection.backend_ndx = i
             break
         elseif s.type == proxy.BACKEND_TYPE_RO and
-            s.state ~= proxy.BACKEND_STATE_DOWN and
+            (s.state == proxy.BACKEND_STATE_UP or
+            s.state == proxy.BACKEND_STATE_UNKNOWN) and
             ((cur_idle < min_idle_conns and connected_clients < max_idle_conns)
             or cur_idle > 0) then
             proxy.connection.backend_ndx = i
             is_backend_conn_keepalive = true
             break
         elseif s.type == proxy.BACKEND_TYPE_RW and
-            s.state ~= proxy.BACKEND_STATE_DOWN and
+            (s.state == proxy.BACKEND_STATE_UP or
+            s.state == proxy.BACKEND_STATE_UNKNOWN) and
             rw_ndx == 0 then
             if cur_idle == 0 and connected_clients >= max_idle_conns then
                 if init_phase then 
@@ -333,6 +336,32 @@ function read_query( packet )
         if b.type == proxy.BACKEND_TYPE_RO then
             ro_server = true
         end
+
+        if b.state ~= proxy.BACKEND_STATE_UP then
+            if ro_server == true then
+                local rw_backend_ndx = lb.idle_failsafe_rw()
+                if rw_backend_ndx > 0 then
+                    backend_ndx = rw_backend_ndx
+                    proxy.connection.backend_ndx = backend_ndx
+                else
+                    if is_debug then
+                        print("  [no rw connections yet")
+                    end
+                    proxy.response = {
+                        type = proxy.MYSQLD_PACKET_ERR,
+                        errmsg = "1,master connections are too small"
+                    }
+                    return proxy.PROXY_SEND_RESULT
+                end
+            else
+                proxy.response = {
+                    type = proxy.MYSQLD_PACKET_ERR,
+                    errmsg = "proxy stops serving requests now"
+                }
+                return proxy.PROXY_SEND_RESULT
+            end
+        end
+
         if b.pool.stop_phase then
             if is_debug then
                 print("  stop serving requests")

@@ -115,7 +115,7 @@ chassis *chassis_new() {
     evutil_make_socket_nonblocking(chas->event_notify_fds[0]);
     evutil_make_socket_nonblocking(chas->event_notify_fds[1]);
 
-    g_debug("two unix socket, fd1:%d, fd2:%d)",
+    g_debug("two unix sockets, fd1:%d, fd2:%d",
             chas->event_notify_fds[0], chas->event_notify_fds[1]);
     chas->event_queue = g_async_queue_new();
 	chas->event_hdr_version = g_strdup(_EVENT_VERSION);

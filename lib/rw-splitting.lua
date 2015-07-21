@@ -752,6 +752,7 @@ function read_query( packet )
             end
             proxy.connection.change_server_by_rw = backend_ndx
         end
+        conn_reserved = true
     end
 
     if is_debug then

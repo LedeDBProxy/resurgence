@@ -117,11 +117,18 @@ void chassis_event_add_with_timeout(chassis *chas, struct event *ev, struct time
 
     g_async_queue_push_unlocked(chas->event_queue, op);
 
+    g_debug("%s: cal chassis_event_add_with_timeout, fd:%d, timeout sec:%d,usec:%d",
+					G_STRLOC, chas->event_notify_fds[1],
+					(int) tv->tv_sec, (int) tv->tv_usec);
+
 	/* ping the event handler */
 	if (1 != (ret = send(chas->event_notify_fds[1], C("."), 0))) {
 		int last_errno; 
 
 		last_errno = errno;
+
+        g_debug("%s: cal chassis_event_add_with_timeout, fd:%d errno:%d",
+					G_STRLOC, chas->event_notify_fds[1], last_errno);
 
 		switch (last_errno) {
 		case EAGAIN:
@@ -193,11 +200,16 @@ void chassis_event_handle(int G_GNUC_UNUSED event_fd, short G_GNUC_UNUSED events
 
         gsize ret;
 
+        g_debug("%s: cal chassis_event_handle, event queue:%p, event base:%p",
+                G_STRLOC, chas->event_queue, event_base);
         if (op = g_async_queue_try_pop_unlocked(chas->event_queue)) {
 
             chassis_event_op_apply(op, event_base);
 
             chassis_event_op_free(op);
+
+            g_debug("%s: cal chassis_event_handle, fd:%d",
+					G_STRLOC, event->notify_fd);
 
             if (1 != (ret = recv(event->notify_fd, ping, 1, 0))) {
                 /* we failed to pull .'s from the notify-queue */
@@ -205,6 +217,8 @@ void chassis_event_handle(int G_GNUC_UNUSED event_fd, short G_GNUC_UNUSED events
 
                 last_errno = errno;
 
+                g_debug("%s: cal chassis_event_handle, fd:%d, errno:%d",
+                        G_STRLOC, event->notify_fd, last_errno);
                 switch (last_errno) {
                     case EAGAIN:
                     case E_NET_WOULDBLOCK:
@@ -220,6 +234,9 @@ void chassis_event_handle(int G_GNUC_UNUSED event_fd, short G_GNUC_UNUSED events
                         break;
                 }
             }
+            g_debug("%s: we reach here when cal chassis_event_handle, fd:%d",
+					G_STRLOC, event->notify_fd);
+
         }
     } while (op); /* even if op is 'free()d' it still is != NULL */
 }

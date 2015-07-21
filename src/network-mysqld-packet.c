@@ -363,7 +363,8 @@ int network_mysqld_proto_get_com_stmt_prepare_result(
 			if (udata->want_eofs == 0) {
 				is_finished = 1;
                 con->valid_prepare_stmt_cnt++;
-                g_debug("%s: conn:%p, now valid_prepare_stmt_cnt:%d", G_STRLOC, con, con->valid_prepare_stmt_cnt);
+                g_debug("%s: conn:%p, server:%p, fd:%d, now valid_prepare_stmt_cnt:%d", 
+                        G_STRLOC, con, con->server, con->server->fd, con->valid_prepare_stmt_cnt);
 			}
 
             g_message("%s: want_eofs value:%d",
@@ -2069,6 +2070,8 @@ network_mysqld_stmt_close_packet_t *network_mysqld_stmt_close_packet_new() {
 
 	stmt_close_packet = g_slice_new0(network_mysqld_stmt_close_packet_t);
 
+    g_debug("%s.%d: new network_mysqld_stmt_close_packet_new", __FILE__, __LINE__);
+
 	return stmt_close_packet;
 }
 
@@ -2106,6 +2109,8 @@ int network_mysqld_proto_get_stmt_close_packet(network_packet *packet, network_m
 int network_mysqld_proto_append_stmt_close_packet(GString *packet, network_mysqld_stmt_close_packet_t *stmt_close_packet) {
 	network_mysqld_proto_append_int8(packet, COM_STMT_CLOSE);
 	network_mysqld_proto_append_int32(packet, stmt_close_packet->stmt_id);
+
+    g_debug("%s: call network_mysqld_proto_append_stmt_close_packet", G_STRLOC);
 
 	return 0;
 }

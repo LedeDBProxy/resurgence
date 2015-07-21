@@ -144,7 +144,6 @@ static int proxy_connection_set(lua_State *L) {
 		if (backend_ndx == -1) {
 			/** drop the backend for now
 			 */
-		    g_debug("session drop the backend for now:%p, server:%p", con, con->server);
 			network_connection_pool_lua_add_connection(con); 
             g_debug("session dropped the backend :%p, server:%p, back ndx:%d", con, con->server, st->backend_ndx);
 		} else if (NULL != (send_sock = network_connection_pool_lua_swap(con, backend_ndx))) {
@@ -189,14 +188,22 @@ static int proxy_connection_set(lua_State *L) {
         }
     } else if (0 == strcmp(key, "change_server_by_rw")) {
 		int backend_ndx = luaL_checkinteger(L, 3) - 1;
-        int index = st->backend_ndx_array[backend_ndx];
-        g_debug("conn:%p, change_server_by_rw, backend ndx:%d, index:%d", 
-                    con, backend_ndx, index);
-        if  (con->server_list != NULL) {
-            con->server = con->server_list->server[index];
+        if (backend_ndx >= 0) {
+            int index = st->backend_ndx_array[backend_ndx] - 1;
+            g_debug("conn:%p, change_server_by_rw, backend ndx:%d, index:%d, st backend_ndx:%d", 
+                    con, backend_ndx, index, st->backend_ndx);
+            if  (con->server_list != NULL) {
+                con->server = con->server_list->server[index];
+                st->backend_ndx = backend_ndx;
+                g_debug("conn:%p, server:%p, fd:%d, when change_server_by_rw, backend ndx:%d, index:%d", 
+                        con, con->server, con->server->fd, backend_ndx, index);
+            } else {
+                g_debug("conn:%p, server list null when change_server_by_rw, backend ndx:%d, index:%d", 
+                        con, backend_ndx, index);
+            }
         } else {
-            g_debug("conn:%p, server list null when change_server_by_rw, backend ndx:%d, index:%d", 
-                    con, backend_ndx, index);
+            g_critical("%s: get backend ndx failed: %d", 
+				G_STRLOC, backend_ndx);
         }
     } else if (0 == strcmp(key, "connection_close")) {
         luaL_checktype(L, 3, LUA_TBOOLEAN);

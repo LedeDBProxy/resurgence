@@ -316,7 +316,7 @@ int network_connection_pool_lua_add_connection(network_mysqld_con *con) {
  *         the new backend on success
  */
 network_socket *network_connection_pool_lua_swap(network_mysqld_con *con, int backend_ndx) {
-    gboolean           server_switch = FALSE;
+    gboolean           server_switch_need_add = FALSE;
 	network_backend_t *backend = NULL;
 	network_socket *send_sock;
 	network_mysqld_con_lua_t *st = con->plugin_con_state;
@@ -347,22 +347,26 @@ network_socket *network_connection_pool_lua_swap(network_mysqld_con *con, int ba
     info.key = con->client->src->key;
     info.state = con->state;
 
-    g_debug("%s: (swap) check server switch check for conn:%p, valid_prepare_stmt_cnt:%d, orig back ndx:%d, now:%d", 
+    g_debug("%s: (swap) check server switch for conn:%p, valid_prepare_stmt_cnt:%d, orig back ndx:%d, now:%d",
             G_STRLOC, con, con->valid_prepare_stmt_cnt, st->backend_ndx, backend_ndx);
     /**
      * TODO only valid for successional prepare statements,not valid for data partition
      */
-    if (st->backend_ndx != -1 && con->valid_prepare_stmt_cnt > 0 && st->backend_ndx != backend_ndx 
-            && backend->type == BACKEND_TYPE_RW) {
-        server_switch = TRUE;
-        g_debug("%s: (swap) server_switch is true", G_STRLOC);
+    if (st->backend_ndx != -1 && con->valid_prepare_stmt_cnt > 0 && st->backend_ndx != backend_ndx) {
+        g_debug("%s: (swap) server switch is true", G_STRLOC);
+
+        if (backend->type == BACKEND_TYPE_RW) {
+            server_switch_need_add = TRUE;
+        } 
+
+        if (con->server_list != NULL && st->backend_ndx_array[backend_ndx] > 0) {
+            send_sock = con->server_list->server[st->backend_ndx_array[backend_ndx] - 1];
+            g_debug("%s: (swap) by pass", G_STRLOC);
+            return send_sock;
+        }
     }
 
-    if (server_switch && con->server_list != NULL && st->backend_ndx_array[backend_ndx] > 0) {
-        send_sock = con->server_list->server[st->backend_ndx_array[backend_ndx] - 1];
-        g_debug("%s: (swap) by pass", G_STRLOC);
-        return send_sock;
-    } else if (NULL == (send_sock = network_connection_pool_get(backend->pool, 
+    if (NULL == (send_sock = network_connection_pool_get(backend->pool, 
 					con->client->response ? con->client->response->username : &empty_username,
 					con->client->default_db, &info))) {
 		/**
@@ -372,7 +376,7 @@ network_socket *network_connection_pool_lua_swap(network_mysqld_con *con, int ba
 		return NULL;
 	}
 
-    if (server_switch) {
+    if (server_switch_need_add) {
         if (st->backend_ndx_array == NULL) {
             st->backend_ndx_array = g_new0(short, MAX_SERVER_NUM);
             st->backend_ndx_array[st->backend_ndx] = 1;

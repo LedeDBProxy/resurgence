@@ -1158,7 +1158,7 @@ void network_mysqld_con_handle(int event_fd, short events, void *user_data) {
 				} else if (con->client && event_fd == con->client->fd) {
 					which_connection = "client";
 				}
-				g_debug("[%s]: error on %s connection (fd: %d event: %d). closing client connection.",
+				g_debug("[%s]: error on %s connection (fd:%d event: %d). closing client connection.",
 						G_STRLOC, which_connection,	event_fd, events);
 			}
 			plugin_call_cleanup(srv, con);
@@ -1762,6 +1762,9 @@ void network_mysqld_con_handle(int event_fd, short events, void *user_data) {
 				recv_sock = con->server;
 
 				g_assert(events == 0 || event_fd == recv_sock->fd);
+
+                g_debug("%s: read query result, con:%p, socket:%p, fd:%d",
+                            G_STRLOC, con, con->server, recv_sock->fd);
 
 				switch (network_mysqld_read(srv, recv_sock)) {
 				case NETWORK_SOCKET_SUCCESS:

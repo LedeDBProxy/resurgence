@@ -2096,7 +2096,7 @@ static network_mysqld_lua_stmt_ret proxy_lua_disconnect_client(network_mysqld_co
 
     if (st->connection_close) {
         con->sever_is_closed = TRUE;
-		g_message("%s.%d: %s", __FILE__, __LINE__, "set sever_is_closed true");
+		g_debug("%s.%d: %s", __FILE__, __LINE__, "set sever_is_closed true");
     }
 #endif
 	return ret;
@@ -2144,7 +2144,7 @@ NETWORK_MYSQLD_PLUGIN_PROTO(proxy_disconnect_client) {
 	} else if (st->backend) {
 		/* we have backend assigned and want to close the connection to it */
 		st->backend->connected_clients--;
-		g_message("%s.%d: %s:%d", __FILE__, __LINE__, "connected_clients is subtraced, now value", 
+		g_debug("%s.%d: %s:%d", __FILE__, __LINE__, "connected_clients is subtraced, now value", 
                 st->backend->connected_clients);
 	}
 

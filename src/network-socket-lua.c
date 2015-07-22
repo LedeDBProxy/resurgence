@@ -168,7 +168,7 @@ static int proxy_socket_set(lua_State *L) {
                 g_critical("charset is unknown:%s", s);
             }
 
-            g_critical("conn:%p, charset code:%d", sock, sock->charset_code);
+            g_debug("conn:%p, charset code:%d", sock, sock->charset_code);
         }
     } else if (strleq(key, keysize, C("character_set_client"))) {
         if (lua_isstring(L, -1)) {

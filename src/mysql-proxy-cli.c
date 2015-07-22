@@ -543,6 +543,9 @@ int main_cmdline(int argc, char **argv) {
 	g_debug("max open file-descriptors = %"G_GINT64_FORMAT,
 			chassis_fdlimit_get());
 
+    g_debug("two unix socket, fd1:%d, fd2:%d)",
+            srv->event_notify_fds[0], srv->event_notify_fds[1]);
+
 	if (chassis_mainloop(srv)) {
 		/* looks like we failed */
 		g_critical("%s: Failure from chassis_mainloop. Shutting down.", G_STRLOC);

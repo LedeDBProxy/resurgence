@@ -34,7 +34,17 @@ local types_2_int = {ro = 2, rw = 1, unknown=0}
 local states_2_int = {maintaining = 3, down = 2, 
 					up = 1, unknown=0}
 
-function set_error(errmsg) 
+local proxy = proxy
+
+if not proxy.global.config.admin then
+	proxy.global.config.admin = {
+		log_debug_mode = false,
+	}
+end
+
+local admin = proxy.global.config.admin
+
+local function set_error(errmsg) 
 	proxy.response = {
 		type = proxy.MYSQLD_PACKET_ERR,
 		errmsg = errmsg or "error"
@@ -127,6 +137,8 @@ function read_query(packet)
 		rows[#rows + 1] = { "DELETE FROM BACKENDS where address = 'x.x.x.x:yyyy'", "remove one MySQL instance" }
 		rows[#rows + 1] = { "UPDATE BACKENDS set type = 'rw|ro' where conditions", "update MySQL instance type" }
 		rows[#rows + 1] = { "SELECT VERSION", "display the version of MySQL proxy" }
+		rows[#rows + 1] = { "CONFIG GET modulenames", "display the module config/show modules can be configed." }
+		rows[#rows + 1] = { "CONFIG SET module.parameter value", "set the parameters with value" }
 	elseif string.find(query_lower, "select conn_num from backends where") then
 		local parameters = string.match(query_lower, 
 								"select conn_num from backends where (.+)$")
@@ -157,6 +169,72 @@ function read_query(packet)
 			}
 		end
 
+	elseif string.find(query_lower, "config get") then
+		local parameter = string.match(query_lower, "config get (%w+)")
+		
+		if not parameter then
+			fields = {
+				{ name = "name",
+				  type = proxy.MYSQL_TYPE_STRING },
+			}
+			for k,v in pairs(proxy.global.config) do
+				rows[#rows+1] = {k}
+			end
+		else
+			local command = "return proxy.global.config."..parameter
+			local func = loadstring(command)
+			local ret
+			if func then
+				ret = func()
+			end
+			if not func or not ret then
+				set_error("config is not exist")
+				return proxy.PROXY_SEND_RESULT
+			end
+
+			fields = {
+				{ name = "name",
+				  type = proxy.MYSQL_TYPE_STRING },
+				{ name = "value",
+				  type = proxy.MYSQL_TYPE_STRING },
+			}
+
+			if type(ret) == "table" then
+				for k,v in pairs(ret) do
+					rows[#rows + 1] = {k, tostring(v)}
+					if admin.log_debug_mode then print(k,type(v), tostring(v)) end
+				end
+			else
+				rows[#rows + 1] = {parameter, tostring(ret)}
+				if admin.log_debug_mode then print(parameter,type(ret), tostring(ret)) end
+			end
+		end
+
+	elseif string.find(query_lower, "config set") then
+		local parameters, name, values = string.match(query_lower, "config set (%w+)%.([%w_]+) (%w+)")
+		if not name or not values then
+			set_error("sql format is wrong")
+			return proxy.PROXY_SEND_RESULT
+		end
+		if not proxy.global.config[parameters] then 
+			set_error("config not exist")
+			return proxy.PROXY_SEND_RESULT
+		end
+
+		local keytype = type(proxy.global.config[parameters][name])
+		if keytype == "boolean" then
+			if values == "true" then
+				values = true
+			else
+				values = false
+			end
+		elseif keytype == "number" then
+			values = tonumber(values)
+		end
+
+		proxy.global.config[parameters][name] = values
+		affected_rows = 1
+		
 	elseif string.find(query_lower, "add slave") then
 		local server = string.match(query_lower, "add slave%s+(.+)$")
 		proxy.global.backends.backend_add = { address = server, 

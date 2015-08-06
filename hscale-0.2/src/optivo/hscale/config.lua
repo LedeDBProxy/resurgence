@@ -37,12 +37,13 @@ local utils = require("optivo.common.utils")
 local ENV_CONFIG_FILE = "HSCALE_CONFIG_FILE"
 
 local _values = nil
+local _sharding_table = {}
 
 --- Query the value of the given key.
 -- @return the value of the given configuration key. An error is thrown if no value has been set.
 function get(key)
     assert(_values, "No configuration loaded.")
-    assert(_values[key] ~= nil, "Invalid configuration option '" .. key .. "'")
+    --assert(_values[key] ~= nil, "Invalid configuration option '" .. key .. "'")
     return _values[key]
 end
 
@@ -52,6 +53,9 @@ function getAll()
     return _values
 end
 
+function getShardingTable()
+    return _sharding_table
+end
 --- Test the given key.
 -- @return true if the given key exists.
 function contains(key)
@@ -73,6 +77,13 @@ function _load()
     assert(success and result ~= nil, "Error loading configuration file '" .. configFile .. "': " .. (tostring(result) or ""))
      utils.debug("Configuration '" .. configFile .. "' loaded.")
     _values = result()
+
+    print("sharding num" .. #config.sharding_list)
+
+    for i = 1, #config.sharding_list do
+        _sharding_table[config.sharding_list[i].table] = config.sharding_list[i]
+    end
+
     assert(_values, "Invalid configuration format in file '" .. configFile .."'.")
 end
 

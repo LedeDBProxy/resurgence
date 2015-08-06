@@ -82,6 +82,7 @@ function read_query(packet)
     _resultSetRemove = nil
     _query = nil
 
+proxy.connection.wait_clt_next_sql = 30000
     if packet:byte() == proxy.COM_QUERY then
         _query = packet:sub(2)
         stats.inc("queries")
@@ -137,16 +138,12 @@ function read_query(packet)
                         end
                     else
                         stats.inc("rewrittenDml")
-                        local tableMapping = {}
-                        for tableName, partitionValue in pairs(_queryAnalyzer:getTableKeyValues()) do
-                            tableMapping[tableName] = partitionLookup.getPartitionTable(tableName, partitionValue)
-                            utils.debug("--- table '" .. tableName .. "' and partitionValue '" .. partitionValue .. "'")
-                        end
                         utils.debug("--- check full partition scan '" .. _query .. "'")
                         if (_queryAnalyzer:isFullPartitionScanNeeded()) then
                             local tableName = _queryAnalyzer:getAffectedTables()[1]
                             stats.incFullPartitionScans(tableName)
-                             utils.debug("--- Full partition scan needed for table '" .. tableName .. "' and query '" .. _query .. "'")
+                             utils.debug("--- Full partition scan needed for table '" 
+                                   .. tableName .. "' and query '" .. _query .. "'")
                             _combinedLimit.from, _combinedLimit.rows = _queryAnalyzer:getLimit()
                             for _, partitionTable in pairs(partitionLookup.getAllPartitionTables(tableName)) do
                                 local rewriter = optivo.hscale.queryRewriter.QueryRewriter.create(tokens, {[tableName] = partitionTable})
@@ -157,10 +154,33 @@ function read_query(packet)
                                 proxy.queries:append(_combinedNumberOfQueries, string.char(proxy.COM_QUERY) .. rewrittenQuery, { resultset_is_needed = true })
                              end
                         else
-                            local rewriter = optivo.hscale.queryRewriter.QueryRewriter.create(tokens, tableMapping)
-                            local rewrittenQuery = rewriter:rewriteQuery()
-                             utils.debug("<<< Rewritten query: '" .. rewrittenQuery .. "'")
-                            proxy.queries:append(1, string.char(proxy.COM_QUERY) .. rewrittenQuery, { resultset_is_needed = true })
+                            local tableMapping = {}
+                            if _queryAnalyzer:getShardType() == 0 then
+                                for tableName, partitionValue in pairs(_queryAnalyzer:getTableKeyValues()) do
+                                    tableMapping[tableName] = partitionLookup.getPartitionTable(tableName, partitionValue)
+                                end
+                                local rewriter = optivo.hscale.queryRewriter.QueryRewriter.create(tokens, tableMapping)
+                                local rewrittenQuery = rewriter:rewriteQuery()
+                                utils.debug("<<< Rewritten query: '" .. rewrittenQuery .. "'")
+                                proxy.queries:append(1, string.char(proxy.COM_QUERY) .. rewrittenQuery, { resultset_is_needed = true })
+                            else
+                                _combinedLimit.from, _combinedLimit.rows = _queryAnalyzer:getLimit()
+                                for tableName, ranges in pairs(_queryAnalyzer:getTableKeyRange()) do
+                                    tableMapping = partitionLookup.getRangePartitionTable(tableName, ranges, ranges:getRangeNum())
+                                    utils.debug("<<< table map size:" .. #tableMapping)
+                                    for _, partitionTable in pairs(tableMapping) do
+                                        utils.debug("<<< tableName: '" .. tableName .. "'")
+                                        utils.debug("<<< partitionTable: '" .. partitionTable .. "'")
+                                        local rewriter = optivo.hscale.queryRewriter.QueryRewriter.create(tokens, {[tableName] = partitionTable})
+                                        local rewrittenQuery = rewriter:rewriteQuery()
+                                        utils.debug("<<< Rewritten query: '" .. rewrittenQuery .. "'")
+                                        _combinedNumberOfQueries = _combinedNumberOfQueries + 1
+                                        utils.debug("<<< _combinedNumberOfQueries: '" .. _combinedNumberOfQueries .. "'")
+                                        proxy.queries:append(_combinedNumberOfQueries, string.char(proxy.COM_QUERY) .. rewrittenQuery, { resultset_is_needed = true })
+
+                                    end
+                                end
+                            end
                         end
                     end
                     return proxy.PROXY_SEND_QUERY
@@ -282,7 +302,6 @@ end
 function _buildUpCombinedResultSet(inj)
     utils.debug("_combinedNumberOfQueries:'" .. _combinedNumberOfQueries .. "'", 1)
     if (_combinedNumberOfQueries > 0) then
-        -- We have a full partition scan here - build up the final result set
         local resultSet = assert(inj.resultset, "Something went terribly wrong, got NULL result set.")
         if (resultSet.fields) then
             assert(#(resultSet.fields) > 0, "Something went terribly wrong, got zero length fields.")
@@ -295,6 +314,7 @@ function _buildUpCombinedResultSet(inj)
             -- Add result respecting LIMIT constraints
             if (resultSet.rows) then
                 for row in resultSet.rows do
+                    utils.debug("we have row here")
                     if (
                         (_combinedLimit.rows < 0 or _combinedLimit.rowsSent < _combinedLimit.rows)
                         and
@@ -322,6 +342,11 @@ function _buildUpCombinedResultSet(inj)
             _combinedNumberOfQueries = inj.id
             proxy.queries:reset()
         end
+
+        utils.debug("_combinedLimit.rows:" .. _combinedLimit.rows)
+        utils.debug("affected_rows:" .. _combinedResultSet.affected_rows)
+        utils.debug("_combinedNumberOfQueries in result" .. _combinedNumberOfQueries)
+        utils.debug("inj id " .. inj.id)
         if (inj.id == _combinedNumberOfQueries) then
             -- This has been the last result set - send all back to client
             if (_combinedResultSet.fields) then

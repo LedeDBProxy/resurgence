@@ -301,7 +301,7 @@ end
 --- 
 -- read/write splitting
 function read_query( packet )
-    --local is_debug = proxy.global.config.rwsplit.is_debug
+    local is_debug = proxy.global.config.rwsplit.is_debug
     local cmd      = commands.parse(packet)
     local c        = proxy.connection.client
     local ps_cnt   = 0
@@ -640,9 +640,15 @@ function read_query( packet )
                 tokens     = tokens or assert(tokenizer.tokenize(cmd.query))
                 local stmt = tokenizer.first_stmt_token(tokens)
 
-                local session_read_only = 0
+	for i = 1, #tokens do
+		local token = tokens[i]
+		print("token: " .. token.token_name)
+		print("  val: " .. token.text)
+	end
 
-                if stmt.token_name == "TK_SQL_SELECT" then
+	local session_read_only = 0
+
+	if stmt.token_name == "TK_SQL_SELECT" then
                     session_read_only = 1
                     for i = 2, #tokens do
                         local token = tokens[i]

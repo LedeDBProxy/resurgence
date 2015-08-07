@@ -281,10 +281,10 @@ function read_query(packet)
 		insert_id = #proxy.global.backends
 
 	elseif string.find(query_lower, "update backends set ") then
-		local nodetype = string.match(query_lower, " type[ ]?=[ ]?['\"](r[ow])['\"]")
-		local nodestate = string.match(query_lower, " state[ ]?=[ ]?['\"](%a+)['\"]")
+		local nodetype = string.match(query_lower, "[ ,]type[ ]?=[ ]?['\"](r[ow])['\"]")
+		local nodestate = string.match(query_lower, "[ ,]state[ ]?=[ ]?['\"](%a+)['\"]")
 		local nodeaddr = string.match(query_lower, 
-							"where address[ ]?=[ ]?['\"]([0-9.:]+)['\"]")
+							" where address[ ]?=[ ]?['\"]([0-9.:]+)['\"]")
 		local node_ndx = tonumber(string.match(query_lower, 
 									"where backend_ndx[ ]?=[' \"]?(%d+)['\"]?"))
 		local flush_all = not string.find(query_lower, " where ")

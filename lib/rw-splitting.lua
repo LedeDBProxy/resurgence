@@ -245,11 +245,12 @@ function connect_server()
         --if is_debug then
         --	print("  using pooled connection from: " .. proxy.connection.backend_ndx)
         --end
-
-        use_pool_conn = true
-
-        -- stay with it
-        return proxy.PROXY_IGNORE_RESULT
+        local back_state = proxy.global.backends[proxy.connection.backend_ndx].state
+        if backend_state == proxy.BACKEND_STATE_UP then
+            use_pool_conn = true
+            -- stay with it
+            return proxy.PROXY_IGNORE_RESULT
+        end
     end
 
     --if is_debug then

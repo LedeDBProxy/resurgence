@@ -73,7 +73,6 @@ function QueryAnalyzer.create(tokens, tableKeyColumns)
     self._tableKeyValues = {}
     -- 0, hash; 1, range
     self._shard_type = 1
-    self._has_create_range = 0
     self._tableKeyRange= {}
     self._tableHints = {}
 
@@ -110,7 +109,7 @@ end
 --- 
 -- @return true if the query analyzed should be handled (i.e. a partition table has been found)
 function QueryAnalyzer:isPartitioningNeeded()
-    utils.debug("<<< AffectedTables size" .. #self:getAffectedTables())
+    utils.debug("<<< AffectedTables size:" .. #self:getAffectedTables())
     return #self:getAffectedTables() > 0
 end
 
@@ -158,7 +157,6 @@ end
 function QueryAnalyzer:getAffectedTables()
     local result = {}
     for tableName, _ in pairs(self._tableToAlias) do
-        utils.debug("table name:" .. tableName)
         if (self._tableKeyColumns[tableName]) then
             table.insert(result, tableName)
         end
@@ -222,32 +220,8 @@ end
 function QueryAnalyzer:isFullPartitionScanNeeded()
     if (not self._isForceFullPartitionScan) then
         utils.debug("_isForceFullPartitionScan false" )
-
-        if self._tablesFound == 1 then
-            utils.debug("tables found")
-        end
-
-        if not self:hasLimit() then
-            utils.debug("has no limit")
-        end
-        if not self._hasOrderBy then
-            utils.debug("has no OrderBy")
-        end
-        if not self._hasGroupBy then
-            utils.debug("has no group by")
-        end
-        if not self._hasIntoOutFile then
-            utils.debug("has no IntoOutFile")
-        end
-        if not self._hasFunction then
-            utils.debug("has no function")
-        end
-        if self._statementType ~= "SELECT" then
-            utils.debug("has no select")
-        end
-
-        print("statement type:" .. self._statementType)
     end
+
     return
         not self._hasOrderBy
         and
@@ -470,16 +444,6 @@ function QueryAnalyzer:analyze()
         utils.debug("hints,table name:" .. tableName .. ", value:" .. partitionKey)
     end
 
-    -- dispose range
-    if (self._shard_type == 1) then
-        if self == nil then
-            utils.debug("self is nil before _analysisRangePartitionTableKey")
-        else
-            utils.debug("self is not nil before _analysisRangePartitionTableKey")
-        end
-        self:_analysisRangePartitionTableKey()
-    end
-
     self:_verifyResult()
 end
 
@@ -560,7 +524,8 @@ function QueryAnalyzer:_parseDdl()
                     local nextToken = self._tokens[i + 1]
                     local nextTableToken = self._tokens[i + 2]
                     local commaToken = self._tokens[i + 3]
-                    if (nextToken and nextToken.token_name == "TK_SQL_TO" and nextTableToken and nextTableToken.token_name == "TK_LITERAL") then
+                    if (nextToken and nextToken.token_name == "TK_SQL_TO" and 
+                         nextTableToken and nextTableToken.token_name == "TK_LITERAL") then
                         self:_setTableFound(token.text, token.text)
                         self:_setTableFound(nextTableToken.text, nextTableToken.text)
                     end
@@ -720,7 +685,8 @@ function QueryAnalyzer:_setPartitionTableKey(tableName, valueToken, nextToken)
         or valueTokenName == "TK_DATE"
     ) then
         -- Assert that the value is not part of a multi term expression like "1 + 3"
-        assert(not self._tableKeyValues[tableName], "Multiple partition values specified for table '" .. tableName .. "'")
+        assert(not self._tableKeyValues[tableName], 
+                    "Multiple partition values specified for table '" .. tableName .. "'")
         if (nextToken) then
             local nextTokenName = nextToken.token_name
             assert(
@@ -729,7 +695,8 @@ function QueryAnalyzer:_setPartitionTableKey(tableName, valueToken, nextToken)
                 and nextTokenName ~= "TK_PLUS"
                 and nextTokenName ~= "TK_MINUS"
                 and nextTokenName ~= "TK_DIV",
-                "Partition value for table '" .. tableName .. "' is an expression. Only scalar values are supported"
+                "Sharding value for table '" .. tableName .. 
+                "' is an expression. Only scalar values are supported"
             )
         end
         utils.debug("table name:" .. tableName .. ", partition key value:" .. valueToken.text)
@@ -754,7 +721,8 @@ function QueryAnalyzer:_setRangePartitionTableKey(tableName, valueToken, opType,
         or valueTokenName == "TK_DATE"
     ) then
         -- Assert that the value is not part of a multi term expression like "1 + 3"
-        assert(not self._tableKeyValues[tableName], "Multiple partition values specified for table '" .. tableName .. "'")
+        assert(not self._tableKeyValues[tableName], 
+               "Multiple partition values specified for table '" .. tableName .. "'")
         if (nextToken) then
             local nextTokenName = nextToken.token_name
             assert(
@@ -763,33 +731,21 @@ function QueryAnalyzer:_setRangePartitionTableKey(tableName, valueToken, opType,
                 and nextTokenName ~= "TK_PLUS"
                 and nextTokenName ~= "TK_MINUS"
                 and nextTokenName ~= "TK_DIV",
-                "Partition value for table '" .. tableName .. "' is an expression. Only scalar values are supported"
+                "sharding key for table '" .. tableName .. 
+                "' is an expression. Only scalar values are supported"
             )
         end
         utils.debug("table name:" .. tableName .. ", range key value:" .. valueToken.text)
 
-        if self._has_create_range ~= 0 then
-            self._tableKeyRange[tableName].addRangeItem(opType, valueToken.text)
-        else
-            self._tableKeyRange[tableName] = optivo.hscale.ranger.Ranger.create(opType, valueToken.text)
-            self._has_create_range = 1
-            utils.debug("add ranged item:" .. tableName .. ", range key value:" .. valueToken.text)
+        if self._tableKeyRange[tableName] == nil then
+            utils.debug("create ranger for table:" .. tableName)
+            self._tableKeyRange[tableName] = optivo.hscale.ranger.Ranger.create()
         end
+        utils.debug("add ranged item:" .. tableName .. ", range key value:" .. valueToken.text)
+        self._tableKeyRange[tableName]:setRangeValue(opType, tonumber(valueToken.text))
     end
 end
 
-
-function QueryAnalyzer:_analysisRangePartitionTableKey()
-    if self == nil then
-        utils.debug("self is nil")
-    end
-    for tableName, ranges in pairs(self._tableKeyRange) do
-        local num = ranges:getRangeNum()
-        for i = 1, num do
-            utils.debug("table name:" .. tableName .. ", range op:" .. ranges:getOpType(i) .. ", value:" .. ranges:getRangeValue(i))
-        end
-    end
-end
 
 -- Set the table and alias mapping
 function QueryAnalyzer:_setTableFound(tableName, tableAlias)
@@ -811,14 +767,15 @@ function QueryAnalyzer:_normalizeQueryAndParseHints()
 	    tokenName = token.token_name
 		 utils.debug("Token: " .. tokenName .. " = '" .. token.text .. "'", 1)
 		if (tokenName == "TK_COMMENT") then
-            local _, _, tableName, partitionKey = string.find(token.text, "hscale.partitionKey%s*%(%s*(.-)%s*%)%s*=%s'(.*)'")
+            local _, _, tableName, partitionKey = string.find(token.text, 
+                                        "hscale.partitionKey%s*%(%s*(.-)%s*%)%s*=%s'(.*)'")
             if (tableName and partitionKey) then
                  utils.debug("Found hint for table '" .. tableName .. "': '" .. partitionKey .. "'", 2)
                 self._tableHints[tableName:lower()] = partitionKey
             end
             if (string.match(token.text, "hscale.forceFullPartitionScan%(%)")) then
                 self._isForceFullPartitionScan = true
-                utils.debug("****************_isForceFullPartitionScan set true", 2)
+                utils.debug("_isForceFullPartitionScan set true", 2)
             end
 		elseif (
 		    tokenName == "TK_UNKNOWN"

@@ -26,7 +26,6 @@
 --
 -- @see optivo.hscale.admin
 -- @see optivo.hscale.queryAnalyzer
--- @see optivo.hscale.queryRewriter
 -- @see optivo.hscale.stats
 -- @see optivo.hscale.config
 -- @author $Author: peter.romianowski $
@@ -36,15 +35,13 @@ tokenizer = require("proxy.tokenizer")
 utils = require("optivo.common.utils")
 
 require("optivo.hscale.queryAnalyzer")
-require("optivo.hscale.queryRewriter")
 
 -- Load configuration.
 config = require("optivo.hscale.config")
-tableKeyColumns = config.get("tableKeyColumns")
+tableKeyColumns = config.getAllTableKeyColumns()
 
--- Instantiate the partition lookup module
-partitionLookup = require(config.get("partitionLookupModule"))
-partitionLookup.init(config)
+shardingLookup = require("optivo.hscale.shardingLookup")
+shardingLookup.init(config)
 
 -- Statistics
 stats = require("optivo.hscale.stats")
@@ -53,7 +50,7 @@ stats = require("optivo.hscale.stats")
 admin = require("optivo.hscale.admin")
 admin.init(config)
 
- utils.debug("NEW CONNECTION")
+utils.debug("NEW CONNECTION")
 
 -- Local variable to hold result for multiple queries
 local _combinedResultSet = {}
@@ -61,12 +58,7 @@ local _combinedNumberOfQueries = 0
 local _combinedLimit = {}
 local _query = nil
 local _queryAnalyzer = nil
--- A table containing rewrite rules for each column of a result set
-local _resultSetReplace = nil
--- A table containing patterns for each column of a result set. If all patterns match for a row then the row will be removed.
-local _resultSetRemove = nil
 
---- Analyze and rewrite queries.
 function read_query(packet)
     _combinedResultSet = {}
     _combinedResultSet.fields = nil
@@ -78,15 +70,14 @@ function read_query(packet)
     _combinedLimit.rowsSent = 0
     _combinedLimit.from = 0
     _combinedLimit.rows = 0
-    _resultSetReplace = nil
-    _resultSetRemove = nil
     _query = nil
 
-proxy.connection.wait_clt_next_sql = 30000
+    proxy.connection.wait_clt_next_sql = 60000
+
     if packet:byte() == proxy.COM_QUERY then
         _query = packet:sub(2)
         stats.inc("queries")
-         utils.debug(">>> Analyzing query '" .. _query .. "'")
+        utils.debug(">>> Analyzing query '" .. _query .. "'")
         -- Quick test if the query contains partitioned tables - if not - don't parse it (HSCALE-31)
         local queryLower = _query:lower()
         local doScan = string.find(queryLower, "hscale") ~= nil
@@ -106,78 +97,54 @@ proxy.connection.wait_clt_next_sql = 30000
                 if (_queryAnalyzer:isPartitioningNeeded()) then
                     if (_queryAnalyzer:isMisc()) then
                         stats.inc("rewrittenMisc")
-                        -- Send misc queries to the first partition
-                        for _, tableName in pairs(_queryAnalyzer:getAffectedTables()) do
-                            local partitionTable = partitionLookup.getAllPartitionTables(tableName)[1]
-                            local rewriter = optivo.hscale.queryRewriter.QueryRewriter.create(tokens, {[tableName] = partitionTable})
-                            local rewrittenQuery = rewriter:rewriteQuery()
-                            proxy.queries:append(1, string.char(proxy.COM_QUERY) .. rewrittenQuery, { resultset_is_needed = true })
-                            if (_queryAnalyzer:getStatementType() == "SHOW CREATE TABLE") then
-                                _resultSetReplace = {
-                                    {[partitionTable] = tableName},
-                                    {["^CREATE TABLE (`?)" .. partitionTable] = "CREATE TABLE %1" .. tableName}
-                                }
-                            end
-                            if (_queryAnalyzer:getStatementType() == "SHOW INDEX") then
-                                _resultSetReplace = {
-                                    {[partitionTable] = tableName}
-                                }
-                            end
-                        end
+                        -- TODO Send misc queries to the first partition
+                        proxy.queries:append(1, string.char(proxy.COM_QUERY) .. _query, 
+                        { resultset_is_needed = true })
                     elseif (_queryAnalyzer:isDdl()) then
                         stats.inc("rewrittenDdl")
-                        -- We have a dtd query -> send it to all tables
+                        -- We have a dtd query -> send it to all groups
                         for _, tableName in pairs(_queryAnalyzer:getAffectedTables()) do
-                            for _, partitionTable in pairs(partitionLookup.getAllPartitionTables(tableName)) do
-                                local rewriter = optivo.hscale.queryRewriter.QueryRewriter.create(tokens, {[tableName] = partitionTable})
-                                local rewrittenQuery = rewriter:rewriteQuery()
-                                 utils.debug("<<< Rewritten query #" .. _combinedNumberOfQueries .. ": '" .. rewrittenQuery .. "'")
+                            for _, group in pairs(shardingLookup.getAllShardingGroups(tableName)) do
                                 _combinedNumberOfQueries = _combinedNumberOfQueries + 1
-                                proxy.queries:append(_combinedNumberOfQueries, string.char(proxy.COM_QUERY) .. rewrittenQuery, { resultset_is_needed = true })
-                             end
+                                proxy.queries:append(_combinedNumberOfQueries, 
+                                string.char(proxy.COM_QUERY) .._query, { resultset_is_needed = true })
+                            end
                         end
                     else
                         stats.inc("rewrittenDml")
-                        utils.debug("--- check full partition scan '" .. _query .. "'")
+                        utils.debug("--- check full scan '" .. _query .. "'")
                         if (_queryAnalyzer:isFullPartitionScanNeeded()) then
+                            utils.debug("--- full scan '" .. _query .. "'")
                             local tableName = _queryAnalyzer:getAffectedTables()[1]
                             stats.incFullPartitionScans(tableName)
-                             utils.debug("--- Full partition scan needed for table '" 
-                                   .. tableName .. "' and query '" .. _query .. "'")
                             _combinedLimit.from, _combinedLimit.rows = _queryAnalyzer:getLimit()
-                            for _, partitionTable in pairs(partitionLookup.getAllPartitionTables(tableName)) do
-                                local rewriter = optivo.hscale.queryRewriter.QueryRewriter.create(tokens, {[tableName] = partitionTable})
-                                rewriter:setStripLimitClause(true)
-                                local rewrittenQuery = rewriter:rewriteQuery()
-                                 utils.debug("<<< Full partition scan: rewritten query #" .. _combinedNumberOfQueries .. ": '" .. rewrittenQuery .. "'")
+                            for _, group in pairs(shardingLookup.getAllShardingGroups(tableName)) do
                                 _combinedNumberOfQueries = _combinedNumberOfQueries + 1
-                                proxy.queries:append(_combinedNumberOfQueries, string.char(proxy.COM_QUERY) .. rewrittenQuery, { resultset_is_needed = true })
+                                proxy.queries:append(_combinedNumberOfQueries, 
+                                      string.char(proxy.COM_QUERY) .._query, { resultset_is_needed = true })
                              end
                         else
+                            utils.debug("--- not full scan '" .. _query .. "'")
                             local tableMapping = {}
                             if _queryAnalyzer:getShardType() == 0 then
-                                for tableName, partitionValue in pairs(_queryAnalyzer:getTableKeyValues()) do
-                                    tableMapping[tableName] = partitionLookup.getPartitionTable(tableName, partitionValue)
+                                for tableName, key in pairs(_queryAnalyzer:getTableKeyValues()) do
+                                    tableMapping[tableName] = shardingLookup.getShardingGroup(tableName, key)
                                 end
-                                local rewriter = optivo.hscale.queryRewriter.QueryRewriter.create(tokens, tableMapping)
-                                local rewrittenQuery = rewriter:rewriteQuery()
-                                utils.debug("<<< Rewritten query: '" .. rewrittenQuery .. "'")
-                                proxy.queries:append(1, string.char(proxy.COM_QUERY) .. rewrittenQuery, { resultset_is_needed = true })
+                                proxy.queries:append(1, string.char(proxy.COM_QUERY) .. _query, 
+                                      { resultset_is_needed = true })
                             else
+                                utils.debug("--- range sharding '" .. _query .. "'")
                                 _combinedLimit.from, _combinedLimit.rows = _queryAnalyzer:getLimit()
-                                for tableName, ranges in pairs(_queryAnalyzer:getTableKeyRange()) do
-                                    tableMapping = partitionLookup.getRangePartitionTable(tableName, ranges, ranges:getRangeNum())
+                                for tableName, range in pairs(_queryAnalyzer:getTableKeyRange()) do
+                                    tableMapping = shardingLookup.getShardingGroup(tableName, range)
                                     utils.debug("<<< table map size:" .. #tableMapping)
-                                    for _, partitionTable in pairs(tableMapping) do
+                                    -- if not found sharding table, what to do ? full scan ?
+                                    for _, group in pairs(tableMapping) do
                                         utils.debug("<<< tableName: '" .. tableName .. "'")
-                                        utils.debug("<<< partitionTable: '" .. partitionTable .. "'")
-                                        local rewriter = optivo.hscale.queryRewriter.QueryRewriter.create(tokens, {[tableName] = partitionTable})
-                                        local rewrittenQuery = rewriter:rewriteQuery()
-                                        utils.debug("<<< Rewritten query: '" .. rewrittenQuery .. "'")
+                                        utils.debug("<<< group: '" .. group .. "'")
                                         _combinedNumberOfQueries = _combinedNumberOfQueries + 1
-                                        utils.debug("<<< _combinedNumberOfQueries: '" .. _combinedNumberOfQueries .. "'")
-                                        proxy.queries:append(_combinedNumberOfQueries, string.char(proxy.COM_QUERY) .. rewrittenQuery, { resultset_is_needed = true })
-
+                                        proxy.queries:append(_combinedNumberOfQueries, 
+                                        string.char(proxy.COM_QUERY) .. _query, { resultset_is_needed = true})
                                     end
                                 end
                             end
@@ -211,7 +178,7 @@ end
 
 --- Send the result back to the client.
 function read_query_result(inj)
-     utils.debug("Got result for query '" .. _query .. "'")
+    utils.debug("Got result for query '" .. _query .. "'")
     local success, result = pcall(_buildUpCombinedResultSet, inj)
     if (not success) then
         stats.inc("invalidResults")
@@ -221,54 +188,6 @@ function read_query_result(inj)
         }
         _combinedNumberOfQueries = 0
         return proxy.PROXY_SEND_RESULT
-    elseif (_resultSetReplace or _resultSetRemove) then
-        -- Rewrite the result set if needed
-         utils.debug("Rewriting result for query '" .. _query .. "'", 1)
-        local resultSet = proxy.response.resultset
-        if (not resultSet) then
-            resultSet = inj.resultset
-        end
-        if (resultSet and resultSet.rows and resultSet.fields) then
-            local rows = resultSet.rows
-            local newRows = {}
-            local newFields = _getFields(resultSet)
-            for row in rows do
-                local newRow = {}
-                local removeRow = nil
-                for col = 1, #newFields do
-                    value = row[col]
-                    if (value ~= nil) then
-                        if (_resultSetReplace and col <= #_resultSetReplace) then
-                            for expr, repl in pairs(_resultSetReplace[col]) do
-                                 utils.debug("Applying replacement (" .. expr .. " => " .. repl .. " on col #" .. col .. " => " .. value, 2)
-                                value = string.gsub(tostring(value), expr, repl)
-                            end
-                        end
-                        if (_resultSetRemove and col <= #_resultSetRemove) then
-                            for pattern in pairs(_resultSetRemove) do
-                                local match = string.find(tostring(value), pattern)
-                                 utils.debug("Remove row pattern '" .. pattern .. "' on value '" .. value .. " => " .. match, 2)
-                                if (not match) then
-                                    removeRow = false
-                                elseif (removeRow == nil) then
-                                    removeRow = true
-                                end
-                            end
-                        end
-                    end
-                    table.insert(newRow, col, value)
-                end
-                if (removeRow ~= true) then
-                    table.insert(newRows, newRow)
-                end
-            end
-            proxy.response.type = proxy.MYSQLD_PACKET_OK
-            proxy.response.resultset = {
-                fields = newFields,
-                rows = newRows
-            }
-            return proxy.PROXY_SEND_RESULT
-        end
     end
     if (result) then
         return result
@@ -314,7 +233,6 @@ function _buildUpCombinedResultSet(inj)
             -- Add result respecting LIMIT constraints
             if (resultSet.rows) then
                 for row in resultSet.rows do
-                    utils.debug("we have row here")
                     if (
                         (_combinedLimit.rows < 0 or _combinedLimit.rowsSent < _combinedLimit.rows)
                         and
@@ -335,7 +253,8 @@ function _buildUpCombinedResultSet(inj)
             utils.debug("resultSet.fields is null", 1)
         end
         if (resultSet.affected_rows) then
-            _combinedResultSet.affected_rows = _combinedResultSet.affected_rows + tonumber(resultSet.affected_rows)
+            _combinedResultSet.affected_rows = _combinedResultSet.affected_rows + 
+                                                tonumber(resultSet.affected_rows)
         end
 
         if (resultSet.query_status and (resultSet.query_status < 0)) then
@@ -368,3 +287,4 @@ function _buildUpCombinedResultSet(inj)
         return proxy.PROXY_IGNORE_RESULT
     end
 end
+

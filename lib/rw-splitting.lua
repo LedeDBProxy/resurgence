@@ -342,8 +342,11 @@ function read_query( packet )
     print("  get sharding group")
     get_sharding_group(packet, groups)
     print("  sharding group num:" .. #groups)
+    local shard_num = #groups
     for _, group in pairs(groups) do
-        _combinedNumberOfQueries = _combinedNumberOfQueries + 1
+        if shard_num > 1 then
+            _combinedNumberOfQueries = _combinedNumberOfQueries + 1
+        end
         print("  sharding group name:" .. tostring(group))
         local result = dispose_one_query(packet, group)
         if result == proxy.PROXY_SEND_RESULT then

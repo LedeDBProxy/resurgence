@@ -340,8 +340,13 @@ function read_query( packet )
     for _, group in pairs(groups) do
         _combinedNumberOfQueries = _combinedNumberOfQueries + 1
         print("  sharding group name:" .. tostring(group))
-        dispose_one_query(packet, group)
+        local result = dispose_one_query(packet, group)
+        if result == proxy.PROXY_SEND_RESULT then
+            return proxy.PROXY_IGNORE_RESULT
+        end
     end
+
+    return proxy.PROXY_SEND_QUERY
 end
 
 
@@ -793,7 +798,6 @@ function dispose_one_query( packet, group )
         local b = proxy.global.backends[backend_ndx]
         if b.group ~= group then
             backend_ndx = 0
-            print("   change sever for sharding, idle conn:" .. b.idling)
             if b.group ~= nil then
                 print("   origin group:" .. b.group)
             end
@@ -815,6 +819,7 @@ function dispose_one_query( packet, group )
         end
     end
 
+    print("proxy.connection.backend_ndx:" .. proxy.connection.backend_ndx)
     -- by now we should have a backend
     --
     -- in case the master is down, we have to close the client connections
@@ -1045,6 +1050,7 @@ function dispose_one_query( packet, group )
         print("    server default db: " .. s.default_db)
         print("    client default db: " .. c.default_db)
         print("    syncronizing")
+        -- s.default_db = c.default_db
         proxy.queries:prepend(2, string.char(proxy.COM_INIT_DB) .. c.default_db, { resultset_is_needed = true })
     end
 

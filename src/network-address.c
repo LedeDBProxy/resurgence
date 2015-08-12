@@ -369,7 +369,7 @@ gint network_address_set_address_and_group(network_address *addr, GString * grou
             ret = network_address_set_address_ip(addr, ip_part, port);
             if (*group_part == '@') {
                 group_part++;
-                g_string_assign_len(group, C(group_part));
+                g_string_assign_len(group, group_part, strlen(group_part));
             }
 		}
 	} else {

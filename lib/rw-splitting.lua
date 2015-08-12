@@ -31,22 +31,22 @@ local commands    = require("proxy.commands")
 local tokenizer   = require("proxy.tokenizer")
 local lb          = require("proxy.balance")
 local auto_config = require("proxy.auto-config")
-tokenizer = require("proxy.tokenizer")
-utils = require("shard.utils")
-require("shard.queryAnalyzer")
+local utils = require("shard.utils")
+local queryAnalyzer = require("shard.queryAnalyzer")
 
 -- Load configuration.
-config = require("shard.config")
-tableKeyColumns = config.getAllTableKeyColumns()
+local config = require("shard.config")
+local tableKeyColumns = config.getAllTableKeyColumns()
+local shardingLookup = require("shard.shardingLookup")
+local proxy = proxy
 
-shardingLookup = require("shard.shardingLookup")
 shardingLookup.init(config)
 
 -- Statistics
-stats = require("shard.stats")
+local stats = require("shard.stats")
 
 -- Admin module
-admin = require("shard.admin")
+local admin = require("shard.admin")
 admin.init(config)
 
 
@@ -332,6 +332,11 @@ function read_auth_result( auth )
     end
 end
 
+local get_sharding_group
+local dispose_one_query
+local _buildUpCombinedResultSet
+local _getFields
+
 function read_query( packet )
     local groups = {}
     print("  get sharding group")
@@ -356,7 +361,7 @@ function get_sharding_group(packet, groups)
     if packet:byte() == proxy.COM_QUERY then
         _query = packet:sub(2)
         local tokens = tokenizer.tokenize(_query)
-        _queryAnalyzer = shard.queryAnalyzer.QueryAnalyzer.create(tokens, tableKeyColumns)
+        local _queryAnalyzer = queryAnalyzer.QueryAnalyzer.create(tokens, tableKeyColumns)
         local success, errorMessage = pcall(_queryAnalyzer.analyze, _queryAnalyzer)
         if (success) then
             if (_queryAnalyzer:isPartitioningNeeded()) then
@@ -413,6 +418,7 @@ function dispose_one_query( packet, group )
     local charset_client 
     local charset_connection
     local charset_results
+    local tokens
 
     if is_prepared then
         ps_cnt = proxy.connection.valid_prepare_stmt_cnt
@@ -520,7 +526,7 @@ function dispose_one_query( packet, group )
     -- send all non-transactional SELECTs to a slave
     if not is_in_transaction and
         cmd.type == proxy.COM_QUERY then
-        tokens     = tokens or assert(tokenizer.tokenize(cmd.query))
+        tokens = tokens or assert(tokenizer.tokenize(cmd.query))
 
         local stmt = tokenizer.first_stmt_token(tokens)
 
@@ -691,7 +697,7 @@ function dispose_one_query( packet, group )
 
         if is_in_transaction then
             if cmd.type == proxy.COM_QUERY then
-                tokens     = tokens or assert(tokenizer.tokenize(cmd.query))
+                tokens = tokens or assert(tokenizer.tokenize(cmd.query))
                 local stmt = tokenizer.first_stmt_token(tokens)
                 if stmt.token_name == "TK_SQL_SET" then
                     local token_len = #tokens
@@ -724,7 +730,7 @@ function dispose_one_query( packet, group )
                 if is_debug then
                     print("  [prepare statement], cmd:" .. cmd.query)
                 end
-                tokens     = tokens or assert(tokenizer.tokenize(cmd.query))
+                tokens = tokens or assert(tokenizer.tokenize(cmd.query))
                 local stmt = tokenizer.first_stmt_token(tokens)
 
                 for i = 1, #tokens do
@@ -1095,8 +1101,7 @@ function read_query_result( inj )
         stats.inc("invalidResults")
         proxy.response = {
             type     = proxy.MYSQLD_PACKET_ERR,
-            errmsg   = "SHARDING-1001: Error assembling resultset: " .. result .. 
-                       " Query: '" .. _query .. "'"
+            errmsg   = "SHARDING-1001: Error assembling resultset: " .. result 
         }
         _combinedNumberOfQueries = 0
         return proxy.PROXY_SEND_RESULT

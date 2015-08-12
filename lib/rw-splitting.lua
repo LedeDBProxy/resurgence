@@ -31,6 +31,30 @@ local commands    = require("proxy.commands")
 local tokenizer   = require("proxy.tokenizer")
 local lb          = require("proxy.balance")
 local auto_config = require("proxy.auto-config")
+tokenizer = require("proxy.tokenizer")
+utils = require("shard.utils")
+require("shard.queryAnalyzer")
+
+-- Load configuration.
+config = require("shard.config")
+tableKeyColumns = config.getAllTableKeyColumns()
+
+shardingLookup = require("shard.shardingLookup")
+shardingLookup.init(config)
+
+-- Statistics
+stats = require("shard.stats")
+
+-- Admin module
+admin = require("shard.admin")
+admin.init(config)
+
+
+-- Local variable to hold result for multiple queries
+local _combinedResultSet = {}
+local _combinedNumberOfQueries = 0
+local _combinedLimit = {}
+
 
 --- config
 --
@@ -58,6 +82,7 @@ local is_prepared             = false
 local is_backend_conn_keepalive = true
 local use_pool_conn = false
 local multiple_server_mode = false
+local last_group = nil
 
 -- if this was a SELECT SQL_CALC_FOUND_ROWS ... stay on the same connections
 local is_in_select_calc_found_rows = false
@@ -93,9 +118,14 @@ function connect_server()
     local total_available_conns = 0
 
     total_clients = proxy.global.stat_clients + 1
+    local m  = 1
+    if total_clients % 2 == 1 then
+        m = 2  
+        print("*******************set m = 2")
+    end
 
     -- init all backends 
-    for i = 1, #proxy.global.backends do
+    for i = m, #proxy.global.backends do
         local s        = proxy.global.backends[i]
         local pool     = s.pool -- we don't have a username yet, try to find a connections which is idling
         cur_idle = pool.users[""].cur_idle_connections
@@ -183,6 +213,7 @@ function connect_server()
             ((cur_idle < min_idle_conns and connected_clients < max_idle_conns)
             or cur_idle > 0) then
             proxy.connection.backend_ndx = i
+            print("choose here ********************")
             break
         elseif s.type == proxy.BACKEND_TYPE_RO and
             (s.state == proxy.BACKEND_STATE_UP or
@@ -214,6 +245,8 @@ function connect_server()
         end
     end
 
+    print("  [" .. proxy.connection.backend_ndx .. "] idle-conns below min-idle")
+
     -- fuzzy check which is not accurate
     if init_phase and total_available_conns < total_clients then
         is_passed_but_req_rejected = true
@@ -226,9 +259,9 @@ function connect_server()
     end
 
     if proxy.connection.backend_ndx == 0 then
-        --if is_debug then
-        --	print("  [" .. rw_ndx .. "] taking master as default")
-        --end
+        if is_debug then
+        	print("  [" .. rw_ndx .. "] taking master as default")
+        end
         proxy.connection.backend_ndx = rw_ndx
     else
         is_backend_conn_keepalive = true
@@ -253,9 +286,9 @@ function connect_server()
         end
     end
 
-    --if is_debug then
-    --	print("  [" .. proxy.connection.backend_ndx .. "] idle-conns below min-idle")
-    --end
+    if is_debug then
+    	print("  [" .. proxy.connection.backend_ndx .. "] idle-conns below min-idle")
+    end
 
     -- open a new connection 
 end
@@ -267,14 +300,14 @@ end
 --
 -- auth.packet is the packet
 function read_auth_result( auth )
-    -- local is_debug = proxy.global.config.rwsplit.is_debug
+    local is_debug = proxy.global.config.rwsplit.is_debug
 
-    --if is_debug then
-    --    print("[read_auth_result] " .. proxy.connection.client.src.name)
-    --    print("  using connection from: " .. proxy.connection.backend_ndx)
-    --    print("  server address: " .. proxy.connection.server.dst.name)
-    --    print("  server charset: " .. proxy.connection.server.character_set_client)
-    --end
+    if is_debug then
+        print("[read_auth_result] " .. proxy.connection.client.src.name)
+        print("  using connection from: " .. proxy.connection.backend_ndx)
+        print("  server address: " .. proxy.connection.server.dst.name)
+        print("  server charset: " .. proxy.connection.server.character_set_client)
+    end
     if auth.packet:byte() == proxy.MYSQLD_PACKET_OK then
         -- auth was fine, disconnect from the server
         if not use_pool_conn and is_backend_conn_keepalive then
@@ -284,9 +317,9 @@ function read_auth_result( auth )
                 print("  no need to put the connection to pool ... ok")
             end
         end
-        --if is_debug then
-        --    print("  (read_auth_result) ... ok")
-        --end
+        if is_debug then
+            print("  (read_auth_result) ... ok")
+        end
     elseif auth.packet:byte() == proxy.MYSQLD_PACKET_EOF then
         -- we received either a 
         -- 
@@ -295,13 +328,68 @@ function read_auth_result( auth )
         print("  (read_auth_result) ... not ok yet")
     elseif auth.packet:byte() == proxy.MYSQLD_PACKET_ERR then
         -- auth failed
+        print("  (read_auth_result) ... auth failed")
+    end
+end
+
+function read_query( packet )
+    local groups = {}
+    print("  get sharding group")
+    get_sharding_group(packet, groups)
+    print("  sharding group num:" .. #groups)
+    for _, group in pairs(groups) do
+        _combinedNumberOfQueries = _combinedNumberOfQueries + 1
+        print("  sharding group name:" .. tostring(group))
+        dispose_one_query(packet, group)
+    end
+end
+
+
+function get_sharding_group(packet, groups)
+    local _query = nil
+
+    if packet:byte() == proxy.COM_QUERY then
+        _query = packet:sub(2)
+        local tokens = tokenizer.tokenize(_query)
+        _queryAnalyzer = shard.queryAnalyzer.QueryAnalyzer.create(tokens, tableKeyColumns)
+        local success, errorMessage = pcall(_queryAnalyzer.analyze, _queryAnalyzer)
+        if (success) then
+            if (_queryAnalyzer:isPartitioningNeeded()) then
+                if (_queryAnalyzer:isFullPartitionScanNeeded()) then
+                    utils.debug("--- full scan '" .. _query .. "'")
+                    local tableName = _queryAnalyzer:getAffectedTables()[1]
+                    stats.incFullPartitionScans(tableName)
+                    _combinedLimit.from, _combinedLimit.rows = _queryAnalyzer:getLimit()
+                    shardingLookup.getAllShardingGroups(tableName, groups)
+                else
+                    utils.debug("--- not full scan '" .. _query .. "'")
+                    if _queryAnalyzer:getShardType() == 0 then
+                        for tableName, key in pairs(_queryAnalyzer:getTableKeyValues()) do
+                            local group = shardingLookup.getShardingGroupByHash(tableName, key)
+                            print("group chosen:" .. group)
+                            table.insert(groups, group)
+                        end
+                    else
+                        utils.debug("--- range sharding '" .. _query .. "'")
+                        _combinedLimit.from, _combinedLimit.rows = _queryAnalyzer:getLimit()
+                        for tableName, range in pairs(_queryAnalyzer:getTableKeyRange()) do
+                            shardingLookup.getShardingGroupByRange(tableName, range, groups)
+                        end
+                    end
+                end
+            end
+        end
+    end
+
+    if #groups == 0 then
+        table.insert(groups, "default")
     end
 end
 
 
 --- 
 -- read/write splitting
-function read_query( packet )
+function dispose_one_query( packet, group )
     local is_debug = proxy.global.config.rwsplit.is_debug
     local cmd      = commands.parse(packet)
     local c        = proxy.connection.client
@@ -321,13 +409,6 @@ function read_query( packet )
     local charset_connection
     local charset_results
 
-    local r = auto_config.handle(cmd)
-    if r then return r end
-
-    local tokens
-    local norm_query
-
-
     if is_prepared then
         ps_cnt = proxy.connection.valid_prepare_stmt_cnt
     end
@@ -340,7 +421,7 @@ function read_query( packet )
 
         if b.state ~= proxy.BACKEND_STATE_UP then
             if ro_server == true then
-                local rw_backend_ndx = lb.idle_failsafe_rw()
+                local rw_backend_ndx = lb.idle_failsafe_rw(group)
                 if rw_backend_ndx > 0 then
                     backend_ndx = rw_backend_ndx
                     proxy.connection.backend_ndx = backend_ndx
@@ -410,7 +491,7 @@ function read_query( packet )
         -- if we don't have a backend selected, let's pick the master
         --
         if backend_ndx == 0 then
-            local rw_backend_ndx = lb.idle_failsafe_rw()
+            local rw_backend_ndx = lb.idle_failsafe_rw(group)
             if rw_backend_ndx > 0 then
                 backend_ndx = rw_backend_ndx
                 proxy.connection.backend_ndx = backend_ndx
@@ -470,7 +551,7 @@ function read_query( packet )
             -- connection
             if not is_insert_id then
                 rw_op = false
-                local ro_backend_ndx = lb.idle_ro()
+                local ro_backend_ndx = lb.idle_ro(group)
                 if ro_backend_ndx > 0 then
                     backend_ndx = ro_backend_ndx
                     proxy.connection.backend_ndx = backend_ndx
@@ -529,7 +610,7 @@ function read_query( packet )
                                                 print("  [set is_auto_commit false]" )
                                             end
                                             if ro_server == true then
-                                                local rw_backend_ndx = lb.idle_failsafe_rw()
+                                                local rw_backend_ndx = lb.idle_failsafe_rw(group)
                                                 if rw_backend_ndx > 0 then
                                                     backend_ndx = rw_backend_ndx
                                                     proxy.connection.backend_ndx = backend_ndx
@@ -557,7 +638,7 @@ function read_query( packet )
                 stmt.token_name == "TK_SQL_SHOW" or stmt.token_name == "TK_SQL_DESC"
                 or stmt.token_name == "TK_SQL_EXPLAIN" then
                 rw_op = false
-                local ro_backend_ndx = lb.idle_ro()
+                local ro_backend_ndx = lb.idle_ro(group)
                 if ro_backend_ndx > 0 then
                     backend_ndx = ro_backend_ndx
                     proxy.connection.backend_ndx = backend_ndx
@@ -576,7 +657,7 @@ function read_query( packet )
         end
 
         if ro_server == true and rw_op == true then
-            local rw_backend_ndx = lb.idle_failsafe_rw()
+            local rw_backend_ndx = lb.idle_failsafe_rw(group)
             if rw_backend_ndx > 0 then
                 backend_ndx = rw_backend_ndx
                 proxy.connection.backend_ndx = backend_ndx
@@ -641,15 +722,15 @@ function read_query( packet )
                 tokens     = tokens or assert(tokenizer.tokenize(cmd.query))
                 local stmt = tokenizer.first_stmt_token(tokens)
 
-	for i = 1, #tokens do
-		local token = tokens[i]
-		print("token: " .. token.token_name)
-		print("  val: " .. token.text)
-	end
+                for i = 1, #tokens do
+                    local token = tokens[i]
+                    print("token: " .. token.token_name)
+                    print("  val: " .. token.text)
+                end
 
-	local session_read_only = 0
+                local session_read_only = 0
 
-	if stmt.token_name == "TK_SQL_SELECT" then
+                if stmt.token_name == "TK_SQL_SELECT" then
                     session_read_only = 1
                     for i = 2, #tokens do
                         local token = tokens[i]
@@ -666,7 +747,7 @@ function read_query( packet )
                     end
 
                     if ps_cnt == 0 and session_read_only == 1 then
-                        local ro_backend_ndx = lb.idle_ro()
+                        local ro_backend_ndx = lb.idle_ro(group)
                         if ro_backend_ndx > 0 then
                             backend_ndx = ro_backend_ndx
                             proxy.connection.backend_ndx = backend_ndx
@@ -680,7 +761,7 @@ function read_query( packet )
 
                 if session_read_only == 0 or is_in_transaction == true then
                     if ro_server == true then
-                        local rw_backend_ndx = lb.idle_failsafe_rw()
+                        local rw_backend_ndx = lb.idle_failsafe_rw(group)
                         if rw_backend_ndx > 0 then
                             multiple_server_mode = true
                             backend_ndx = rw_backend_ndx
@@ -707,11 +788,23 @@ function read_query( packet )
         end
     end
 
+    print("   check for sever for sharding, back index:" .. backend_ndx)
+    if backend_ndx > 0 then
+        local b = proxy.global.backends[backend_ndx]
+        if b.group ~= group then
+            backend_ndx = 0
+            print("   change sever for sharding, idle conn:" .. b.idling)
+            if b.group ~= nil then
+                print("   origin group:" .. b.group)
+            end
+        end
+    end
 
     if backend_ndx == 0 then
-        local rw_backend_ndx = lb.idle_failsafe_rw()
+        local rw_backend_ndx = lb.idle_failsafe_rw(group)
+        print("rw_backend_ndx:" .. rw_backend_ndx)
         if rw_backend_ndx <= 0 and proxy.global.config.rwsplit.is_slave_write_forbidden_set then
-            local ro_backend_ndx = lb.idle_ro()
+            local ro_backend_ndx = lb.idle_ro(group)
             if ro_backend_ndx > 0 then
                 backend_ndx = ro_backend_ndx
                 proxy.connection.backend_ndx = backend_ndx
@@ -791,19 +884,6 @@ function read_query( packet )
     local s = proxy.connection.server
     local sql_mode = proxy.connection.client.sql_mode
     local srv_sql_mode = proxy.connection.server.sql_mode
-
-    if is_debug then
-        if sql_mode ~= nil then
-            print("  client sql mode:" .. sql_mode)
-        else
-            print("  client sql mode nil")
-        end
-        if srv_sql_mode ~= nil then
-            print("  server sql mode:" .. srv_sql_mode)
-        else
-            print("  server sql mode nil")
-        end
-    end
 
     if sql_mode == nil then
         sql_mode = ""
@@ -893,15 +973,6 @@ function read_query( packet )
         local clt_charset_client = proxy.connection.client.character_set_client
         local srv_charset_client = proxy.connection.server.character_set_client
 
-        if is_debug then
-            if clt_charset_client ~= nil then
-                print("  client charset_client:" .. clt_charset_client)
-            end
-            if srv_charset_client ~= nil then
-                print("  server charset_client:" .. srv_charset_client)
-            end
-        end
-
         if clt_charset_client ~= srv_charset_client then
             if is_debug then
                 print("  change server charset_client")
@@ -922,15 +993,6 @@ function read_query( packet )
         local clt_charset_conn = proxy.connection.client.character_set_connection
         local srv_charset_conn = proxy.connection.server.character_set_connection
 
-        if is_debug then
-            if clt_charset_conn ~= nil then
-                print("  client charset_connection:" .. clt_charset_conn)
-            end
-            if srv_charset_conn ~= nil then
-                print("  server charset_connection:" .. srv_charset_conn)
-            end
-        end
-
         if clt_charset_conn ~= srv_charset_conn then
             if is_debug then
                 print("  change server charset conn:")
@@ -949,15 +1011,6 @@ function read_query( packet )
     if not is_charset_results then
         local clt_charset_results = proxy.connection.client.character_set_results
         local srv_charset_results = proxy.connection.server.character_set_results
-
-        if is_debug then
-            if clt_charset_results ~= nil then
-                print("  client charset_results:" .. clt_charset_results)
-            end
-            if srv_charset_results ~= nil then
-                print("  server charset_results:" .. srv_charset_results)
-            end
-        end
 
         if clt_charset_results ~= srv_charset_results then
             if is_debug then
@@ -1029,6 +1082,18 @@ function read_query_result( inj )
         print("   read index from server:" .. proxy.connection.backend_ndx)
         print("   inj id:" .. inj.id)
         print("   res status:" .. res.query_status)
+    end
+
+    local success, result = pcall(_buildUpCombinedResultSet, inj)
+    if (not success) then
+        stats.inc("invalidResults")
+        proxy.response = {
+            type     = proxy.MYSQLD_PACKET_ERR,
+            errmsg   = "SHARDING-1001: Error assembling resultset: " .. result .. 
+                       " Query: '" .. _query .. "'"
+        }
+        _combinedNumberOfQueries = 0
+        return proxy.PROXY_SEND_RESULT
     end
 
     if not is_backend_conn_keepalive then
@@ -1123,5 +1188,96 @@ function disconnect_client()
         proxy.connection.backend_ndx = 0
     end
 
+end
+
+-- Extract the "fields" part out of the result set.
+-- @return nil if there is no field set
+function _getFields(resultSet)
+    local newFields = nil
+    local fieldCount = 1
+    local fields = resultSet.fields
+    if (fields) then
+        newFields = {}
+        while fields[fieldCount] do
+            table.insert(
+                newFields,
+                {
+                    type = fields[fieldCount].type,
+                    name = fields[fieldCount].name
+                }
+            )
+
+            fieldCount = fieldCount + 1
+        end
+    end
+    return newFields
+end
+
+-- Aggregate the different result sets.
+function _buildUpCombinedResultSet(inj)
+    utils.debug("_combinedNumberOfQueries:'" .. _combinedNumberOfQueries .. "'", 1)
+    if (_combinedNumberOfQueries > 0) then
+        local resultSet = assert(inj.resultset, "Something went terribly wrong, got NULL result set.")
+        if (resultSet.fields) then
+            assert(#(resultSet.fields) > 0, "Something went terribly wrong, got zero length fields.")
+            -- We have a result set
+            if (not _combinedResultSet.fields) then
+                -- Build up the fields part
+                _combinedResultSet.rows = {}
+                _combinedResultSet.fields = _getFields(resultSet)
+            end
+            -- Add result respecting LIMIT constraints
+            if (resultSet.rows) then
+                for row in resultSet.rows do
+                    if (
+                        (_combinedLimit.rows < 0 or _combinedLimit.rowsSent < _combinedLimit.rows)
+                        and
+                        (_combinedLimit.from < 0 or _combinedLimit.rowsProcessed >= _combinedLimit.from)
+                    ) then
+                        table.insert(_combinedResultSet.rows, row)
+                        _combinedLimit.rowsSent = _combinedLimit.rowsSent + 1
+                    end
+                    _combinedLimit.rowsProcessed = _combinedLimit.rowsProcessed + 1
+                end
+                -- Shortcut - if the LIMIT clause has been fullfilled - don't send any further queries.
+                if (_combinedLimit.rows > 0 and _combinedLimit.rowsSent >= _combinedLimit.rows) then
+                    proxy.queries:reset()
+                end
+            end
+        else
+            utils.debug("resultSet.fields is null", 1)
+        end
+        if (resultSet.affected_rows) then
+            _combinedResultSet.affected_rows = _combinedResultSet.affected_rows + 
+                                                tonumber(resultSet.affected_rows)
+        end
+
+        if (resultSet.query_status and (resultSet.query_status < 0)) then
+            proxy.queries:reset()
+        end
+
+        utils.debug("_combinedLimit.rows:" .. _combinedLimit.rows)
+        utils.debug("affected_rows:" .. _combinedResultSet.affected_rows)
+        utils.debug("inj id " .. inj.id)
+        _combinedNumberOfQueries = _combinedNumberOfQueries - 1
+        if (_combinedNumberOfQueries == 0) then
+            -- This has been the last result set - send all back to client
+            if (_combinedResultSet.fields) then
+                proxy.response.type = proxy.MYSQLD_PACKET_OK
+                proxy.response.resultset = _combinedResultSet
+            else
+                proxy.response.type = proxy.MYSQLD_PACKET_RAW;
+                proxy.response.packets = {
+                    "\000" .. -- fields
+                    string.char(_combinedResultSet.affected_rows) ..
+                    "\000" .. -- insert_id
+                    inj.resultset.raw:sub(4)
+                }
+            end
+            return proxy.PROXY_SEND_RESULT
+        end
+        -- Ignore all result sets until we are at the last one
+        return proxy.PROXY_IGNORE_RESULT
+    end
 end
 

@@ -47,6 +47,7 @@ typedef enum {
 typedef struct {
 	network_address *addr;
    
+    GString *server_group;
 	backend_state_t state;   /**< UP or DOWN */
 	backend_type_t type;     /**< ReadWrite or ReadOnly */
 

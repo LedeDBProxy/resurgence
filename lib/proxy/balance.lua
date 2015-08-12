@@ -26,12 +26,7 @@ function idle_failsafe_rw(group)
 
 	for i = 1, #proxy.global.backends do
 		local s = proxy.global.backends[i]
-        print("read here before: " .. group)
-        print("check s.group: " .. s.group)
-        print("check s.type: " .. s.type)
-        print("check s.state: " .. s.state)
         if s.group == group and s.type == proxy.BACKEND_TYPE_RW and s.state ~= proxy.BACKEND_STATE_DOWN then
-            print("read here")
             local conns = s.pool.users[proxy.connection.client.username]
             if conns.cur_idle_connections > 0 then
                 backend_ndx = i

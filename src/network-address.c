@@ -308,12 +308,69 @@ gint network_address_set_address(network_address *addr, const gchar *address) {
 			g_critical("%s: IP-address has to be in the form [<ip>][:<port>], is '%s'. No port number",
 					G_STRLOC, address);
 			ret = -1;
-		} else if (*port_err != '\0') {
-			g_critical("%s: IP-address has to be in the form [<ip>][:<port>], is '%s'. Failed to parse the port at '%s'",
-					G_STRLOC, address, port_err);
+        } else if (*port_err != '\0') {
+             g_critical("%s: IP-address has to be in the form [<ip>][:<port>], is '%s'. Failed to parse the port at '%s'",
+                    G_STRLOC, address, port_err);
 			ret = -1;
 		} else {
-			ret = network_address_set_address_ip(addr, ip_part, port);
+            ret = network_address_set_address_ip(addr, ip_part, port);
+		}
+	} else {
+		/* perhaps it is a plain IP address, lets add the default-port */
+		ret = network_address_set_address_ip(addr, ip_part, 3306);
+	}
+
+	if (ip_part) g_free(ip_part);
+
+	return ret;
+}
+
+gint network_address_set_address_and_group(network_address *addr, GString * group, const gchar *address) {
+	const gchar *port_part = NULL;
+	gchar *ip_part = NULL;
+	gint ret;
+
+	g_return_val_if_fail(addr, -1);
+
+	/* split the address:port */
+	if (address[0] == '/') {
+		return network_address_set_address_un(addr, address);
+	} else if (address[0] == '[') {
+		const gchar *s;
+		if (NULL == (s = strchr(address + 1, ']'))) {
+			return -1;
+		}
+		ip_part   = g_strndup(address + 1, s - (address + 1)); /* may be NULL for strdup(..., 0) */
+
+		if (*(s+1) == ':') {
+			port_part = s + 2;
+		}
+	} else if (NULL != (port_part = strchr(address, ':'))) {
+		ip_part = g_strndup(address, port_part - address); /* may be NULL for strdup(..., 0) */
+		port_part++;
+	} else {
+		ip_part = g_strdup(address);
+	}
+
+	/* if there is a colon, there should be a port number */
+	if (NULL != port_part) {
+		char *group_part = NULL;
+		guint port;
+
+		port = strtoul(port_part, &group_part, 10);
+
+		if (*port_part == '\0') {
+			g_critical("%s: IP-address has to be in the form [<ip>][:<port>], is '%s'. No port number",
+					G_STRLOC, address);
+			ret = -1;
+		} else if (*group_part != '@' && *group_part != '\0') {
+			ret = -1;
+		} else {
+            ret = network_address_set_address_ip(addr, ip_part, port);
+            if (*group_part == '@') {
+                group_part++;
+                g_string_assign_len(group, C(group_part));
+            }
 		}
 	} else {
 		/* perhaps it is a plain IP address, lets add the default-port */

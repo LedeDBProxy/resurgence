@@ -21,12 +21,17 @@
 
 module("proxy.balance", package.seeall)
 
-function idle_failsafe_rw()
+function idle_failsafe_rw(group)
 	local backend_ndx = 0
 
 	for i = 1, #proxy.global.backends do
 		local s = proxy.global.backends[i]
-        if s.type == proxy.BACKEND_TYPE_RW and s.state ~= proxy.BACKEND_STATE_DOWN then
+        print("read here before: " .. group)
+        print("check s.group: " .. s.group)
+        print("check s.type: " .. s.type)
+        print("check s.state: " .. s.state)
+        if s.group == group and s.type == proxy.BACKEND_TYPE_RW and s.state ~= proxy.BACKEND_STATE_DOWN then
+            print("read here")
             local conns = s.pool.users[proxy.connection.client.username]
             if conns.cur_idle_connections > 0 then
                 backend_ndx = i
@@ -44,7 +49,7 @@ function idle_ro()
 
 	for i = 1, #proxy.global.backends do
 		local s = proxy.global.backends[i]
-        if s.type == proxy.BACKEND_TYPE_RO and s.state ~= proxy.BACKEND_STATE_DOWN then
+        if s.group == group and s.type == proxy.BACKEND_TYPE_RO and s.state ~= proxy.BACKEND_STATE_DOWN then
             local conns = s.pool.users[proxy.connection.client.username]
             -- pick a slave which has some idling connections
             if conns.cur_idle_connections > 0 then

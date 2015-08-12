@@ -51,8 +51,10 @@ static int proxy_backend_get(lua_State *L) {
 
 	if (strleq(key, keysize, C("connected_clients"))) {
 		lua_pushinteger(L, backend->connected_clients);
-	} else if (strleq(key, keysize, C("dst"))) {
-		network_address_lua_push(L, backend->addr);
+    } else if (strleq(key, keysize, C("group"))) {
+        lua_pushlstring(L, S(backend->server_group));
+    } else if (strleq(key, keysize, C("dst"))) {
+        network_address_lua_push(L, backend->addr);
 	} else if (strleq(key, keysize, C("state"))) {
 		lua_pushinteger(L, backend->state);
 	} else if (strleq(key, keysize, C("type"))) {

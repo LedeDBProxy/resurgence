@@ -37,6 +37,7 @@ network_backend_t *network_backend_new() {
 
 	b->pool = network_connection_pool_new();
 	b->uuid = g_string_new(NULL);
+	b->server_group = g_string_new("default");
 	b->addr = network_address_new();
 
 	return b;
@@ -92,7 +93,7 @@ int network_backends_add(network_backends_t *bs, const  gchar *address, backend_
 	new_backend->type = type;
 	new_backend->state = state;
 
-	if (0 != network_address_set_address(new_backend->addr, address)) {
+	if (0 != network_address_set_address_and_group(new_backend->addr, new_backend->server_group, address)) {
 		network_backend_free(new_backend);
 		return -1;
 	}

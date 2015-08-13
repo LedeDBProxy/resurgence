@@ -41,7 +41,9 @@ static int proxy_resultset_lua_push_ref(lua_State *L, GRef *ref);
 
 typedef enum {
 	PROXY_QUEUE_ADD_PREPEND,
-	PROXY_QUEUE_ADD_APPEND
+	PROXY_QUEUE_ADD_PREPEND_AFTER_NTH,
+	PROXY_QUEUE_ADD_APPEND,
+	PROXY_QUEUE_ADD_APPEND_AFTER_NTH
 } proxy_queue_add_t;
 
 /**
@@ -53,8 +55,9 @@ typedef enum {
 static int proxy_queue_add(lua_State *L, proxy_queue_add_t type) {
 	GQueue *q = *(GQueue **)luaL_checkself(L);
 	int resp_type = luaL_checkinteger(L, 2);
+	int index = luaL_checkinteger(L, 3);
 	size_t str_len;
-	const char *str = luaL_checklstring(L, 3, &str_len);
+	const char *str = luaL_checklstring(L, 4, &str_len);
 	injection *inj;
 
 	GString *query = g_string_sized_new(str_len);
@@ -63,13 +66,13 @@ static int proxy_queue_add(lua_State *L, proxy_queue_add_t type) {
 	inj = injection_new(resp_type, query);
 	inj->resultset_is_needed = FALSE;
 
-	/* check the 4th (last) param */
-	switch (luaL_opt(L, lua_istable, 4, -1)) {
+	/* check the 5th param */
+	switch (luaL_opt(L, lua_istable, 5, -1)) {
 	case -1:
 		/* none or nil */
 		break;
 	case 1:
-		lua_getfield(L, 4, "resultset_is_needed");
+		lua_getfield(L, 5, "resultset_is_needed");
 		if (lua_isnil(L, -1)) {
 			/* no defined */
 		} else if (lua_isboolean(L, -1)) {
@@ -77,9 +80,9 @@ static int proxy_queue_add(lua_State *L, proxy_queue_add_t type) {
 		} else {
 			switch (type) {
 			case PROXY_QUEUE_ADD_APPEND:
-				return luaL_argerror(L, 4, ":append(..., { resultset_is_needed = boolean } ), is %s");
+				return luaL_argerror(L, 5, ":append(..., { resultset_is_needed = boolean } ), is %s");
 			case PROXY_QUEUE_ADD_PREPEND:
-				return luaL_argerror(L, 4, ":prepend(..., { resultset_is_needed = boolean } ), is %s");
+				return luaL_argerror(L, 5, ":prepend(..., { resultset_is_needed = boolean } ), is %s");
 			}
 		}
 
@@ -87,7 +90,7 @@ static int proxy_queue_add(lua_State *L, proxy_queue_add_t type) {
 		break;
 	default:
 		proxy_lua_dumpstack_verbose(L);
-		luaL_typerror(L, 4, "table");
+		luaL_typerror(L, 5, "table");
 		break;
 	}
 
@@ -98,6 +101,12 @@ static int proxy_queue_add(lua_State *L, proxy_queue_add_t type) {
 	case PROXY_QUEUE_ADD_PREPEND:
 		network_injection_queue_prepend(q, inj);
 		return 0;
+    case PROXY_QUEUE_ADD_APPEND_AFTER_NTH:
+        network_injection_queue_append_after_nth(q, inj, index);
+        return 0;
+    case PROXY_QUEUE_ADD_PREPEND_AFTER_NTH:
+        network_injection_queue_append_after_nth(q, inj, index);
+        return 0;
 	}
 
 	g_assert_not_reached();
@@ -114,6 +123,14 @@ static int proxy_queue_add(lua_State *L, proxy_queue_add_t type) {
  */
 static int proxy_queue_append(lua_State *L) {
 	return proxy_queue_add(L, PROXY_QUEUE_ADD_APPEND);
+}
+
+static int proxy_queue_append_after_nth(lua_State *L) {
+	return proxy_queue_add(L, PROXY_QUEUE_ADD_APPEND_AFTER_NTH);
+}
+
+static int proxy_queue_prepend_after_nth(lua_State *L) {
+	return proxy_queue_add(L, PROXY_QUEUE_ADD_PREPEND_AFTER_NTH);
 }
 
 static int proxy_queue_prepend(lua_State *L) {
@@ -140,6 +157,8 @@ static int proxy_queue_len(lua_State *L) {
 
 static const struct luaL_reg methods_proxy_queue[] = {
 	{ "prepend", proxy_queue_prepend },
+	{ "prepend_after_nth", proxy_queue_prepend_after_nth },
+	{ "append_after_nth", proxy_queue_append_after_nth},
 	{ "append", proxy_queue_append },
 	{ "reset", proxy_queue_reset },
 	{ "__len", proxy_queue_len },
@@ -555,7 +574,7 @@ static int proxy_injection_get(lua_State *L) {
 	} else if (strleq(key, keysize, C("id"))) {
 		lua_pushinteger(L, inj->id);
 	} else if (strleq(key, keysize, C("query"))) {
-		lua_pushlstring(L, inj->query->str, inj->query->len);
+		lua_pushlstring(L, inj->query->str + 1, inj->query->len - 1);
 	} else if (strleq(key, keysize, C("query_time"))) {
 		lua_pushinteger(L, chassis_calc_rel_microseconds(inj->ts_read_query, inj->ts_read_query_result_first));
 	} else if (strleq(key, keysize, C("response_time"))) {

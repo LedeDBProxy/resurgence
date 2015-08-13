@@ -305,7 +305,8 @@ struct network_mysqld_con {
 	 */
 	int is_listen_socket;
     int is_still_in_trans;
-	int valid_prepare_stmt_cnt;
+	int valid_parallel_stmt_cnt;
+	int shard_num;
 
 	/**
 	 * An integer indicating the result received from a server after sending an authentication request.

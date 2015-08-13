@@ -52,7 +52,9 @@ typedef struct {
 typedef struct {
 	GString *query;
     
-	int id;                                 /**< a unique id set by the scripts to map the query to a handler */
+	int id;                 /**< a unique id set by the scripts to map the query to a handler */
+    int backend_ndx;
+    void *send_sock;
     
 	/* the userdata's need them */
 	GQueue *result_queue;                   /**< the data to parse */
@@ -79,6 +81,9 @@ NETWORK_API void network_injection_queue_free(network_injection_queue *q);
 NETWORK_API void network_injection_queue_reset(network_injection_queue *q);
 NETWORK_API void network_injection_queue_prepend(network_injection_queue *q, injection *inj);
 NETWORK_API void network_injection_queue_append(network_injection_queue *q, injection *inj);
+NETWORK_API void network_injection_queue_append_after_nth(network_injection_queue *q, injection *inj, 
+        int index);
+
 NETWORK_API guint network_injection_queue_len(network_injection_queue *q);
 
 /**

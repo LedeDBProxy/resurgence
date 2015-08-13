@@ -1732,10 +1732,10 @@ void network_mysqld_con_handle(int event_fd, short events, void *user_data) {
 				if (con->client) network_mysqld_queue_reset(con->client);
 				if (con->server) network_mysqld_queue_reset(con->server);
 
-                con->valid_prepare_stmt_cnt--;
-                g_debug("%s: conn:%p, sub, now valid_prepare_stmt_cnt:%d", G_STRLOC, con, con->valid_prepare_stmt_cnt);
+                con->valid_parallel_stmt_cnt--;
+                g_debug("%s: conn:%p, sub, now valid_parallel_stmt_cnt:%d", G_STRLOC, con, con->valid_parallel_stmt_cnt);
 
-                if (con->valid_prepare_stmt_cnt == 0) {
+                if (con->valid_parallel_stmt_cnt == 0) {
                     if (!con->is_still_in_trans) {
                         g_debug("%s: try to add prepare server connection returned to pool",
                                 G_STRLOC);

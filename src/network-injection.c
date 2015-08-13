@@ -91,6 +91,10 @@ void network_injection_queue_append(network_injection_queue *q, injection *inj) 
 	g_queue_push_tail(q, inj);
 }
 
+void network_injection_queue_append_after_nth(network_injection_queue *q, injection *inj, int index) {
+	g_queue_push_nth(q, inj, index);
+}
+
 void network_injection_queue_prepend(network_injection_queue *q, injection *inj) {
 	g_queue_push_head(q, inj);
 }

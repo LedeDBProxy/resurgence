@@ -1421,6 +1421,11 @@ NETWORK_MYSQLD_PLUGIN_PROTO(proxy_read_query) {
 		inj = g_queue_peek_head(st->injected.queries);
 		con->resultset_is_needed = inj->resultset_is_needed; /* let the lua-layer decide if we want to buffer the result or not */
 
+        if (inj->send_sock) {
+            con->server = inj->send_sock;
+            st->backend_ndx = inj->backend_ndx;
+        }
+
 		send_sock = con->server;
 
 		network_mysqld_queue_reset(send_sock);
@@ -1519,6 +1524,13 @@ NETWORK_MYSQLD_PLUGIN_PROTO(proxy_send_query_result) {
 	 * push the next one 
 	 */
 	inj = g_queue_peek_head(st->injected.queries);
+
+    if (inj->send_sock) {
+        send_sock = inj->send_sock;
+        con->server = send_sock;
+        st->backend_ndx = inj->backend_ndx;
+    }
+
 	con->resultset_is_needed = inj->resultset_is_needed;
 
 	if (!inj->resultset_is_needed && st->injected.sent_resultset > 0) {
@@ -1626,8 +1638,9 @@ NETWORK_MYSQLD_PLUGIN_PROTO(proxy_read_query_result) {
 			inj->ts_read_query_result_last = chassis_get_rel_microseconds();
 			/* g_get_current_time(&(inj->ts_read_query_result_last)); */
 		}
-		
-		network_mysqld_queue_reset(recv_sock); /* reset the packet-id checks as the server-side is finished */
+
+		/* reset the packet-id checks as the server-side is finished */
+		network_mysqld_queue_reset(recv_sock); 
 
 		NETWORK_MYSQLD_CON_TRACK_TIME(con, "proxy::ready_query_result::enter_lua");
 		ret = proxy_lua_read_query_result(con);

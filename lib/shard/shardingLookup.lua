@@ -13,9 +13,23 @@ end
 --- Query all available groups for a given table.
 -- @return all sharding names.
 function getAllShardingGroups(tableName, groups)
+    print("check partition group " .. tableName)
+    local shard_info = _shardingTable[tableName]
+    print("check partition group2 " .. tableName)
+
+    if shard_info.partitions ~= nil then
+        print("check partition group3 " .. tableName)
+    end
     local num = #(_shardingTable[tableName].partitions)
+    print("partition group:" .. num)
     for i = 1, num do
-        groups.insert(tables, _shardingTable[tableName].partitions[i].group)
+        local partition = _shardingTable[tableName].partitions[i]
+        if (partition ~= nil) then
+            print("partition not nil:")
+            print("partition not nil:" .. partition.group)
+        end
+        table.insert(groups, _shardingTable[tableName].partitions[i].group)
+        print("add group:" .. _shardingTable[tableName].partitions[i].group)
     end
 end
 
@@ -23,7 +37,7 @@ end
 -- @return the sharding group for the given partition key
 function getShardingGroupByHash(tableName, key)
     assert(_shardingTable[tableName], "Table '" .. tableName .. "' is not supported.")
-    local partions = #(_shardingTable[tableName].partitions)
+    local partitions = #(_shardingTable[tableName].partitions)
     local number = tonumber(key)
     if (not number) then
         number = utils.calculateSimpleChecksum(tostring(key))

@@ -106,8 +106,10 @@ static int proxy_connection_get(lua_State *L) {
 
 		network_socket_lua_getmetatable(L);
 		lua_setmetatable(L, -2); /* tie the metatable to the table   (sp -= 1) */
-	} else if(strleq(key, keysize, C("valid_prepare_stmt_cnt"))) {
-		lua_pushinteger(L, con->valid_prepare_stmt_cnt);
+	} else if(strleq(key, keysize, C("valid_parallel_stmt_cnt"))) {
+		lua_pushinteger(L, con->valid_parallel_stmt_cnt);
+	} else if(strleq(key, keysize, C("shard_num"))) {
+		lua_pushinteger(L, con->shard_num);
 	} else if(strleq(key, keysize, C("is_still_in_trans"))) {
         luaL_checktype(L, 3, LUA_TBOOLEAN);
         gboolean is_still_in_trans = lua_toboolean(L, 3);
@@ -140,7 +142,7 @@ static int proxy_connection_set(lua_State *L) {
 		int backend_ndx = luaL_checkinteger(L, 3) - 1;
 		network_socket *send_sock;
 			
-        g_debug("proxy_connection_set:%p, back ndx:%d", con, st->backend_ndx);
+        g_debug("proxy_connection_set:%p, origin back ndx:%d", con, st->backend_ndx);
 		if (backend_ndx == -1) {
 			/** drop the backend for now
 			 */
@@ -158,6 +160,20 @@ static int proxy_connection_set(lua_State *L) {
                     __FILE__, __LINE__, con->server->dst->name->str, con->server->fd, st->backend_ndx);
         }
 
+	} else if (0 == strcmp(key, "shard_num")) {
+		int shard_num = luaL_checkinteger(L, 3);
+        con->shard_num = shard_num;
+	} else if (0 == strcmp(key, "shard_server")) {
+		int sql_index = luaL_checkinteger(L, 3);
+
+        injection *inj;
+        do {
+            inj = g_queue_peek_nth(st->injected.queries, sql_index++);
+            if (inj != NULL) {
+                inj->backend_ndx = st->backend_ndx;
+                inj->send_sock = con->server;
+            }
+        } while(inj);
 	} else if (0 == strcmp(key, "change_server_by_stmt_id")) {
 		int stmt_id = luaL_checkinteger(L, 3);
 		int index = (stmt_id & 0xffff0000) >> 16;
@@ -173,32 +189,39 @@ static int proxy_connection_set(lua_State *L) {
             if (index > 0) {
                 network_packet packet;
                 int err = 0;
+                int i = 0;
+                guint8 packet_type = 0;
                 injection *inj;
-                inj = g_queue_peek_head(st->injected.queries);
-                if (inj != NULL) {
-                    packet.data = inj->query;
-                    packet.offset = 0;
-                    network_mysqld_proto_change_stmt_id_from_client_stmt_packet(&packet);
-                } else {
-		            luaL_error(L, "inj is null:%p", con);
-                }
+                do {
+                    inj = g_queue_peek_nth(st->injected.queries, i++);
+                    if (inj != NULL) {
+                        packet.data = inj->query;
+                        packet.offset = 0;
+                        network_mysqld_proto_get_int8(&packet, &packet_type);
+                        if (COM_STMT_EXECUTE == packet_type || packet_type == COM_STMT_CLOSE) {
+                            network_mysqld_proto_change_stmt_id_from_client_stmt_packet(&packet);
+                            break;
+                        }
+                        
+                    }
+                } while(inj);
             }
         } else {
 		    g_debug("conn:%p, server list null, stmt id:%d, index:%d", con, stmt_id, index);
         }
-    } else if (0 == strcmp(key, "change_server_by_rw")) {
+    } else if (0 == strcmp(key, "change_server")) {
 		int backend_ndx = luaL_checkinteger(L, 3) - 1;
         if (backend_ndx >= 0) {
             int index = st->backend_ndx_array[backend_ndx] - 1;
-            g_debug("conn:%p, change_server_by_rw, backend ndx:%d, index:%d, st backend_ndx:%d", 
+            g_debug("conn:%p, change_server, backend ndx:%d, index:%d, st backend_ndx:%d", 
                     con, backend_ndx, index, st->backend_ndx);
             if  (con->server_list != NULL) {
                 con->server = con->server_list->server[index];
                 st->backend_ndx = backend_ndx;
-                g_debug("conn:%p, server:%p, fd:%d, when change_server_by_rw, backend ndx:%d, index:%d", 
+                g_debug("conn:%p, server:%p, fd:%d, when change_server, backend ndx:%d, index:%d", 
                         con, con->server, con->server->fd, backend_ndx, index);
             } else {
-                g_debug("conn:%p, server list null when change_server_by_rw, backend ndx:%d, index:%d", 
+                g_debug("conn:%p, server list null when change_server, backend ndx:%d, index:%d", 
                         con, backend_ndx, index);
             }
         } else {

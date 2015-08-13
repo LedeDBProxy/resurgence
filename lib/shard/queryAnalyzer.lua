@@ -1,9 +1,9 @@
 module("shard.queryAnalyzer", package.seeall)
-require("shard.ranger")
+local ranger = require("shard.ranger")
 
 local utils = require("shard.utils")
 
-QueryAnalyzer = {}
+local QueryAnalyzer = {}
 QueryAnalyzer.__index = QueryAnalyzer
 
 --- Constructor.
@@ -367,7 +367,7 @@ function QueryAnalyzer:analyze()
                                 utils.debug("Found partition key '" .. valueToken.text .. "' for table '" .. possibleTable .. "' (by alias)", 1)
                                 self:_setPartitionTableKey(possibleTable, valueToken, self._tokens[i + 3])
                             elseif (self._shard_type == 1) then
-                                self:_setRangePartitionTableKey(tableName, valueToken, self._tokens[i + 2].token_name, self._tokens[i + 3])
+                                self:_setRangePartitionTableKey(possibleTable, valueToken, self._tokens[i + 2].token_name, self._tokens[i + 3])
                             end
                         end
                     end
@@ -685,7 +685,7 @@ function QueryAnalyzer:_setRangePartitionTableKey(tableName, valueToken, opType,
 
         if self._tableKeyRange[tableName] == nil then
             utils.debug("create ranger for table:" .. tableName)
-            self._tableKeyRange[tableName] = shard.ranger.Ranger.create()
+            self._tableKeyRange[tableName] = ranger.Ranger.create()
         end
         utils.debug("add ranged item:" .. tableName .. ", range key value:" .. valueToken.text)
         self._tableKeyRange[tableName]:setRangeValue(opType, tonumber(valueToken.text))

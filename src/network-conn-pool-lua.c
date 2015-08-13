@@ -285,8 +285,8 @@ int network_connection_pool_lua_add_connection(network_mysqld_con *con) {
             }
         }
     } else {
-        con->valid_prepare_stmt_cnt = 0;
-        g_debug("%s: con:%p, set valid_prepare_stmt_cnt 0", G_STRLOC, con);
+        con->valid_parallel_stmt_cnt = 0;
+        g_debug("%s: con:%p, set valid_parallel_stmt_cnt 0", G_STRLOC, con);
 
         g_debug("%s: add conn fd:%d to pool:%p", G_STRLOC, con->server->fd, st->backend->pool);
         /* insert the server socket into the connection pool */
@@ -347,15 +347,16 @@ network_socket *network_connection_pool_lua_swap(network_mysqld_con *con, int ba
     info.key = con->client->src->key;
     info.state = con->state;
 
-    g_debug("%s: (swap) check server switch for conn:%p, valid_prepare_stmt_cnt:%d, orig back ndx:%d, now:%d",
-            G_STRLOC, con, con->valid_prepare_stmt_cnt, st->backend_ndx, backend_ndx);
+    g_debug("%s: (swap) check server switch for conn:%p, valid_parallel_stmt_cnt:%d, orig back ndx:%d, now:%d",
+            G_STRLOC, con, con->valid_parallel_stmt_cnt, st->backend_ndx, backend_ndx);
     /**
      * TODO only valid for successional prepare statements,not valid for data partition
      */
-    if (st->backend_ndx != -1 && con->valid_prepare_stmt_cnt > 0 && st->backend_ndx != backend_ndx) {
+    if (st->backend_ndx != -1 && (con->valid_parallel_stmt_cnt > 0 || con->shard_num > 1) 
+            && st->backend_ndx != backend_ndx) {
         g_debug("%s: (swap) server switch is true", G_STRLOC);
 
-        if (backend->type == BACKEND_TYPE_RW) {
+        if (backend->type == BACKEND_TYPE_RW || con->shard_num > 1) {
             server_switch_need_add = TRUE;
         } 
 
@@ -410,10 +411,12 @@ network_socket *network_connection_pool_lua_swap(network_mysqld_con *con, int ba
                 G_STRLOC, backend_ndx, backend->pool, send_sock->fd);
     } else {
 
-        g_debug("%s: (swap) take and move the current backend into the pool", G_STRLOC);
-        /* the backend is up and cool, take and move the current backend into the pool */
-        /* g_debug("%s: (swap) added the previous connection to the pool", G_STRLOC); */
-        network_connection_pool_lua_add_connection(con);
+        if (con->server) {
+            g_debug("%s: (swap) take and move the current backend into the pool", G_STRLOC);
+            /* the backend is up and cool, take and move the current backend into the pool */
+            /* g_debug("%s: (swap) added the previous connection to the pool", G_STRLOC); */
+            network_connection_pool_lua_add_connection(con);
+        }
     }
 
     /* connect to the new backend */

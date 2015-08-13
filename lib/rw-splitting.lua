@@ -351,6 +351,7 @@ function read_query( packet )
     _combinedLimit.from = 0 
     _combinedLimit.rows = 0 
 
+    print("_total_queries_per_req:" .. _total_queries_per_req)
     print("get sharding group")
     get_sharding_group(packet, groups)
     print("sharding group num:" .. #groups)
@@ -361,6 +362,7 @@ function read_query( packet )
             _combinedNumberOfQueries = _combinedNumberOfQueries + 1
         end
         print("sharding group name:" .. tostring(group))
+        print("here ,_total_queries_per_req:" .. _total_queries_per_req)
         local result = dispose_one_query(packet, group)
         if result == proxy.PROXY_SEND_RESULT then
             return proxy.PROXY_IGNORE_RESULT
@@ -436,6 +438,7 @@ function dispose_one_query( packet, group )
     local tokens
     local base = _total_queries_per_req
 
+    print("init base:" .. base)
     if is_prepared then
         ps_cnt = proxy.connection.valid_parallel_stmt_cnt
     end
@@ -856,7 +859,7 @@ function dispose_one_query( packet, group )
         return proxy.PROXY_SEND_RESULT
     end
 
-    proxy.queries:append(cmd.type, base, packet, { resultset_is_needed = true } )
+    proxy.queries:append_after_nth(cmd.type, base, packet, { resultset_is_needed = true } )
     _total_queries_per_req = _total_queries_per_req + 1
     if cmd.type == proxy.COM_STMT_CLOSE and is_in_transaction then
         proxy.connection.is_still_in_trans = true
@@ -938,19 +941,19 @@ function dispose_one_query( packet, group )
                         print("   sql mode:" .. sql_mode)
                         print("   sql mode num:" .. #modes)
                     end
-                    proxy.queries:prepend(proxy.PROXY_IGNORE_RESULT, base,
+                    proxy.queries:prepend_after_nth(proxy.PROXY_IGNORE_RESULT, base,
                     string.char(proxy.COM_QUERY) .. "SET sql_mode='" .. modes[1].text .. "'",
                     { resultset_is_needed = true })
                     _total_queries_per_req = _total_queries_per_req + 1
 
                     for i = 2, #modes do
-                        proxy.queries:prepend(proxy.PROXY_IGNORE_RESULT, base,
+                        proxy.queries:prepend_after_nth(proxy.PROXY_IGNORE_RESULT, base,
                         string.char(proxy.COM_QUERY) .. "SET sql_mode='" .. modes[i].text .. "'",
                         { resultset_is_needed = true })
                         _total_queries_per_req = _total_queries_per_req + 1
                     end
                 else
-                    proxy.queries:prepend(proxy.PROXY_IGNORE_RESULT, base, 
+                    proxy.queries:prepend_after_nth(proxy.PROXY_IGNORE_RESULT, base, 
                     string.char(proxy.COM_QUERY) .. "SET sql_mode=''",
                     { resultset_is_needed = true })
                     _total_queries_per_req = _total_queries_per_req + 1
@@ -1005,7 +1008,7 @@ function dispose_one_query( packet, group )
                 print("  change server charset_client")
             end
             if clt_charset_client ~= nil then
-                proxy.queries:prepend(proxy.PROXY_IGNORE_RESULT, base,
+                proxy.queries:prepend_after_nth(proxy.PROXY_IGNORE_RESULT, base,
                 string.char(proxy.COM_QUERY) .. "SET character_set_client = " .. clt_charset_client,
                 { resultset_is_needed = true })
                 _total_queries_per_req = _total_queries_per_req + 1
@@ -1026,7 +1029,7 @@ function dispose_one_query( packet, group )
                 print("  change server charset conn:")
             end
             if clt_charset_conn ~= nil then
-                proxy.queries:prepend(proxy.PROXY_IGNORE_RESULT, base,
+                proxy.queries:prepend_after_nth(proxy.PROXY_IGNORE_RESULT, base,
                 string.char(proxy.COM_QUERY) .. "SET character_set_connection = " .. clt_charset_conn,
                 { resultset_is_needed = true })
                 _total_queries_per_req = _total_queries_per_req + 1
@@ -1046,12 +1049,12 @@ function dispose_one_query( packet, group )
                 print("  change server charset results")
             end
             if clt_charset_results == nil then
-                proxy.queries:prepend(proxy.PROXY_IGNORE_RESULT, base,
+                proxy.queries:prepend_after_nth(proxy.PROXY_IGNORE_RESULT, base,
                 string.char(proxy.COM_QUERY) .. "SET character_set_results = NULL",
                 { resultset_is_needed = true })
                 _total_queries_per_req = _total_queries_per_req + 1
             else
-                proxy.queries:prepend(proxy.PROXY_IGNORE_RESULT, base,
+                proxy.queries:prepend_after_nth(proxy.PROXY_IGNORE_RESULT, base,
                 string.char(proxy.COM_QUERY) .. "SET character_set_results = " .. clt_charset_results,
                 { resultset_is_needed = true })
                 _total_queries_per_req = _total_queries_per_req + 1
@@ -1063,7 +1066,7 @@ function dispose_one_query( packet, group )
     end
 
     if is_charset_reset then
-        proxy.queries:prepend(proxy.PROXY_IGNORE_RESULT, base,
+        proxy.queries:prepend_after_nth(proxy.PROXY_IGNORE_RESULT, base,
         string.char(proxy.COM_QUERY) .. "SET NAMES " .. charset_str,
         { resultset_is_needed = true })
         _total_queries_per_req = _total_queries_per_req + 1
@@ -1077,7 +1080,7 @@ function dispose_one_query( packet, group )
         print("    server default db: " .. s.default_db)
         print("    client default db: " .. c.default_db)
         print("    syncronizing")
-        proxy.queries:prepend(proxy.PROXY_IGNORE_RESULT, base,
+        proxy.queries:prepend_after_nth(proxy.PROXY_IGNORE_RESULT, base,
          string.char(proxy.COM_INIT_DB) .. c.default_db, { resultset_is_needed = true })
         _total_queries_per_req = _total_queries_per_req + 1
     end
@@ -1096,6 +1099,10 @@ function dispose_one_query( packet, group )
         print("    COM_QUERY       : " .. tostring(cmd.type == proxy.COM_QUERY))
     end
 
+    if (proxy.connection.shard_num > 1) then
+        print("base:" .. base)
+        proxy.connection.shard_server = base
+    end
     return proxy.PROXY_SEND_QUERY
 end
 

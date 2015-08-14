@@ -3,7 +3,7 @@ local ranger = require("shard.ranger")
 
 local utils = require("shard.utils")
 
-local QueryAnalyzer = {}
+QueryAnalyzer = {}
 QueryAnalyzer.__index = QueryAnalyzer
 
 --- Constructor.

@@ -281,6 +281,12 @@ int network_connection_pool_lua_add_connection(network_mysqld_con *con) {
             backend->connected_clients--;
             checked++;
             if (checked >= server_list->num) {
+                g_free(st->backend_ndx_array);
+                g_free(st->backend_array);
+                g_free(con->server_list);
+                st->backend_ndx_array = NULL;
+                st->backend_array = NULL;
+                con->server_list = NULL;
                 break;
             }
         }

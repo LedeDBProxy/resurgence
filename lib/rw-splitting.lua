@@ -95,7 +95,7 @@ local is_in_select_calc_found_rows = false
 -- as long as we don't have enough connections in the pool, create new connections
 --
 function connect_server() 
-    local is_debug = proxy.global.config.rwsplit.is_debug
+    --local is_debug = proxy.global.config.rwsplit.is_debug
     -- make sure that we connect to each backend at least ones to 
     -- keep the connections to the servers alive
     --
@@ -300,7 +300,7 @@ end
 --
 -- auth.packet is the packet
 function read_auth_result( auth )
-    local is_debug = proxy.global.config.rwsplit.is_debug
+    --local is_debug = proxy.global.config.rwsplit.is_debug
 
     if is_debug then
         print("[read_auth_result] " .. proxy.connection.client.src.name)
@@ -365,7 +365,7 @@ function read_query( packet )
         print("here ,_total_queries_per_req:" .. _total_queries_per_req)
         local result = dispose_one_query(packet, group)
         if result == proxy.PROXY_SEND_RESULT then
-            return proxy.PROXY_IGNORE_RESULT
+            return proxy.PROXY_SEND_RESULT
         end
     end
 
@@ -417,7 +417,7 @@ end
 --- 
 -- read/write splitting
 function dispose_one_query( packet, group )
-    local is_debug = proxy.global.config.rwsplit.is_debug
+    --local is_debug = proxy.global.config.rwsplit.is_debug
     local cmd      = commands.parse(packet)
     local c        = proxy.connection.client
     local ps_cnt   = 0
@@ -1110,7 +1110,7 @@ end
 -- as long as we are in a transaction keep the connection
 -- otherwise release it so another client can use it
 function read_query_result( inj ) 
-    local is_debug = proxy.global.config.rwsplit.is_debug
+    --local is_debug = proxy.global.config.rwsplit.is_debug
     local res      = assert(inj.resultset)
     local flags    = res.flags
 
@@ -1178,7 +1178,8 @@ function read_query_result( inj )
                         print("   set is_in_transaction true")
                     end
                 else
-                    if not is_prepared then
+                    if not is_prepared and _combinedNumberOfQueries == 0 then
+                        print("*************************")
                         proxy.connection.client.is_server_conn_reserved = false
                     end
                 end
@@ -1199,6 +1200,8 @@ function read_query_result( inj )
             res.prepared_stmt_id = server_index
         end
     end
+
+    return result
 end
 
 --- 
@@ -1207,7 +1210,7 @@ end
 -- @return nil - close connection 
 --         IGNORE_RESULT - store connection in the pool
 function disconnect_client()
-    local is_debug = proxy.global.config.rwsplit.is_debug
+    --local is_debug = proxy.global.config.rwsplit.is_debug
     if is_debug then
         print("[disconnect_client] " .. proxy.connection.client.src.name)
     end
@@ -1316,6 +1319,7 @@ function _buildUpCombinedResultSet(inj)
                     inj.resultset.raw:sub(4)
                 }
             end
+            multiple_server_mode = false
             return proxy.PROXY_SEND_RESULT
         end
         -- Ignore all result sets until we are at the last one

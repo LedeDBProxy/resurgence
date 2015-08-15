@@ -823,10 +823,10 @@ function dispose_one_query( packet, group )
     if backend_ndx > 0 then
         local b = proxy.global.backends[backend_ndx]
         if b.group ~= group then
-            --backend_ndx = lb.choose_rw_backend_ndx(group)
-            -- print("    switch to backend ndx:" .. backend_ndx)
-            --proxy.connection.change_server = backend_ndx
-            --print("    now backend ndx:" .. proxy.connection.backend_ndx)
+            backend_ndx = lb.choose_rw_backend_ndx(group)
+            print("    switch to backend ndx:" .. backend_ndx)
+            proxy.connection.change_server = backend_ndx
+            print("    now backend ndx:" .. proxy.connection.backend_ndx)
             backend_ndx = 0
             multiple_server_mode = true
             if b.group ~= nil then

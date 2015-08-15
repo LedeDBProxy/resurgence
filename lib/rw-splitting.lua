@@ -95,7 +95,7 @@ local is_in_select_calc_found_rows = false
 -- as long as we don't have enough connections in the pool, create new connections
 --
 function connect_server() 
-    local is_debug = proxy.global.config.rwsplit.is_debug
+    --local is_debug = proxy.global.config.rwsplit.is_debug
     -- make sure that we connect to each backend at least ones to 
     -- keep the connections to the servers alive
     --
@@ -1114,7 +1114,7 @@ end
 -- as long as we are in a transaction keep the connection
 -- otherwise release it so another client can use it
 function read_query_result( inj ) 
-    local is_debug = proxy.global.config.rwsplit.is_debug
+    --local is_debug = proxy.global.config.rwsplit.is_debug
     local res      = assert(inj.resultset)
     local flags    = res.flags
 
@@ -1214,7 +1214,7 @@ end
 -- @return nil - close connection 
 --         IGNORE_RESULT - store connection in the pool
 function disconnect_client()
-    local is_debug = proxy.global.config.rwsplit.is_debug
+    --local is_debug = proxy.global.config.rwsplit.is_debug
     if is_debug then
         print("[disconnect_client] " .. proxy.connection.client.src.name)
     end

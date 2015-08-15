@@ -25,7 +25,7 @@ function idle_failsafe_rw(group)
 	local backend_ndx = 0
 
 	for i = 1, #proxy.global.backends do
-		local s = proxy.global.backends[i]
+        local s = proxy.global.backends[i]
         if s.group == group and s.type == proxy.BACKEND_TYPE_RW and s.state ~= proxy.BACKEND_STATE_DOWN then
             local conns = s.pool.users[proxy.connection.client.username]
             if conns.cur_idle_connections > 0 then
@@ -38,7 +38,7 @@ function idle_failsafe_rw(group)
 	return backend_ndx
 end
 
-function idle_ro() 
+function idle_ro(group) 
 	local max_conns = -1
 	local max_conns_ndx = 0
 
@@ -57,4 +57,31 @@ function idle_ro()
 	end
 
 	return max_conns_ndx
+end
+
+function choose_rw_backend_ndx(group)
+	local backend_ndx = 0
+
+	for i = 1, #proxy.global.backends do
+		local s = proxy.global.backends[i]
+        if s.group == group and s.type == proxy.BACKEND_TYPE_RW and s.state ~= proxy.BACKEND_STATE_DOWN then
+            backend_ndx = i
+            break
+        end
+    end
+
+	return backend_ndx
+end
+
+function choose_ro_backend_ndx(group) 
+	local backend_ndx = 0
+
+    for i = 1, #proxy.global.backends do
+        local s = proxy.global.backends[i]
+        if s.group == group and s.type == proxy.BACKEND_TYPE_RO and s.state ~= proxy.BACKEND_STATE_DOWN then
+            backend_ndx = i
+        end
+    end
+
+	return backend_ndx
 end

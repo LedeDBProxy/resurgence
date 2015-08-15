@@ -95,7 +95,7 @@ local is_in_select_calc_found_rows = false
 -- as long as we don't have enough connections in the pool, create new connections
 --
 function connect_server() 
-    --local is_debug = proxy.global.config.rwsplit.is_debug
+    local is_debug = proxy.global.config.rwsplit.is_debug
     -- make sure that we connect to each backend at least ones to 
     -- keep the connections to the servers alive
     --
@@ -300,7 +300,7 @@ end
 --
 -- auth.packet is the packet
 function read_auth_result( auth )
-    --local is_debug = proxy.global.config.rwsplit.is_debug
+    local is_debug = proxy.global.config.rwsplit.is_debug
 
     if is_debug then
         print("[read_auth_result] " .. proxy.connection.client.src.name)
@@ -417,7 +417,7 @@ end
 --- 
 -- read/write splitting
 function dispose_one_query( packet, group )
-    --local is_debug = proxy.global.config.rwsplit.is_debug
+    local is_debug = proxy.global.config.rwsplit.is_debug
     local cmd      = commands.parse(packet)
     local c        = proxy.connection.client
     local ps_cnt   = 0
@@ -823,6 +823,10 @@ function dispose_one_query( packet, group )
     if backend_ndx > 0 then
         local b = proxy.global.backends[backend_ndx]
         if b.group ~= group then
+            --backend_ndx = lb.choose_rw_backend_ndx(group)
+            -- print("    switch to backend ndx:" .. backend_ndx)
+            --proxy.connection.change_server = backend_ndx
+            --print("    now backend ndx:" .. proxy.connection.backend_ndx)
             backend_ndx = 0
             multiple_server_mode = true
             if b.group ~= nil then
@@ -875,7 +879,7 @@ function dispose_one_query( packet, group )
             -- all related fields are invalid after this such as stmt_handler_id
         elseif cmd.type == proxy.COM_QUERY then
             if is_debug then
-                print("    change server by backend index")
+                print("    change server by backend index:" .. backend_ndx)
             end
             proxy.connection.change_server = backend_ndx
         end
@@ -1110,7 +1114,7 @@ end
 -- as long as we are in a transaction keep the connection
 -- otherwise release it so another client can use it
 function read_query_result( inj ) 
-    --local is_debug = proxy.global.config.rwsplit.is_debug
+    local is_debug = proxy.global.config.rwsplit.is_debug
     local res      = assert(inj.resultset)
     local flags    = res.flags
 
@@ -1210,7 +1214,7 @@ end
 -- @return nil - close connection 
 --         IGNORE_RESULT - store connection in the pool
 function disconnect_client()
-    --local is_debug = proxy.global.config.rwsplit.is_debug
+    local is_debug = proxy.global.config.rwsplit.is_debug
     if is_debug then
         print("[disconnect_client] " .. proxy.connection.client.src.name)
     end

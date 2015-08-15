@@ -51,6 +51,7 @@ void network_backend_free(network_backend_t *b) {
 
 	if (b->addr)     network_address_free(b->addr);
 	if (b->uuid)     g_string_free(b->uuid, TRUE);
+    if (b->server_group) g_string_free(b->server_group, TRUE);
 
 	g_free(b);
 }

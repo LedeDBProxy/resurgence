@@ -155,11 +155,6 @@ static int proxy_connection_set(lua_State *L) {
 		    g_debug("set backend index for client:%d", st->backend_ndx);
 		}
 
-        if (con->server) {
-            g_debug("%s.%d: connecting to backend (%s) , use fd:%d, backend_ndx:%d",
-                    __FILE__, __LINE__, con->server->dst->name->str, con->server->fd, st->backend_ndx);
-        }
-
 	} else if (0 == strcmp(key, "shard_num")) {
 		int shard_num = luaL_checkinteger(L, 3);
         con->shard_num = shard_num;
@@ -210,6 +205,9 @@ static int proxy_connection_set(lua_State *L) {
 		    g_debug("conn:%p, server list null, stmt id:%d, index:%d", con, stmt_id, index);
         }
     } else if (0 == strcmp(key, "change_server")) {
+        if (st->backend_ndx_array == NULL) {
+            return 0;
+        }
 		int backend_ndx = luaL_checkinteger(L, 3) - 1;
         if (backend_ndx >= 0) {
             int index = st->backend_ndx_array[backend_ndx] - 1;

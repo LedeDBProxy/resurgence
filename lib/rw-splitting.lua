@@ -64,10 +64,12 @@ local _query
 if not proxy.global.config.rwsplit then
     proxy.global.config.rwsplit = {
         min_idle_connections = 1,
-        mid_idle_connections = 40,
-        max_idle_connections = 80,
+        mid_idle_connections = 4,
+        max_idle_connections = 8,
         max_init_time = 10,
-
+        default_user = "",
+        default_index = 1,
+        is_warn_up = false,
         is_debug = true,
         is_slave_write_forbidden_set = false
     }
@@ -89,6 +91,57 @@ local last_group = nil
 -- if this was a SELECT SQL_CALC_FOUND_ROWS ... stay on the same connections
 local is_in_select_calc_found_rows = false
 
+function warm_up()
+    --local is_debug = proxy.global.config.rwsplit.is_debug
+    if is_debug then
+        print("[connect_server] " .. proxy.connection.client.src.name)
+    end
+
+    if not proxy.global.stat_clients then
+        proxy.global.stat_clients = 0
+    end
+    proxy.global.stat_clients = proxy.global.stat_clients + 1
+    
+    local index    = proxy.global.config.rwsplit.default_index
+
+    -- init one backend 
+    if index <= #proxy.global.backends then
+        local user     = proxy.global.config.rwsplit.default_user
+        local s        = proxy.global.backends[index]
+        local pool     = s.pool 
+        local cur_idle = pool.users[user].cur_idle_connections
+        init_phase = pool.init_phase
+        local min_idle_conns
+        local max_idle_conns
+        local connected_clients = s.connected_clients
+
+        min_idle_conns = proxy.global.config.rwsplit.min_idle_connections
+        max_idle_conns = proxy.global.config.rwsplit.max_idle_connections
+
+        if is_debug then
+            print("  [".. index .."].user = " .. user)
+            print("  [".. index .."].connected_clients = " .. connected_clients)
+            print("  [".. index .."].pool.cur_idle     = " .. cur_idle)
+            print("  [".. index .."].pool.max_idle     = " .. max_idle_conns)
+            print("  [".. index .."].pool.min_idle     = " .. min_idle_conns)
+            print("  [".. index .."].type = " .. s.type)
+            print("  [".. index .."].state = " .. s.state)
+        end
+
+        -- prefer connections to the master 
+        if (s.state == proxy.BACKEND_STATE_UP or
+            s.state == proxy.BACKEND_STATE_UNKNOWN) then
+            proxy.connection.backend_ndx = index
+        else
+            proxy.response = {
+                type = proxy.MYSQLD_PACKET_ERR,
+                errmsg = "01,proxy rejects create backend connections"
+            }
+            return proxy.PROXY_SEND_RESULT
+        end
+    end
+end
+
 --- 
 -- get a connection to a backend
 --
@@ -103,6 +156,10 @@ function connect_server()
 
     if is_debug then
         print("[connect_server] " .. proxy.connection.client.src.name)
+    end
+
+    if proxy.global.config.rwsplit.is_warn_up then
+        return warm_up()
     end
 
     if not proxy.global.stat_clients then

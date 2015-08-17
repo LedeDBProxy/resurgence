@@ -409,7 +409,38 @@ function read_query(packet)
 			rows[#rows + 1] = { "please use 'SELECT * FROM backends' to check if it succeeded " }
 			affected_rows = 1;	
 		end
-	else
+    elseif string.find(query_lower, "set warn up where") then
+        local parameters = string.match(query_lower, "set warn up where (.+)$")
+		local backend_id, user = string.match(parameters, "backend_ndx = (.+) and user = \"(.+)\"")
+		local id = tonumber(backend_id)
+        fields = {
+            { name = "status",
+            type = proxy.MYSQL_TYPE_STRING },
+        }
+        if id > 0 and id <= #proxy.global.backends then
+            if proxy.global.config.rwsplit ~= nil then
+                proxy.global.config.rwsplit.is_warn_up = true
+                proxy.global.config.rwsplit.default_user = user
+                proxy.global.config.rwsplit.default_index = id
+                rows[#rows + 1] = { "warn up succeeded " }
+                affected_rows = 1;
+            else
+                set_error("please activate lua file first")
+		        return proxy.PROXY_SEND_RESULT
+            end
+        else
+            set_error("warn up failed, backend_ndx is wrong")
+		    return proxy.PROXY_SEND_RESULT
+        end
+    elseif string.find(query_lower, "set warn up over") then
+        proxy.global.config.rwsplit.is_warn_up = false
+        fields = {
+            { name = "status",
+            type = proxy.MYSQL_TYPE_STRING },
+        }
+        rows[#rows + 1] = { "succeeded " }
+        affected_rows = 1;
+    else
 		set_error("use 'SELECT * FROM help' to see the supported commands")
 		return proxy.PROXY_SEND_RESULT
 	end

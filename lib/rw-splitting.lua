@@ -171,6 +171,7 @@ function connect_server()
     local rw_ndx = 0
     local max_idle_conns = 0
     local mid_idle_conns = 0
+    local min_idle_conns = 0
     local init_phase = false
     local cur_idle = 0
     local connected_clients = 0
@@ -178,25 +179,18 @@ function connect_server()
     local total_available_conns = 0
 
     total_clients = proxy.global.stat_clients + 1
-    local m  = 1
-    if total_clients % 2 == 1 then
-        m = 2  
-    end
 
     -- init all backends 
-    for i = m, #proxy.global.backends do
+    for i = 1, #proxy.global.backends do
         local s        = proxy.global.backends[i]
         local pool     = s.pool -- we don't have a username yet, try to find a connections which is idling
         cur_idle = pool.users[""].cur_idle_connections
         init_phase = pool.init_phase
-        local min_idle_conns
         connected_clients = s.connected_clients
 
         if connected_clients > 0 then
-            print("  no need to init pool connections")
             pool.serve_req_after_init = true
         else
-            print("  init pool connections")
             pool.min_idle_connections = proxy.global.config.rwsplit.min_idle_connections
             pool.mid_idle_connections = proxy.global.config.rwsplit.mid_idle_connections
             pool.max_idle_connections = proxy.global.config.rwsplit.max_idle_connections
@@ -204,12 +198,10 @@ function connect_server()
         end
 
         if init_phase then
-            print("  init phase now")
             local init_time = pool.init_time
             if init_time > 0 and not pool.serve_req_after_init then
                 pool.set_init_time = 1
                 init_time = pool.init_time
-                print("  reset init")
             end
 
             local max_init_time = proxy.global.config.rwsplit.max_init_time
@@ -225,9 +217,6 @@ function connect_server()
             mid_idle_conns = math.floor(proxy.global.config.rwsplit.mid_idle_connections * init_time / max_init_time)
             max_idle_conns = math.floor(proxy.global.config.rwsplit.max_idle_connections * init_time / max_init_time)
 
-            print("  init time = " .. init_time)
-            print("  min_idle_conns = " .. min_idle_conns)
-            print("  max_idle_conns = " .. max_idle_conns)
             if mid_idle_conns < min_idle_conns then
                 mid_idle_conns = min_idle_conns
             end
@@ -304,7 +293,7 @@ function connect_server()
     end
 
     -- fuzzy check which is not accurate
-    if init_phase and total_available_conns < total_clients then
+    if init_phase and cur_idle <= min_idle_conns and total_available_conns < total_clients then
         is_passed_but_req_rejected = true
         if is_debug then
             print("  total available conn:" .. total_available_conns .. ",total clients:" .. total_clients)

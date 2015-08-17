@@ -434,6 +434,7 @@ function read_query(packet)
         end
     elseif string.find(query_lower, "set warn up over") then
         proxy.global.config.rwsplit.is_warn_up = false
+        proxy.global.config.rwsplit.max_init_time = 1
         fields = {
             { name = "status",
             type = proxy.MYSQL_TYPE_STRING },

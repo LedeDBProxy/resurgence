@@ -39,6 +39,7 @@ local config = require("shard.config")
 local tableKeyColumns = config.getAllTableKeyColumns()
 local shardingLookup = require("shard.shardingLookup")
 local proxy = proxy
+local tokens
 
 shardingLookup.init(config)
 
@@ -110,7 +111,6 @@ function warm_up()
         local s        = proxy.global.backends[index]
         local pool     = s.pool 
         local cur_idle = pool.users[user].cur_idle_connections
-        init_phase = pool.init_phase
         local min_idle_conns
         local max_idle_conns
         local connected_clients = s.connected_clients
@@ -140,6 +140,7 @@ function warm_up()
             return proxy.PROXY_SEND_RESULT
         end
     end
+
 end
 
 --- 
@@ -302,8 +303,6 @@ function connect_server()
         end
     end
 
-    print("  [" .. proxy.connection.backend_ndx .. "] idle-conns below min-idle")
-
     -- fuzzy check which is not accurate
     if init_phase and total_available_conns < total_clients then
         is_passed_but_req_rejected = true
@@ -408,18 +407,13 @@ function read_query( packet )
     _combinedLimit.from = 0 
     _combinedLimit.rows = 0 
 
-    print("_total_queries_per_req:" .. _total_queries_per_req)
-    print("get sharding group")
     get_sharding_group(packet, groups)
-    print("sharding group num:" .. #groups)
     local shard_num = #groups
     for _, group in pairs(groups) do
         if shard_num > 1 then
             proxy.connection.shard_num = shard_num
             _combinedNumberOfQueries = _combinedNumberOfQueries + 1
         end
-        print("sharding group name:" .. tostring(group))
-        print("here ,_total_queries_per_req:" .. _total_queries_per_req)
         local result = dispose_one_query(packet, group)
         if result == proxy.PROXY_SEND_RESULT then
             return proxy.PROXY_SEND_RESULT
@@ -434,7 +428,7 @@ function get_sharding_group(packet, groups)
     _query = packet:sub(2)
 
     if packet:byte() == proxy.COM_QUERY then
-        local tokens = tokenizer.tokenize(_query)
+        tokens = tokenizer.tokenize(_query)
         local _queryAnalyzer = queryAnalyzer.QueryAnalyzer.create(tokens, tableKeyColumns)
         local success, errorMessage = pcall(_queryAnalyzer.analyze, _queryAnalyzer)
         if (success) then
@@ -492,10 +486,8 @@ function dispose_one_query( packet, group )
     local charset_client 
     local charset_connection
     local charset_results
-    local tokens
     local base = _total_queries_per_req
 
-    print("init base:" .. base)
     if is_prepared then
         ps_cnt = proxy.connection.valid_parallel_stmt_cnt
     end
@@ -894,7 +886,6 @@ function dispose_one_query( packet, group )
 
     if backend_ndx == 0 then
         local rw_backend_ndx = lb.idle_failsafe_rw(group)
-        print("rw_backend_ndx:" .. rw_backend_ndx)
         if rw_backend_ndx <= 0 and proxy.global.config.rwsplit.is_slave_write_forbidden_set then
             local ro_backend_ndx = lb.idle_ro(group)
             if ro_backend_ndx > 0 then
@@ -907,7 +898,6 @@ function dispose_one_query( packet, group )
         end
     end
 
-    print("proxy.connection.backend_ndx:" .. proxy.connection.backend_ndx)
     -- by now we should have a backend
     --
     -- in case the master is down, we have to close the client connections
@@ -948,9 +938,9 @@ function dispose_one_query( packet, group )
     if is_debug then
         print("    cmd type:" .. cmd.type)
         if conn_reserved then
-            print(" connection reserved")
+            print("    connection reserved")
         else
-            print(" connection not reserved")
+            print("    connection not reserved")
         end
     end
 
@@ -1161,7 +1151,6 @@ function dispose_one_query( packet, group )
     end
 
     if (proxy.connection.shard_num > 1) then
-        print("base:" .. base)
         proxy.connection.shard_server = base
     end
     return proxy.PROXY_SEND_QUERY
@@ -1240,7 +1229,6 @@ function read_query_result( inj )
                     end
                 else
                     if not is_prepared and _combinedNumberOfQueries == 0 then
-                        print("*************************")
                         proxy.connection.client.is_server_conn_reserved = false
                     end
                 end
@@ -1277,8 +1265,6 @@ function disconnect_client()
     end
 
     proxy.global.stat_clients = proxy.global.stat_clients - 1
-
-    print("total clients:" .. proxy.global.stat_clients)
 
     if not is_backend_conn_keepalive or is_in_transaction or not is_auto_commit then 
         if is_debug then
@@ -1381,6 +1367,7 @@ function _buildUpCombinedResultSet(inj)
                 }
             end
             multiple_server_mode = false
+            tokens = nil
             return proxy.PROXY_SEND_RESULT
         end
         -- Ignore all result sets until we are at the last one

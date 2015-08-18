@@ -421,7 +421,9 @@ function get_sharding_group(packet, groups)
         local _queryAnalyzer = queryAnalyzer.QueryAnalyzer.create(tokens, tableKeyColumns)
         local success, errorMessage = pcall(_queryAnalyzer.analyze, _queryAnalyzer)
         if (success) then
+            utils.debug("--- check isPartitioningNeeded")
             if (_queryAnalyzer:isPartitioningNeeded()) then
+                utils.debug("--- check isFullPartitionScanNeeded")
                 if (_queryAnalyzer:isFullPartitionScanNeeded()) then
                     utils.debug("--- full scan '" .. _query .. "'")
                     local tableName = _queryAnalyzer:getAffectedTables()[1]
@@ -445,6 +447,8 @@ function get_sharding_group(packet, groups)
                     end
                 end
             end
+        else
+            utils.debug("error:" .. errorMessage)
         end
     end
 
@@ -857,19 +861,13 @@ function dispose_one_query( packet, group )
         end
     end
 
-    print("   check for server for sharding, back index:" .. backend_ndx)
     if backend_ndx > 0 then
         local b = proxy.global.backends[backend_ndx]
         if b.group ~= group then
             backend_ndx = lb.choose_rw_backend_ndx(group)
-            print("    switch to backend ndx:" .. backend_ndx)
             proxy.connection.change_server = backend_ndx
-            print("    now backend ndx:" .. proxy.connection.backend_ndx)
             backend_ndx = 0
             multiple_server_mode = true
-            if b.group ~= nil then
-                print("   origin group:" .. b.group)
-            end
         end
     end
 
@@ -1198,7 +1196,6 @@ function read_query_result( inj )
             type     = proxy.MYSQLD_PACKET_ERR,
             errmsg   = "012: Error: " .. result .. " Query: '" .. _query .. "'"
         }
-        print("error result")
         _combinedNumberOfQueries = 0
         return proxy.PROXY_SEND_RESULT
     end

@@ -169,10 +169,6 @@ function QueryAnalyzer:isFullPartitionScanNeeded()
     end
 
     return
-        not self._hasOrderBy
-        and
-        not self._hasGroupBy
-        and
         not self._hasIntoOutFile
         and
         not self._hasFunction
@@ -216,7 +212,7 @@ function QueryAnalyzer:analyze()
 	local tokenTextLc
     local isPastFromOrInto = false
 
-     utils.debug("BEGIN analyze ----------------------------------------------------------------------------")
+    utils.debug("BEGIN analyze ----------------------------------------------------------------------------")
     self:_normalizeQueryAndParseHints()
     for i = 1, #self._tokens do
         local token = self._tokens[i]
@@ -286,7 +282,6 @@ function QueryAnalyzer:analyze()
 		elseif (
 		    self._isDml
 		    and (isPastFromOrInto or self._statementType == "UPDATE" or self._statementType == "TRUNCATE")
-		    and not self._hasOrderBy
 		) then
 		    -- We are within a CRUD statement
 			if (tokenName == "TK_LITERAL") then
@@ -322,18 +317,19 @@ function QueryAnalyzer:analyze()
                          utils.debug("Testing table/column " .. tableName .. "/" .. column, 2)
         		        if (tokenTextLc == column and self._tableToAlias[tableName]) then
         		            -- We have found a partition key if the next token is TK_EQ and the following is TK_LITERAL
-                             utils.debug("#self._tokens = " .. i .. "/" .. #self._tokens, 3)
-                            assert(#self._tokens >= i + 2, "Invalid query near '" .. tokenText .. "' - too few tokens.")
-                            local valueToken = self._tokens[i + 2]
-                            utils.debug("Next two tokens: " .. self._tokens[i + 1].token_name .. " - " .. valueToken.token_name, 3)
-                            if (self._shard_type == 0) then
-                                if (self._tokens[i + 1].token_name == "TK_EQ") then
-                                    utils.debug("Found partition key '" .. valueToken.text .. "' for table '" .. tableName .. "'", 4)
-                                    self:_setPartitionTableKey(tableName, valueToken, self._tokens[i + 3])
+                            utils.debug("#self._tokens = " .. i .. "/" .. #self._tokens, 3)
+                            if #self._tokens >= (i + 2) then
+                                local valueToken = self._tokens[i + 2]
+                                utils.debug("Next two tokens: " .. self._tokens[i + 1].token_name .. " - " .. valueToken.token_name, 3)
+                                if (self._shard_type == 0) then
+                                    if (self._tokens[i + 1].token_name == "TK_EQ") then
+                                        utils.debug("Found partition key '" .. valueToken.text .. "' for table '" .. tableName .. "'", 4)
+                                        self:_setPartitionTableKey(tableName, valueToken, self._tokens[i + 3])
+                                    end
+                                elseif (self._shard_type == 1) then
+                                    self:_setRangePartitionTableKey(tableName, valueToken, 
+                                    self._tokens[i + 1].token_name, self._tokens[i + 3])
                                 end
-                            elseif (self._shard_type == 1) then
-                                self:_setRangePartitionTableKey(tableName, valueToken, 
-                                self._tokens[i + 1].token_name, self._tokens[i + 3])
                             end
         		        end
         		    end
@@ -345,7 +341,7 @@ function QueryAnalyzer:analyze()
                     -- This is a table we know
                     local tableAlias = self._tokens[i + 1].text
                     self:_setTableFound(lastTokenTextLc, tableAlias)
-                     utils.debug("Table alias found for table '" .. lastTokenText .. "' = '" .. tableAlias .. "'", 1)
+                    utils.debug("Table alias found for table '" .. lastTokenText .. "' = '" .. tableAlias .. "'", 1)
                 end
             elseif (tokenName == "TK_DOT" and lastTokenName == "TK_LITERAL") then
                 -- A dot might mean that we are accessing an aliased column

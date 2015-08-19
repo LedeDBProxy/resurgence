@@ -234,7 +234,7 @@ function QueryAnalyzer:analyze()
 		elseif (tokenName == "TK_SQL_ORDER") then
             self._hasOrderBy = true
 		elseif (tokenName == "TK_SQL_BY") then
-            if (i < #self._tokens) then
+            if (i < #self._tokens and lastTokenName == "TK_SQL_ORDER") then
                 self._order_by_column = self._tokens[i + 1].text
                 utils.debug("order by column:" .. self._order_by_column)
             end

@@ -1288,8 +1288,6 @@ function _getFields(resultSet)
                 }
             )
 
-            print("type:" .. fields[fieldCount].type)
-            print("name:" .. fields[fieldCount].name)
             fieldCount = fieldCount + 1
         end
     end
@@ -1300,7 +1298,7 @@ local orderByType = "asc"
 local orderByIndex = 1
 
 function fcompare(a, b)
-    local col_type = _combinedResultSet.fields[orderByIndex]
+    local col_type = _combinedResultSet.fields[orderByIndex].type
     if orderByType == "desc" then
         if col_type ~= 3 then
             return a[orderByIndex] > b[orderByIndex]

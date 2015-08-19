@@ -413,6 +413,8 @@ function read_query( packet )
 end
 
 
+local orderByColumn
+
 function get_sharding_group(packet, groups)
     _query = packet:sub(2)
 
@@ -421,6 +423,7 @@ function get_sharding_group(packet, groups)
         local _queryAnalyzer = queryAnalyzer.QueryAnalyzer.create(tokens, tableKeyColumns)
         local success, errorMessage = pcall(_queryAnalyzer.analyze, _queryAnalyzer)
         if (success) then
+            orderByColumn = _queryAnalyzer:order_by_column()
             utils.debug("--- check isPartitioningNeeded")
             if (_queryAnalyzer:isPartitioningNeeded()) then
                 utils.debug("--- check isFullPartitionScanNeeded")
@@ -1285,10 +1288,32 @@ function _getFields(resultSet)
                 }
             )
 
+            print("type:" .. fields[fieldCount].type)
+            print("name:" .. fields[fieldCount].name)
             fieldCount = fieldCount + 1
         end
     end
     return newFields
+end
+
+local orderByType = "asc"
+local orderByIndex = 1
+
+function fcompare(a, b)
+    local col_type = _combinedResultSet.fields[orderByIndex]
+    if orderByType == "desc" then
+        if col_type ~= 3 then
+            return a[orderByIndex] > b[orderByIndex]
+        else
+            return tonumber(a[orderByIndex]) > tonumber(b[orderByIndex])
+        end
+    else
+        if col_type ~= 3  then
+            return a[orderByIndex] < b[orderByIndex]
+        else
+            return tonumber(a[orderByIndex]) < tonumber(b[orderByIndex])
+        end
+    end
 end
 
 -- Aggregate the different result sets.
@@ -1341,6 +1366,18 @@ function _buildUpCombinedResultSet(inj)
         if (_combinedNumberOfQueries == 0) then
             -- This has been the last result set - send all back to client
             if (_combinedResultSet.fields) then
+                if (orderByColumn ~= nil) then
+                    local i
+                    for i = 1, #_combinedResultSet.fields do
+                        print("field name:" .. _combinedResultSet.fields[i].name)
+                        print("order by column:" .. orderByColumn)
+                        if (_combinedResultSet.fields[i].name == orderByColumn) then
+                            orderByIndex = i
+                            break
+                        end
+                    end
+                    table.sort(_combinedResultSet.rows, fcompare)
+                end
                 proxy.response.type = proxy.MYSQLD_PACKET_OK
                 proxy.response.resultset = _combinedResultSet
             else

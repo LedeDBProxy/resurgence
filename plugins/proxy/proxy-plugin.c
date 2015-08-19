@@ -713,8 +713,8 @@ NETWORK_MYSQLD_PLUGIN_PROTO(proxy_read_auth) {
  	packet.data = g_queue_peek_tail(recv_sock->recv_queue->chunks);
 	packet.offset = 0;
 
-	err = err || network_mysqld_proto_skip_network_header(&packet);
-	if (err) return NETWORK_SOCKET_ERROR;
+	/*err = err || network_mysqld_proto_skip_network_header(&packet);
+	if (err) return NETWORK_SOCKET_ERROR;*/
 
 	/* assume that we may get called twice:
 	 *
@@ -744,31 +744,7 @@ NETWORK_MYSQLD_PLUGIN_PROTO(proxy_read_auth) {
 
 		g_string_assign_len(con->client->default_db, S(auth->database));
 
-		/* client and server support auth-plugins and the client uses
-		 * win-auth, we may have more data to read from the client
-		 */
-		if ((auth->server_capabilities & CLIENT_PLUGIN_AUTH) &&
-		    (auth->client_capabilities & CLIENT_PLUGIN_AUTH) &&
-		    (strleq(S(auth->auth_plugin_name), C("authentication_windows_client"))) &&
-		    (auth->auth_plugin_data->len == 255)) {
-#if 1
-			/**
-			 * FIXME: the 2-packet win-auth protocol enhancements aren't properly tested yet.
-			 * therefore they are disabled for now.
-			 */
-			g_string_free(g_queue_pop_head(con->client->recv_queue->chunks), TRUE);
-
-			network_mysqld_con_send_error(con->client, C("long packets for windows-authentication aren't completely handled yet. Please use another auth-method for now."));
-
-			return NETWORK_SOCKET_ERROR;
-#else
-
-			got_all_data = FALSE; /* strip the last byte as it is used for extra signaling that we should ignore */
-			g_string_truncate(auth->auth_plugin_data, auth->auth_plugin_data->len - 1);
-#endif
-		} else {
-			got_all_data = TRUE;
-		}
+	    got_all_data = TRUE;
 	} else {
 		GString *auth_data;
 		gsize auth_data_len;
@@ -835,7 +811,12 @@ NETWORK_MYSQLD_PLUGIN_PROTO(proxy_read_auth) {
 			 * that leaves temp-tables on the connection.
 			 */
 			if (con->server->is_authed) {
-				if (config->pool_change_user) {
+                int need_change_user = 1;
+                /* if (strncmp(con->client->response->username->str, con->server->response->username->str,
+                            con->client->response->username->len) != 0) {
+                    need_change_user = 1;
+                } */
+				if (config->pool_change_user && need_change_user) {
 					GString *com_change_user = g_string_new(NULL);
 
 					/* copy incl. the nul */
@@ -852,9 +833,9 @@ NETWORK_MYSQLD_PLUGIN_PROTO(proxy_read_auth) {
 	                g_debug("sock:%p, change user, set charset:%s",con->client, charset[con->client->charset_code]);
 					/* network_mysqld_proto_append_int16(com_change_user, con->client->response->charset); */
 
-					if (con->client->challenge->capabilities & CLIENT_PLUGIN_AUTH) {
+					/*if (con->client->challenge->capabilities & CLIENT_PLUGIN_AUTH) {
 						g_string_append_len(com_change_user, con->client->response->auth_plugin_name->str, con->client->response->auth_plugin_name->len + 1);
-					}
+					}*/
 
 					network_mysqld_queue_append(
 							send_sock,

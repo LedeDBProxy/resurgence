@@ -21,6 +21,7 @@ function QueryAnalyzer.create(tokens, tableKeyColumns)
     self._shard_type = 1
     self._tableKeyRange= {}
     self._tableHints = {}
+    self._order_by_column = nil
 
     self._statementType = nil
     -- Is the statement SELECT, UPDATE, INSERT, REPLACE or DELETE?
@@ -77,6 +78,9 @@ function QueryAnalyzer:isDdl()
     return self._isDdl
 end
 
+function QueryAnalyzer:order_by_column()
+    return self._order_by_column
+end
 ---
 -- @return true if query was a misc query like DESCRIBE tbl_name or SHOW CREATE TABLE tbl_name
 function QueryAnalyzer:isMisc()
@@ -229,6 +233,11 @@ function QueryAnalyzer:analyze()
             self._hasWhere = true
 		elseif (tokenName == "TK_SQL_ORDER") then
             self._hasOrderBy = true
+		elseif (tokenName == "TK_SQL_BY") then
+            if (i < #self._tokens) then
+                self._order_by_column = self._tokens[i + 1].text
+                utils.debug("order by column:" .. self._order_by_column)
+            end
 		elseif (tokenName == "TK_FUNCTION") then
             self._hasFunction = true
 		elseif (tokenName == "TK_SQL_GROUP") then

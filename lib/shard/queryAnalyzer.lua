@@ -651,7 +651,16 @@ function QueryAnalyzer:_setPartitionTableKey(tableName, valueToken, nextToken)
             )
         end
         utils.debug("table name:" .. tableName .. ", partition key value:" .. valueToken.text)
-        self._tableKeyValues[tableName] = valueToken.text
+        if self._shard_type == 0 then
+            self._tableKeyValues[tableName] = valueToken.text
+        else
+            if self._tableKeyRange[tableName] == nil then
+                utils.debug("create ranger for table EQ :" .. tableName)
+                self._tableKeyRange[tableName] = ranger.Ranger.create()
+            end
+            utils.debug("add EQ item:" .. tableName .. ", key value:" .. valueToken.text)
+            self._tableKeyRange[tableName]:setRangeValue("TK_EQ", tonumber(valueToken.text))
+        end
     end
 end
 

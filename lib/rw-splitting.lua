@@ -399,6 +399,7 @@ function read_query( packet )
     get_sharding_group(packet, groups)
     local shard_num = #groups
     for _, group in pairs(groups) do
+        utils.debug("     group name:'" .. group .. "'")
         if shard_num > 1 then
             proxy.connection.shard_num = shard_num
             _combinedNumberOfQueries = _combinedNumberOfQueries + 1

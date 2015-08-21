@@ -2138,7 +2138,7 @@ NETWORK_MYSQLD_PLUGIN_PROTO(proxy_disconnect_client) {
 	} else if (st->backend) {
 		/* we have backend assigned and want to close the connection to it */
 		st->backend->connected_clients--;
-		g_debug("%s.%d: %s:%d", __FILE__, __LINE__, "connected_clients is subtraced, now value", 
+		g_debug("%s.%d: %s:%d", __FILE__, __LINE__, "connected_clients is subtracted, now value", 
                 st->backend->connected_clients);
 	}
 

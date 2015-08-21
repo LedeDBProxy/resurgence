@@ -56,7 +56,7 @@ end
 --- 
 -- @return true if the query analyzed should be handled (i.e. a partition table has been found)
 function QueryAnalyzer:isPartitioningNeeded()
-    utils.debug("<<< AffectedTables size:" .. #self:getAffectedTables())
+    utils.debug("<<< AffectedTables size:" .. #self:getAffectedTables(), 1)
     return #self:getAffectedTables() > 0
 end
 
@@ -169,7 +169,7 @@ end
 -- @return true if the query needs to be run against all partitions.
 function QueryAnalyzer:isFullPartitionScanNeeded()
     if (not self._isForceFullPartitionScan) then
-        utils.debug("_isForceFullPartitionScan false" )
+        utils.debug("_isForceFullPartitionScan false", 1)
     end
 
     return
@@ -216,14 +216,14 @@ function QueryAnalyzer:analyze()
 	local tokenTextLc
     local isPastFromOrInto = false
 
-    utils.debug("BEGIN analyze ----------------------------------------------------------------------------")
+    utils.debug("BEGIN analyze ---------------------------------------------------------", 1)
     self:_normalizeQueryAndParseHints()
     for i = 1, #self._tokens do
         local token = self._tokens[i]
 		tokenName = token.token_name
 		tokenText = token.text
 		tokenTextLc = tokenText:lower()
-		 utils.debug("Token: " .. tokenName .. " = '" .. tokenText .. "'")
+		 utils.debug("Token: " .. tokenName .. " = '" .. tokenText .. "'", 2)
 
         -- Find out comments and unknown tokens
 		if (tokenName == "TK_SQL_JOIN" or tokenName == "TK_SQL_WHERE") then
@@ -387,7 +387,7 @@ function QueryAnalyzer:analyze()
             lastTokenTextLc = tokenTextLc
         end
 
-     utils.debug("END analyze ----------------------------------------------------------------------------")
+     utils.debug("END analyze -------------------------------------------------------", 1)
 
     -- Hints take precedence
     for tableName, partitionKey in pairs(self._tableHints) do
@@ -458,7 +458,7 @@ function QueryAnalyzer:_parseDdl()
 		tokenName = token.token_name
 		tokenText = token.text
 		tokenTextLc = tokenText:lower()
-		 utils.debug("Token: " .. tokenName .. " = '" .. tokenText .. "'", 1)
+		 utils.debug("Token: " .. tokenName .. " = '" .. tokenText .. "'", 2)
         if (
             (lastTokenName == "TK_SQL_TABLE")
             or
@@ -520,7 +520,7 @@ function QueryAnalyzer:_parseShow()
 		tokenName = token.token_name
 		tokenText = token.text
 		tokenTextLc = tokenText:lower()
-		 utils.debug("Token: " .. tokenName .. " = '" .. tokenText .. "'", 1)
+		 utils.debug("Token: " .. tokenName .. " = '" .. tokenText .. "'", 2)
 		if (
 		    (lastTokenName == "TK_SQL_CREATE" and tokenName == "TK_SQL_TABLE") -- SHOW CREATE TABLE
 		    or (lastTokenName == "TK_LITERAL" and lastTokenTextLc == "columns" and tokenName == "TK_SQL_FROM") -- SHOW COLUMNS FROM
@@ -583,7 +583,7 @@ function QueryAnalyzer:_parseInsert()
 		tokenName = token.token_name
 		tokenText = token.text
 		tokenTextLc = tokenText:lower()
-		 utils.debug("Token: " .. tokenName .. " = '" .. tokenText .. "'")
+		 utils.debug("Token: " .. tokenName .. " = '" .. tokenText .. "'", 2)
         if (lastTokenName == "TK_SQL_INTO") then
             tableName = tokenTextLc
         elseif (tokenName == "TK_OBRACE") then
@@ -721,11 +721,11 @@ end
 function QueryAnalyzer:_normalizeQueryAndParseHints()
     local result = {}
     local tokenName = nil
-    utils.debug("Parsing tokens for comments and hints...")
+    utils.debug("Parsing tokens for comments and hints...", 1)
     for i = 1, #self._tokens do
         local token = self._tokens[i]
 	    tokenName = token.token_name
-		 utils.debug("Token: " .. tokenName .. " = '" .. token.text .. "'", 1)
+		 utils.debug("Token: " .. tokenName .. " = '" .. token.text .. "'", 2)
 		if (tokenName == "TK_COMMENT") then
             local _, _, tableName, partitionKey = string.find(token.text, 
                                         "sharding.partitionKey%s*%(%s*(.-)%s*%)%s*=%s'(.*)'")

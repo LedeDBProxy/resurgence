@@ -71,7 +71,8 @@ if not proxy.global.config.rwsplit then
         default_user = "",
         default_index = 1,
         is_warn_up = false,
-        is_debug = true,
+        is_sharding_mode = false,
+        is_conn_reset_supported = false,
         is_slave_write_forbidden_set = false
     }
 end
@@ -93,10 +94,7 @@ local last_group = nil
 local is_in_select_calc_found_rows = false
 
 function warm_up()
-    --local is_debug = proxy.global.config.rwsplit.is_debug
-    if is_debug then
-        print("[connect_server] " .. proxy.connection.client.src.name)
-    end
+    utils.debug("[connect_server] " .. proxy.connection.client.src.name)
 
     if not proxy.global.stat_clients then
         proxy.global.stat_clients = 0
@@ -118,15 +116,13 @@ function warm_up()
         min_idle_conns = proxy.global.config.rwsplit.min_idle_connections
         max_idle_conns = proxy.global.config.rwsplit.max_idle_connections
 
-        if is_debug then
-            print("  [".. index .."].user = " .. user)
-            print("  [".. index .."].connected_clients = " .. connected_clients)
-            print("  [".. index .."].pool.cur_idle     = " .. cur_idle)
-            print("  [".. index .."].pool.max_idle     = " .. max_idle_conns)
-            print("  [".. index .."].pool.min_idle     = " .. min_idle_conns)
-            print("  [".. index .."].type = " .. s.type)
-            print("  [".. index .."].state = " .. s.state)
-        end
+        utils.debug("[".. index .."].user = " .. user, 1)
+        utils.debug("[".. index .."].connected_clients = " .. connected_clients, 1)
+        utils.debug("[".. index .."].pool.cur_idle     = " .. cur_idle, 1)
+        utils.debug("[".. index .."].pool.max_idle     = " .. max_idle_conns, 1)
+        utils.debug("[".. index .."].pool.min_idle     = " .. min_idle_conns, 1)
+        utils.debug("[".. index .."].type = " .. s.type, 1)
+        utils.debug("[".. index .."].state = " .. s.state, 1)
 
         -- prefer connections to the master 
         if (s.state == proxy.BACKEND_STATE_UP or
@@ -149,15 +145,12 @@ end
 -- as long as we don't have enough connections in the pool, create new connections
 --
 function connect_server() 
-    --local is_debug = proxy.global.config.rwsplit.is_debug
     -- make sure that we connect to each backend at least ones to 
     -- keep the connections to the servers alive
     --
     -- on read_query we can switch the backends again to another backend
 
-    if is_debug then
-        print("[connect_server] " .. proxy.connection.client.src.name)
-    end
+    utils.debug("[connect_server] " .. proxy.connection.client.src.name)
 
     if proxy.global.config.rwsplit.is_warn_up then
         return warm_up()
@@ -233,9 +226,7 @@ function connect_server()
         end
 
         if pool.stop_phase then
-            if is_debug then
-                print("  connection will be rejected")
-            end
+            utils.debug("connection will be rejected", 1)
             proxy.response = {
                 type = proxy.MYSQLD_PACKET_ERR,
                 errmsg = "001,proxy stops serving requests now"
@@ -243,15 +234,13 @@ function connect_server()
             return proxy.PROXY_SEND_RESULT
         end
 
-        if is_debug then
-            print("  [".. i .."].connected_clients = " .. connected_clients)
-            print("  [".. i .."].pool.cur_idle     = " .. cur_idle)
-            print("  [".. i .."].pool.max_idle     = " .. max_idle_conns)
-            print("  [".. i .."].pool.mid_idle     = " .. mid_idle_conns)
-            print("  [".. i .."].pool.min_idle     = " .. min_idle_conns)
-            print("  [".. i .."].type = " .. s.type)
-            print("  [".. i .."].state = " .. s.state)
-        end
+        utils.debug("[".. i .."].connected_clients = " .. connected_clients, 1)
+        utils.debug("[".. i .."].pool.cur_idle     = " .. cur_idle, 1)
+        utils.debug("[".. i .."].pool.max_idle     = " .. max_idle_conns, 1)
+        utils.debug("[".. i .."].pool.mid_idle     = " .. mid_idle_conns, 1)
+        utils.debug("[".. i .."].pool.min_idle     = " .. min_idle_conns, 1)
+        utils.debug("[".. i .."].type = " .. s.type, 1)
+        utils.debug("[".. i .."].state = " .. s.state, 1)
 
 
         -- prefer connections to the master 
@@ -276,9 +265,7 @@ function connect_server()
             rw_ndx == 0 then
             if cur_idle == 0 and connected_clients >= max_idle_conns then
                 if init_phase then 
-                    if is_debug then
-                        print("  connection will be rejected because init phase")
-                    end
+                    utils.debug("connection will be rejected because init phase", 1)
                     proxy.response = {
                         type = proxy.MYSQLD_PACKET_ERR,
                         errmsg = "002,proxy stops serving requests now"
@@ -295,18 +282,14 @@ function connect_server()
     -- fuzzy check which is not accurate
     if init_phase and cur_idle <= min_idle_conns and total_available_conns < total_clients then
         is_passed_but_req_rejected = true
-        if is_debug then
-            print("  total available conn:" .. total_available_conns .. ",total clients:" .. total_clients)
-            print("  is_passed_but_req_rejected set true")
-        end
+        utils.debug("total avail conn:" .. total_available_conns .. ",total clients:" .. total_clients, 1)
+        utils.debug("is_passed_but_req_rejected set true", 1)
     else
         is_passed_but_req_rejected = false
     end
 
     if proxy.connection.backend_ndx == 0 then
-        if is_debug then
-        	print("  [" .. rw_ndx .. "] taking master as default")
-        end
+        utils.debug("[" .. rw_ndx .. "] taking master as default", 1)
         proxy.connection.backend_ndx = rw_ndx
     else
         is_backend_conn_keepalive = true
@@ -320,9 +303,7 @@ function connect_server()
     -- ok, did we got a backend ?
 
     if cur_idle > 0 and proxy.connection.server then 
-        --if is_debug then
-        --	print("  using pooled connection from: " .. proxy.connection.backend_ndx)
-        --end
+        utils.debug("using pooled connection from: " .. proxy.connection.backend_ndx, 1)
         local backend_state = proxy.global.backends[proxy.connection.backend_ndx].state
         if backend_state == proxy.BACKEND_STATE_UP then
             use_pool_conn = true
@@ -331,9 +312,7 @@ function connect_server()
         end
     end
 
-    if is_debug then
-    	print("  [" .. proxy.connection.backend_ndx .. "] idle-conns below min-idle")
-    end
+  	utils.debug("[" .. proxy.connection.backend_ndx .. "] idle-conns below min-idle", 1)
 
     -- open a new connection 
 end
@@ -345,35 +324,28 @@ end
 --
 -- auth.packet is the packet
 function read_auth_result( auth )
-    local is_debug = proxy.global.config.rwsplit.is_debug
+    utils.debug("[read_auth_result] " .. proxy.connection.client.src.name)
+    utils.debug("using connection from: " .. proxy.connection.backend_ndx, 1)
+    utils.debug("server address: " .. proxy.connection.server.dst.name, 1)
+    utils.debug("server charset: " .. proxy.connection.server.character_set_client, 1)
 
-    if is_debug then
-        print("[read_auth_result] " .. proxy.connection.client.src.name)
-        print("  using connection from: " .. proxy.connection.backend_ndx)
-        print("  server address: " .. proxy.connection.server.dst.name)
-        print("  server charset: " .. proxy.connection.server.character_set_client)
-    end
     if auth.packet:byte() == proxy.MYSQLD_PACKET_OK then
         -- auth was fine, disconnect from the server
         if not use_pool_conn and is_backend_conn_keepalive then
             proxy.connection.backend_ndx = 0
         else
-            if is_debug then
-                print("  no need to put the connection to pool ... ok")
-            end
+            utils.debug("no need to put the connection to pool ... ok", 1)
         end
-        if is_debug then
-            print("  (read_auth_result) ... ok")
-        end
+        utils.debug("(read_auth_result) ... ok", 1)
     elseif auth.packet:byte() == proxy.MYSQLD_PACKET_EOF then
         -- we received either a 
         -- 
         -- * MYSQLD_PACKET_ERR and the auth failed or
         -- * MYSQLD_PACKET_EOF which means a OLD PASSWORD (4.0) was sent
-        print("  (read_auth_result) ... not ok yet")
+        utils.debug("(read_auth_result) ... not ok yet", 1)
     elseif auth.packet:byte() == proxy.MYSQLD_PACKET_ERR then
         -- auth failed
-        print("  (read_auth_result) ... auth failed")
+        utils.debug("(read_auth_result) ... auth failed", 1)
     end
 end
 
@@ -383,31 +355,36 @@ local _buildUpCombinedResultSet
 local _getFields
 
 function read_query( packet )
-    local groups = {}
-    _combinedResultSet = {}
-    _combinedResultSet.fields = nil 
-    _combinedResultSet.rows = nil 
-    _combinedResultSet.affected_rows = 0 
-    _combinedNumberOfQueries = 0 
     _total_queries_per_req = 0
-    _combinedLimit = {}
-    _combinedLimit.rowsProcessed = 0 
-    _combinedLimit.rowsSent = 0 
-    _combinedLimit.from = 0 
-    _combinedLimit.rows = 0 
 
-    get_sharding_group(packet, groups)
-    local shard_num = #groups
-    for _, group in pairs(groups) do
-        utils.debug("     group name:'" .. group .. "'")
-        if shard_num > 1 then
-            proxy.connection.shard_num = shard_num
-            _combinedNumberOfQueries = _combinedNumberOfQueries + 1
+    if proxy.global.config.rwsplit.is_sharding_mode then
+        local groups = {}
+        _combinedResultSet = {}
+        _combinedResultSet.fields = nil 
+        _combinedResultSet.rows = nil 
+        _combinedResultSet.affected_rows = 0 
+        _combinedNumberOfQueries = 0 
+        _combinedLimit = {}
+        _combinedLimit.rowsProcessed = 0 
+        _combinedLimit.rowsSent = 0 
+        _combinedLimit.from = 0 
+        _combinedLimit.rows = 0 
+
+        get_sharding_group(packet, groups)
+        local shard_num = #groups
+        for _, group in pairs(groups) do
+            utils.debug("group name:'" .. group .. "'", 1)
+            if shard_num > 1 then
+                proxy.connection.shard_num = shard_num
+                _combinedNumberOfQueries = _combinedNumberOfQueries + 1
+            end
+            local result = dispose_one_query(packet, group)
+            if result == proxy.PROXY_SEND_RESULT then
+                return proxy.PROXY_SEND_RESULT
+            end
         end
-        local result = dispose_one_query(packet, group)
-        if result == proxy.PROXY_SEND_RESULT then
-            return proxy.PROXY_SEND_RESULT
-        end
+    else
+        dispose_one_query(packet, "default")
     end
 
     return proxy.PROXY_SEND_QUERY
@@ -425,25 +402,25 @@ function get_sharding_group(packet, groups)
         local success, errorMessage = pcall(_queryAnalyzer.analyze, _queryAnalyzer)
         if (success) then
             orderByColumn = _queryAnalyzer:order_by_column()
-            utils.debug("--- check isPartitioningNeeded")
+            utils.debug("--- check isPartitioningNeeded", 1)
             if (_queryAnalyzer:isPartitioningNeeded()) then
-                utils.debug("--- check isFullPartitionScanNeeded")
+                utils.debug("--- check isFullPartitionScanNeeded", 1)
                 if (_queryAnalyzer:isFullPartitionScanNeeded()) then
-                    utils.debug("--- full scan '" .. _query .. "'")
+                    utils.debug("--- full scan '" .. _query .. "'", 1)
                     local tableName = _queryAnalyzer:getAffectedTables()[1]
                     stats.incFullPartitionScans(tableName)
                     _combinedLimit.from, _combinedLimit.rows = _queryAnalyzer:getLimit()
                     shardingLookup.getAllShardingGroups(tableName, groups)
                 else
-                    utils.debug("--- not full scan '" .. _query .. "'")
+                    utils.debug("--- not full scan '" .. _query .. "'", 1)
                     if _queryAnalyzer:getShardType() == 0 then
                         for tableName, key in pairs(_queryAnalyzer:getTableKeyValues()) do
                             local group = shardingLookup.getShardingGroupByHash(tableName, key)
-                            print("group chosen:" .. group)
+                            utils.debug("group chosen:" .. group, 1)
                             table.insert(groups, group)
                         end
                     else
-                        utils.debug("--- range sharding '" .. _query .. "'")
+                        utils.debug("--- range sharding '" .. _query .. "'", 1)
                         _combinedLimit.from, _combinedLimit.rows = _queryAnalyzer:getLimit()
                         for tableName, range in pairs(_queryAnalyzer:getTableKeyRange()) do
                             shardingLookup.getShardingGroupByRange(tableName, range, groups)
@@ -452,7 +429,7 @@ function get_sharding_group(packet, groups)
                 end
             end
         else
-            utils.debug("error:" .. errorMessage)
+            utils.debug("error:" .. errorMessage, 1)
         end
     end
 
@@ -465,7 +442,6 @@ end
 --- 
 -- read/write splitting
 function dispose_one_query( packet, group )
-    local is_debug = proxy.global.config.rwsplit.is_debug
     local cmd      = commands.parse(packet)
     local c        = proxy.connection.client
     local ps_cnt   = 0
@@ -484,6 +460,7 @@ function dispose_one_query( packet, group )
     local charset_connection
     local charset_results
     local base = _total_queries_per_req
+    local client_quit_need_sent = false
 
     if is_prepared then
         ps_cnt = proxy.connection.valid_parallel_stmt_cnt
@@ -502,9 +479,7 @@ function dispose_one_query( packet, group )
                     backend_ndx = rw_backend_ndx
                     proxy.connection.backend_ndx = backend_ndx
                 else
-                    if is_debug then
-                        print("  [no rw connections yet")
-                    end
+                    utils.debug("  [no rw connections yet", 1)
                     proxy.response = {
                         type = proxy.MYSQLD_PACKET_ERR,
                         errmsg = "003,master connections are too small"
@@ -521,9 +496,7 @@ function dispose_one_query( packet, group )
         end
 
         if b.pool.stop_phase then
-            if is_debug then
-                print("  stop serving requests")
-            end
+            utils.debug("  stop serving requests", 1)
             proxy.response = {
                 type = proxy.MYSQLD_PACKET_ERR,
                 errmsg = "005,proxy stops serving requests now"
@@ -533,15 +506,13 @@ function dispose_one_query( packet, group )
     end
 
     -- looks like we have to forward this statement to a backend
-    if is_debug then
-        print("[read_query] " .. proxy.connection.client.src.name)
-        print("  current backend   = " .. backend_ndx)
-        print("  client default db = " .. c.default_db)
-        print("  client username   = " .. c.username)
-        print("  cmd type = " .. cmd.type)
-        if cmd.type == proxy.COM_QUERY then 
-            print("  query             = "        .. cmd.query)
-        end
+    utils.debug("[read_query] " .. proxy.connection.client.src.name)
+    utils.debug("current backend   = " .. backend_ndx, 1)
+    utils.debug("client default db = " .. c.default_db, 1)
+    utils.debug("client username   = " .. c.username, 1)
+    utils.debug("cmd type = " .. cmd.type, 1)
+    if cmd.type == proxy.COM_QUERY then 
+        utils.debug("query = "        .. cmd.query, 1)
     end
 
     if cmd.type == proxy.COM_QUIT then
@@ -552,12 +523,18 @@ function dispose_one_query( packet, group )
             --	type = proxy.MYSQLD_PACKET_OK,
             -- }
 
-            if is_debug then
-                print("  valid_parallel_stmt_cnt:" .. ps_cnt)
-                print("  (QUIT) current backend   = " .. backend_ndx)
-            end
+            utils.debug("valid_parallel_stmt_cnt:" .. ps_cnt, 1)
+            utils.debug("(QUIT) current backend   = " .. backend_ndx, 1)
 
-            return proxy.PROXY_SEND_NONE
+            if proxy.global.config.rwsplit.is_conn_reset_supported then
+                proxy.queries:prepend_after_nth(cmd.type, base, string.char(31), 
+                             { resultset_is_needed = true } )
+                _total_queries_per_req = _total_queries_per_req + 1
+            else
+                return proxy.PROXY_SEND_NONE
+            end
+        else
+            client_quit_need_sent = true
         end
     end
 
@@ -573,9 +550,7 @@ function dispose_one_query( packet, group )
                 backend_ndx = rw_backend_ndx
                 proxy.connection.backend_ndx = backend_ndx
             else
-                if is_debug then
-                    print("  [no rw connections yet")
-                end
+                utils.debug("[no rw connections yet", 1)
                 proxy.response = {
                     type = proxy.MYSQLD_PACKET_ERR,
                     errmsg = "006,master connections are too small"
@@ -604,8 +579,8 @@ function dispose_one_query( packet, group )
                 local token = tokens[i]
                 -- SQL_CALC_FOUND_ROWS + FOUND_ROWS() have to be executed
                 -- on the same connection
-                -- print("token: " .. token.token_name)
-                -- print("  val: " .. token.text)
+                utils.debug("token: " .. token.token_name, 1)
+                utils.debug("  val: " .. token.text, 1)
 
                 if not is_in_select_calc_found_rows and token.token_name == "TK_SQL_SQL_CALC_FOUND_ROWS" then
                     is_in_select_calc_found_rows = true
@@ -633,16 +608,12 @@ function dispose_one_query( packet, group )
                     backend_ndx = ro_backend_ndx
                     proxy.connection.backend_ndx = backend_ndx
 
-                    if is_debug then
-                        print("  [use ro server: " .. backend_ndx .. "]")
-                    end
+                    utils.debug("[use ro server: " .. backend_ndx .. "]", 1)
                 end
 
             else
                 conn_reserved = true
-                if is_debug then
-                    print("  [this select statement should use the same connection] ")
-                end
+                utils.debug("[this select statement should use the same connection] ", 1)
             end
 
         else 
@@ -683,9 +654,7 @@ function dispose_one_query( packet, group )
                                     elseif token.text == "autocommit" then
                                         if nxt_nxt_token.text == "0" then
                                             is_auto_commit = false
-                                            if is_debug then
-                                                print("  [set is_auto_commit false]" )
-                                            end
+                                            utils.debug("[set is_auto_commit false]", 1)
                                             if ro_server == true then
                                                 local rw_backend_ndx = lb.idle_failsafe_rw(group)
                                                 if rw_backend_ndx > 0 then
@@ -698,9 +667,7 @@ function dispose_one_query( packet, group )
                                             is_auto_commit = true
                                         end
                                     elseif token.text == "sql_mode" then
-                                        if is_debug then
-                                            print("   sql mode:" .. nxt_nxt_token.text)
-                                        end
+                                        utils.debug("   sql mode:" .. nxt_nxt_token.text, 1)
                                         proxy.connection.client.sql_mode = nxt_nxt_token.text
                                         sql_mode_set = true
                                     end
@@ -726,9 +693,7 @@ function dispose_one_query( packet, group )
                             c.default_db = tokens[2].text
                         end
                     end
-                    if is_debug then
-                        print("  [use ro server: " .. backend_ndx .. "]")
-                    end
+                    utils.debug("[use ro server: " .. backend_ndx .. "]", 1)
                 end
             end
         end
@@ -738,19 +703,13 @@ function dispose_one_query( packet, group )
             if rw_backend_ndx > 0 then
                 backend_ndx = rw_backend_ndx
                 proxy.connection.backend_ndx = backend_ndx
-                if is_debug then
-                    print("  [use rw server:" .. backend_ndx .."]")
-                end
+                utils.debug("[use rw server:" .. backend_ndx .."]", 1)
                 if ps_cnt > 0 then 
                     multiple_server_mode = true
-                    if is_debug then
-                        print("  [set multiple_server_mode true in complex env]")
-                    end
+                    utils.debug("[set multiple_server_mode true in complex env]", 1)
                 end
             else
-                if is_debug then
-                    print("  [no rw connections yet")
-                end
+                utils.debug("[no rw connections yet", 1)
                 proxy.response = {
                     type = proxy.MYSQLD_PACKET_ERR,
                     errmsg = "007, master connections are too small"
@@ -773,9 +732,7 @@ function dispose_one_query( packet, group )
                         if token.text == "autocommit" then
                             if nxt_token.text == "1" then
                                 is_auto_commit = true
-                                if is_debug then
-                                    print("  [set is_auto_commit true after trans]" )
-                                end
+                                utils.debug("[set is_auto_commit true after trans]", 1)
                             end
                         end
                     end
@@ -785,24 +742,20 @@ function dispose_one_query( packet, group )
             end
 
             conn_reserved = true
-            if is_debug then
-                print("  [transaction statement, should use the same connection] ")
-            end
+            utils.debug("[transaction statement, should use the same connection]", 1)
 
         else
             if cmd.type == proxy.COM_STMT_PREPARE then
                 is_prepared = true
                 conn_reserved = true
-                if is_debug then
-                    print("  [prepare statement], cmd:" .. cmd.query)
-                end
+                utils.debug("[prepare statement], cmd:" .. cmd.query, 1)
                 tokens = tokens or assert(tokenizer.tokenize(cmd.query))
                 local stmt = tokenizer.first_stmt_token(tokens)
 
                 for i = 1, #tokens do
                     local token = tokens[i]
-                    print("token: " .. token.token_name)
-                    print("  val: " .. token.text)
+                    utils.debug("token: " .. token.token_name, 1)
+                    utils.debug("  val: " .. token.text, 1)
                 end
 
                 local session_read_only = 0
@@ -812,9 +765,7 @@ function dispose_one_query( packet, group )
                     for i = 2, #tokens do
                         local token = tokens[i]
                         if (token.token_name == "TK_COMMENT") then
-                            if is_debug then
-                                print("  [check trans for ps]")
-                            end
+                            utils.debug("[check trans for ps]", 1)
                             local _, _, in_trans = string.find(token.text, "in_trans=%s*(%d)")
                             if in_trans ~= 0 then
                                 is_in_transaction = true
@@ -829,9 +780,7 @@ function dispose_one_query( packet, group )
                             backend_ndx = ro_backend_ndx
                             proxy.connection.backend_ndx = backend_ndx
 
-                            if is_debug then
-                                print("  [use ro server: " .. backend_ndx .. "]")
-                            end
+                            utils.debug("[use ro server: " .. backend_ndx .. "]", 1)
                         end
                     end
                 end
@@ -843,13 +792,9 @@ function dispose_one_query( packet, group )
                             multiple_server_mode = true
                             backend_ndx = rw_backend_ndx
                             proxy.connection.backend_ndx = backend_ndx
-                            if is_debug then
-                                print("  [set multiple_server_mode true]")
-                            end
+                            utils.debug("  [set multiple_server_mode true]", 1)
                         else
-                            if is_debug then
-                                print("  [no rw connections yet")
-                            end
+                            utils.debug("  [no rw connections yet", 1)
                             proxy.response = {
                                 type = proxy.MYSQLD_PACKET_ERR,
                                 errmsg = "008, master connections are too small"
@@ -901,8 +846,10 @@ function dispose_one_query( packet, group )
         return proxy.PROXY_SEND_RESULT
     end
 
-    proxy.queries:append_after_nth(cmd.type, base, packet, { resultset_is_needed = true } )
-    _total_queries_per_req = _total_queries_per_req + 1
+    if cmd.type ~= proxy.COM_QUIT or client_quit_need_sent then
+        proxy.queries:append_after_nth(cmd.type, base, packet, { resultset_is_needed = true } )
+        _total_queries_per_req = _total_queries_per_req + 1
+    end
     if cmd.type == proxy.COM_STMT_CLOSE and is_in_transaction then
         proxy.connection.is_still_in_trans = true
     end
@@ -910,15 +857,11 @@ function dispose_one_query( packet, group )
     -- attension: change stmt id after append the query
     if multiple_server_mode == true then
         if cmd.type == proxy.COM_STMT_EXECUTE or cmd.type == proxy.COM_STMT_CLOSE then
-            if is_debug then
-                print("    stmt id before change:" .. cmd.stmt_handler_id)
-            end
+            utils.debug("stmt id before change:" .. cmd.stmt_handler_id, 1)
             proxy.connection.change_server_by_stmt_id = cmd.stmt_handler_id
             -- all related fields are invalid after this such as stmt_handler_id
         elseif cmd.type == proxy.COM_QUERY then
-            if is_debug then
-                print("    change server by backend index:" .. backend_ndx)
-            end
+            utils.debug("change server by backend index:" .. backend_ndx, 1)
             proxy.connection.change_server = backend_ndx
         end
         conn_reserved = true
@@ -926,23 +869,17 @@ function dispose_one_query( packet, group )
         conn_reserved = true
     end
 
-    if is_debug then
-        print("    cmd type:" .. cmd.type)
-        if conn_reserved then
-            print("    connection reserved")
-        else
-            print("    connection not reserved")
-        end
+    utils.debug("cmd type:" .. cmd.type, 1)
+    if conn_reserved then
+        utils.debug("connection reserved", 1)
+    else
+        utils.debug("connection not reserved", 1)
     end
 
     c.is_server_conn_reserved = conn_reserved
 
-    if is_debug then
-        backend_ndx = proxy.connection.backend_ndx
-        if is_debug then
-            print("  backend_ndx:" .. backend_ndx)
-        end
-    end
+    backend_ndx = proxy.connection.backend_ndx
+    utils.debug("backend_ndx:" .. backend_ndx, 1)
 
     if is_passed_but_req_rejected then
         proxy.response = {
@@ -973,16 +910,12 @@ function dispose_one_query( packet, group )
         if not sql_mode_set then
 
             if sql_mode ~= srv_sql_mode then
-                if is_debug then
-                    print("  change sql mode")
-                end
+                utils.debug("change sql mode", 1)
 
                 if sql_mode ~= "" then
                     local modes = tokenizer.tokenize(sql_mode)
-                    if is_debug then
-                        print("   sql mode:" .. sql_mode)
-                        print("   sql mode num:" .. #modes)
-                    end
+                    utils.debug("sql mode:" .. sql_mode, 1)
+                    utils.debug("sql mode num:" .. #modes, 1)
                     proxy.queries:prepend_after_nth(proxy.PROXY_IGNORE_RESULT, base,
                     string.char(proxy.COM_QUERY) .. "SET sql_mode='" .. modes[1].text .. "'",
                     { resultset_is_needed = true })
@@ -1005,9 +938,7 @@ function dispose_one_query( packet, group )
         else
             if sql_mode ~= srv_sql_mode then
                 proxy.connection.server.server_sql_mode = sql_mode
-                if is_debug then
-                    print("  set server sql mode:" .. sql_mode)
-                end
+                utils.debug("set server sql mode:" .. sql_mode, 1)
             end
         end
     end
@@ -1016,20 +947,15 @@ function dispose_one_query( packet, group )
         local clt_charset = proxy.connection.client.charset
         local srv_charset = proxy.connection.server.charset
 
-        if is_debug then
-            if clt_charset ~= nil then
-                print("  client charset:" .. clt_charset)
-            end
-            if srv_charset ~= nil then
-                print("  server charset:" .. srv_charset)
-            end
+        if clt_charset ~= nil then
+            utils.debug("client charset:" .. clt_charset, 1)
+        end
+        if srv_charset ~= nil then
+            utils.debug("server charset:" .. srv_charset, 1)
         end
 
-
         if clt_charset ~= srv_charset then
-            if is_debug then
-                print("  change charset")
-            end
+            utils.debug("  change charset", 1)
             if clt_charset ~= nil then
                 is_charset_reset = true
                 charset_str = clt_charset
@@ -1046,9 +972,7 @@ function dispose_one_query( packet, group )
         local srv_charset_client = proxy.connection.server.character_set_client
 
         if clt_charset_client ~= srv_charset_client then
-            if is_debug then
-                print("  change server charset_client")
-            end
+            utils.debug("  change server charset_client", 1)
             if clt_charset_client ~= nil then
                 proxy.queries:prepend_after_nth(proxy.PROXY_IGNORE_RESULT, base,
                 string.char(proxy.COM_QUERY) .. "SET character_set_client = " .. clt_charset_client,
@@ -1067,9 +991,7 @@ function dispose_one_query( packet, group )
         local srv_charset_conn = proxy.connection.server.character_set_connection
 
         if clt_charset_conn ~= srv_charset_conn then
-            if is_debug then
-                print("  change server charset conn:")
-            end
+            utils.debug("  change server charset conn:", 1)
             if clt_charset_conn ~= nil then
                 proxy.queries:prepend_after_nth(proxy.PROXY_IGNORE_RESULT, base,
                 string.char(proxy.COM_QUERY) .. "SET character_set_connection = " .. clt_charset_conn,
@@ -1087,9 +1009,7 @@ function dispose_one_query( packet, group )
         local srv_charset_results = proxy.connection.server.character_set_results
 
         if clt_charset_results ~= srv_charset_results then
-            if is_debug then
-                print("  change server charset results")
-            end
+            utils.debug("  change server charset results", 1)
             if clt_charset_results == nil then
                 proxy.queries:prepend_after_nth(proxy.PROXY_IGNORE_RESULT, base,
                 string.char(proxy.COM_QUERY) .. "SET character_set_results = NULL",
@@ -1119,27 +1039,25 @@ function dispose_one_query( packet, group )
     -- skip it if we send a INIT_DB anyway
     if cmd.type ~= proxy.COM_INIT_DB and 
         c.default_db and c.default_db ~= s.default_db then
-        print("    server default db: " .. s.default_db)
-        print("    client default db: " .. c.default_db)
-        print("    syncronizing")
+        utils.debug("server default db: " .. s.default_db, 1)
+        utils.debug("client default db: " .. c.default_db, 1)
+        utils.debug("syncronizing", 1)
         proxy.queries:prepend_after_nth(proxy.PROXY_IGNORE_RESULT, base,
          string.char(proxy.COM_INIT_DB) .. c.default_db, { resultset_is_needed = true })
         _total_queries_per_req = _total_queries_per_req + 1
     end
 
     -- send to master
-    if is_debug then
-        if backend_ndx > 0 then
-            local b = proxy.global.backends[backend_ndx]
-            print("  sending to backend : " .. b.dst.name)
-            print("    is_slave         : " .. tostring(b.type == proxy.BACKEND_TYPE_RO))
-            print("    server default db: " .. s.default_db)
-            print("    server username  : " .. s.username)
-        end
-        print("    in_trans        : " .. tostring(is_in_transaction))
-        print("    in_calc_found   : " .. tostring(is_in_select_calc_found_rows))
-        print("    COM_QUERY       : " .. tostring(cmd.type == proxy.COM_QUERY))
+    if backend_ndx > 0 then
+        local b = proxy.global.backends[backend_ndx]
+        utils.debug("sending to backend : " .. b.dst.name, 1)
+        utils.debug("is_slave         : " .. tostring(b.type == proxy.BACKEND_TYPE_RO), 2)
+        utils.debug("server default db: " .. s.default_db, 2)
+        utils.debug("server username  : " .. s.username, 2)
     end
+    utils.debug("in_trans        : " .. tostring(is_in_transaction), 2)
+    utils.debug("in_calc_found   : " .. tostring(is_in_select_calc_found_rows), 2)
+    utils.debug("COM_QUERY       : " .. tostring(cmd.type == proxy.COM_QUERY), 2)
 
     if (proxy.connection.shard_num > 1) then
         proxy.connection.shard_server = base
@@ -1151,23 +1069,23 @@ end
 -- as long as we are in a transaction keep the connection
 -- otherwise release it so another client can use it
 function read_query_result( inj ) 
-    --local is_debug = proxy.global.config.rwsplit.is_debug
     local res      = assert(inj.resultset)
     local flags    = res.flags
 
-    if is_debug then
-        local backend_ndx = proxy.connection.backend_ndx
-        print("[read_query_result] " .. proxy.connection.client.src.name)
-        print("   backend_ndx:" .. backend_ndx)
-        print("   read from server:" .. proxy.connection.server.dst.name)
-        print("   proxy used port:" .. proxy.connection.server.src.name)
-        print("   read index from server:" .. proxy.connection.backend_ndx)
-        print("   inj id:" .. inj.id)
-        print("   inj query:" .. _query)
-        print("   inj query:" .. inj.query)
-        print("   init db cmd:" .. proxy.COM_INIT_DB)
-        print("   res status:" .. res.query_status)
+    local backend_ndx = proxy.connection.backend_ndx
+
+    utils.debug("[read_query_result] " .. proxy.connection.client.src.name)
+    utils.debug("backend_ndx:" .. backend_ndx, 1)
+    utils.debug("read from server:" .. proxy.connection.server.dst.name, 1)
+    utils.debug("proxy used port:" .. proxy.connection.server.src.name, 1)
+    utils.debug("read index from server:" .. proxy.connection.backend_ndx, 1)
+    utils.debug("inj id:" .. inj.id, 1)
+    if proxy.global.config.rwsplit.is_sharding_mode then
+        utils.debug("inj query:" .. _query, 1)
     end
+    utils.debug("inj query:" .. inj.query, 1)
+    utils.debug("init db cmd:" .. proxy.COM_INIT_DB, 1)
+    utils.debug("res status:" .. res.query_status, 1)
 
     
     if not is_backend_conn_keepalive then
@@ -1193,30 +1111,30 @@ function read_query_result( inj )
         return proxy.PROXY_IGNORE_RESULT
     end
 
-    local success, result = pcall(_buildUpCombinedResultSet, inj)
-    if (not success) then
-        stats.inc("invalidResults")
-        proxy.response = {
-            type     = proxy.MYSQLD_PACKET_ERR,
-            errmsg   = "012: Error: " .. result .. " Query: '" .. _query .. "'"
-        }
-        _combinedNumberOfQueries = 0
-        return proxy.PROXY_SEND_RESULT
+    if proxy.global.config.rwsplit.is_sharding_mode then
+        local success, result = pcall(_buildUpCombinedResultSet, inj)
+        if (not success) then
+            stats.inc("invalidResults")
+            proxy.response = {
+                type     = proxy.MYSQLD_PACKET_ERR,
+                errmsg   = "012: Error: " .. result .. " Query: '" .. _query .. "'"
+            }
+            _combinedNumberOfQueries = 0
+            return proxy.PROXY_SEND_RESULT
+        end
     end
 
     if res.query_status then
         if res.query_status ~= 0 then
-            if is_debug and is_in_transaction then
-                print("   query_status: " .. res.query_status .. " error, reserve origin is_in_transaction value")
+            if is_in_transaction then
+                utils.debug("   query_status: " .. res.query_status .. " error, reserve origin is_in_transaction", 1)
             end
         elseif inj.id ~= proxy.COM_STMT_PREPARE then
             is_in_transaction = flags.in_trans
             if not is_in_transaction then
                 if not is_auto_commit then
                     is_in_transaction = true
-                    if is_debug then
-                        print("   set is_in_transaction true")
-                    end
+                    utils.debug("set is_in_transaction true", 1)
                 else
                     if not is_prepared and _combinedNumberOfQueries == 0 then
                         proxy.connection.client.is_server_conn_reserved = false
@@ -1227,15 +1145,11 @@ function read_query_result( inj )
     end
 
     if multiple_server_mode == true then
-        if is_debug then
-            print("   multiple_server_mode true")
-        end
+        utils.debug("multiple_server_mode true", 1)
         if inj.id == proxy.COM_STMT_PREPARE then
             local server_index = proxy.connection.selected_server_ndx
-            if is_debug then
-                print("   multiple_server_mode, server index:" .. server_index)
-                print("    change stmt id")
-            end
+            utils.debug("multiple_server_mode, server index:" .. server_index, 1)
+            utils.debug("change stmt id", 1)
             res.prepared_stmt_id = server_index
         end
     end
@@ -1249,19 +1163,14 @@ end
 -- @return nil - close connection 
 --         IGNORE_RESULT - store connection in the pool
 function disconnect_client()
-    --local is_debug = proxy.global.config.rwsplit.is_debug
-    if is_debug then
-        print("[disconnect_client] " .. proxy.connection.client.src.name)
-    end
+    utils.debug("[disconnect_client] " .. proxy.connection.client.src.name)
 
     proxy.global.stat_clients = proxy.global.stat_clients - 1
 
     if not is_backend_conn_keepalive or is_in_transaction or not is_auto_commit then 
-        if is_debug then
-            print("  set connection_close true ")
-            if is_in_transaction then
-                print(" is_in_transaction is still true") 
-            end
+        utils.debug("  set connection_close true", 1)
+        if is_in_transaction then
+            utils.debug(" is_in_transaction is still true", 1) 
         end
         proxy.connection.connection_close = true
     else
@@ -1358,9 +1267,9 @@ function _buildUpCombinedResultSet(inj)
             proxy.queries:reset()
         end
 
-        utils.debug("_combinedLimit.rows:" .. _combinedLimit.rows)
-        utils.debug("affected_rows:" .. _combinedResultSet.affected_rows)
-        utils.debug("inj id " .. inj.id)
+        utils.debug("_combinedLimit.rows:" .. _combinedLimit.rows, 1)
+        utils.debug("affected_rows:" .. _combinedResultSet.affected_rows, 1)
+        utils.debug("inj id " .. inj.id, 1)
         _combinedNumberOfQueries = _combinedNumberOfQueries - 1
         if (_combinedNumberOfQueries == 0) then
             -- This has been the last result set - send all back to client
@@ -1368,8 +1277,8 @@ function _buildUpCombinedResultSet(inj)
                 if (orderByColumn ~= nil) then
                     local i
                     for i = 1, #_combinedResultSet.fields do
-                        print("field name:" .. _combinedResultSet.fields[i].name)
-                        print("order by column:" .. orderByColumn)
+                        utils.debug("field name:" .. _combinedResultSet.fields[i].name, 1)
+                        utils.debug("order by column:" .. orderByColumn, 1)
                         if (_combinedResultSet.fields[i].name == orderByColumn) then
                             orderByIndex = i
                             break

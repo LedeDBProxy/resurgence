@@ -30,34 +30,10 @@ local proto       = require("mysql.proto")
 local commands    = require("proxy.commands")
 local tokenizer   = require("proxy.tokenizer")
 local lb          = require("proxy.balance")
+local utils       = require("shard.utils")
 local auto_config = require("proxy.auto-config")
-local utils = require("shard.utils")
-local queryAnalyzer = require("shard.queryAnalyzer")
-
--- Load configuration.
-local config = require("shard.config")
-local tableKeyColumns = config.getAllTableKeyColumns()
-local shardingLookup = require("shard.shardingLookup")
 local proxy = proxy
 local tokens
-
-shardingLookup.init(config)
-
--- Statistics
-local stats = require("shard.stats")
-
--- Admin module
-local admin = require("shard.admin")
-admin.init(config)
-
-
--- Local variable to hold result for multiple queries
-local _combinedResultSet 
-local _combinedNumberOfQueries
-local _total_queries_per_req 
-local _combinedLimit 
-local _query
-
 
 --- config
 --
@@ -70,12 +46,34 @@ if not proxy.global.config.rwsplit then
         max_init_time = 10,
         default_user = "",
         default_index = 1,
+        is_debug = true,
         is_warn_up = false,
         is_sharding_mode = false,
         is_conn_reset_supported = false,
         is_slave_write_forbidden_set = false
     }
 end
+
+local queryAnalyzer = require("shard.queryAnalyzer")
+local config = require("shard.config")
+local tableKeyColumns 
+local shardingLookup = require("shard.shardingLookup")
+local stats = require("shard.stats")
+local admin = require("shard.admin")
+
+-- Local variable to hold result for multiple queries
+local _combinedResultSet 
+local _combinedNumberOfQueries
+local _combinedLimit 
+
+if proxy.global.config.rwsplit.is_sharding_mode then
+    tableKeyColumns = config.getAllTableKeyColumns()
+    shardingLookup.init(config)
+    admin.init(config)
+end
+
+local _total_queries_per_req 
+local _query
 
 ---
 -- read/write splitting sends all non-transactional SELECTs to the slaves
@@ -178,7 +176,9 @@ function connect_server()
         local s        = proxy.global.backends[i]
         local pool     = s.pool -- we don't have a username yet, try to find a connections which is idling
         cur_idle = pool.users[""].cur_idle_connections
-        init_phase = pool.init_phase
+        -- if proxy.global.config.rwsplit.is_debug ~= true then
+            init_phase = pool.init_phase
+        -- end
         connected_clients = s.connected_clients
 
         if connected_clients > 0 then
@@ -839,6 +839,7 @@ function dispose_one_query( packet, group )
     -- in case the master is down, we have to close the client connections
     -- otherwise we can go on
     if backend_ndx == 0 then
+        utils.debug("backend index is zero:", 1)
         proxy.response = {
             type = proxy.MYSQLD_PACKET_ERR,
             errmsg = "009,connections are not enough"

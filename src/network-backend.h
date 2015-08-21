@@ -35,14 +35,21 @@ typedef enum {
 	BACKEND_STATE_UNKNOWN, 
 	BACKEND_STATE_UP, 
 	BACKEND_STATE_DOWN,
-	BACKEND_STATE_MAINTAINING
+	BACKEND_STATE_MAINTAINING,
+	BACKEND_STATE_DELETED,
+    BACKEND_STATE_MAX
 } backend_state_t;
+
+extern const char * backend_state_t_str[BACKEND_STATE_MAX];
 
 typedef enum { 
 	BACKEND_TYPE_UNKNOWN, 
 	BACKEND_TYPE_RW, 
-	BACKEND_TYPE_RO
+	BACKEND_TYPE_RO,
+	BACKEND_TYPE_MAX
 } backend_type_t;
+
+extern const char * backend_type_t_str[BACKEND_TYPE_MAX];
 
 typedef struct {
 	network_address *addr;

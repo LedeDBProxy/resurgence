@@ -54,12 +54,16 @@ if not proxy.global.config.rwsplit then
     }
 end
 
-local queryAnalyzer = require("shard.queryAnalyzer")
-local config = require("shard.config")
+if proxy.global.config.rwsplit.is_debug == true then
+    proxy.global.config.rwsplit.max_init_time = 1
+end
+
+local queryAnalyzer
+local config
 local tableKeyColumns 
-local shardingLookup = require("shard.shardingLookup")
-local stats = require("shard.stats")
-local admin = require("shard.admin")
+local shardingLookup
+local stats
+local admin
 
 -- Local variable to hold result for multiple queries
 local _combinedResultSet 
@@ -67,6 +71,11 @@ local _combinedNumberOfQueries
 local _combinedLimit 
 
 if proxy.global.config.rwsplit.is_sharding_mode then
+    queryAnalyzer = require("shard.queryAnalyzer")
+    config = require("shard.config")
+    shardingLookup = require("shard.shardingLookup")
+    stats = require("shard.stats")
+    admin = require("shard.admin")
     tableKeyColumns = config.getAllTableKeyColumns()
     shardingLookup.init(config)
     admin.init(config)
@@ -176,9 +185,9 @@ function connect_server()
         local s        = proxy.global.backends[i]
         local pool     = s.pool -- we don't have a username yet, try to find a connections which is idling
         cur_idle = pool.users[""].cur_idle_connections
-        -- if proxy.global.config.rwsplit.is_debug ~= true then
+        if proxy.global.config.rwsplit.is_debug ~= true then
             init_phase = pool.init_phase
-        -- end
+         end
         connected_clients = s.connected_clients
 
         if connected_clients > 0 then
@@ -560,6 +569,12 @@ function dispose_one_query( packet, group )
         end
 
         return
+    end
+
+    if proxy.global.config.rwsplit.is_debug == true then
+        if is_backend_conn_keepalive then
+            proxy.connection.wait_clt_next_sql = 100
+        end
     end
 
     -- read/write splitting 

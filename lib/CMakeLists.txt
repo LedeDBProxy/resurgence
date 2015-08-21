@@ -18,6 +18,7 @@
 # 
 #  $%ENDLICENSE%$
 ADD_SUBDIRECTORY(proxy)
+ADD_SUBDIRECTORY(shard)
 
 INSTALL(FILES
 	active-queries.lua

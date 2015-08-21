@@ -29,6 +29,19 @@
 #define C(x) x, sizeof(x) - 1
 #define S(x) x->str, x->len
 
+const char * backend_state_t_str[BACKEND_STATE_MAX] = {
+"unkown",
+"online",
+"down",
+"maintaining",
+"deleted"
+};
+
+const char * backend_type_t_str[BACKEND_TYPE_MAX] = {
+"unkown",
+"read/write",
+"readonly"
+};
 
 network_backend_t *network_backend_new() {
 	network_backend_t *b;
@@ -114,19 +127,21 @@ int network_backends_add(network_backends_t *bs, const  gchar *address, backend_
 
 	g_ptr_array_add(bs->backends, new_backend);
 
-	g_message("added %s backend: %s, state: %s", (type == BACKEND_TYPE_RW) ?
-			"read/write" : "read-only", address, (state == BACKEND_STATE_UNKNOWN) ?
-			"online" : "maintaining");
+	g_message("added %s backend: %s, state: %s", backend_type_t_str[type],
+			address, backend_state_t_str[state]);
 
 	return 0;
 }
 
-
+/**
+ * we just change the state to deleted to avoid lua script refer to the wrong index.
+ */
 int network_backends_remove(network_backends_t *bs, guint index) {
     network_backend_t* b = bs->backends->pdata[index];
     if (b != NULL) {
-		network_backend_free(b);
-        g_ptr_array_remove_index(bs->backends, index);
+		//network_backend_free(b);
+        //g_ptr_array_remove_index(bs->backends, index);
+        return network_backends_modify(bs, index, BACKEND_TYPE_UNKNOWN, BACKEND_STATE_DELETED);
     }
     return 0;
 }
@@ -193,6 +208,11 @@ int network_backends_modify(network_backends_t * bs, guint ndx, backend_type_t t
 	g_get_current_time(&now);
 	if (ndx >= network_backends_count(bs)) return -1;
 	network_backend_t * cur = bs->backends->pdata[ndx];
+
+	g_message("change backend: %s from type: %s, state: %s to type: %s, state: %s",
+		cur->addr->name, backend_type_t_str[cur->type], backend_state_t_str[cur->state],
+		backend_type_t_str[type], backend_state_t_str[state]);
+
 	if (cur->type != type) cur->type = type;
 	if (cur->state != state) {
 		cur->state = state;

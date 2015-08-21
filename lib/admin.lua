@@ -23,15 +23,16 @@ local states = {
 	"up",
 	"down",
 	"maintaining",
+	"deleted",
 }
 local types = {
 	"unknown",
 	"rw",
-	"ro"
+	"ro",
 }
 
 local types_2_int = {ro = 2, rw = 1, unknown=0}
-local states_2_int = {maintaining = 3, down = 2, 
+local states_2_int = {deleted = 4, maintaining = 3, down = 2, 
 					up = 1, unknown=0}
 
 local proxy = proxy
@@ -52,13 +53,16 @@ local function set_error(errmsg)
 end
 
 local function adjust_nodestate(nodestate)
-	if not nodestate then return nil end
-	local newnodestate
-	local short_state = string.sub(nodestate,1,1)
-	if short_state == "u" then return "unknown" end
-	if short_state == "m" then return "maintaining" end
+	if not nodestate then return "notexiststate" end
+	local newnodestate = string.lower(nodestate)
+	local short_state = string.sub(newnodestate,1,2)
+	if short_state == "un" then return "unknown" end
+	if short_state == "up" then return "up" end
+	if string.sub(short_state, 1, 1) == "m" then return "maintaining" end
+	if short_state == "de" then return "deleted" end
+	if short_state == "do" then return "down" end
 
-	return nodestate
+	return newnodestate
 end
 
 function read_query(packet)
@@ -246,7 +250,7 @@ function read_query(packet)
 	elseif string.find(query_lower, "add master") then
 		local server = string.match(query_lower, "add master%s+(.+)$")
 		proxy.global.backends.backend_add = { address = server,
-										type = types_2_int["ro"], 
+										type = types_2_int["rw"], 
 										state = states_2_int["unknown"],
 										}
 		affected_rows = 1
@@ -266,7 +270,7 @@ function read_query(packet)
 		end
 
 		nodestate = adjust_nodestate(nodestate)
-		if nodestate ~= "unknown" and nodestate ~= "maintaining" then
+		if states_2_int[nodestate] == nil then
 			set_error("invalid states to insert")
 			return proxy.PROXY_SEND_RESULT
 		end

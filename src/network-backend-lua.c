@@ -167,7 +167,6 @@ static int proxy_backends_set(lua_State *L) {
 	int replace_flag = 0;
 
 	if (strleq(key, keysize, C("backend_remove"))) {
-	/*we should do remove first because we trade update as delete ,then add*/
         network_backends_remove(bs, lua_tointeger(L, -1));
 	} else if (strleq(key, keysize, C("backend_add"))) {
 		add_flag = 1;

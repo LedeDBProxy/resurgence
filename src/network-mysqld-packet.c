@@ -1447,6 +1447,7 @@ void network_mysqld_auth_response_free(network_mysqld_auth_response *auth) {
 
 int network_mysqld_proto_get_auth_response(network_packet *packet, network_mysqld_auth_response *auth) {
 	int err = 0;
+    int mysql_packet_len = 0;
 	guint16 l_cap;
 	/* extract the default db from it */
 
@@ -1472,13 +1473,24 @@ int network_mysqld_proto_get_auth_response(network_packet *packet, network_mysql
 	 *  world\0
 	 */
 
+	err = err || network_mysqld_proto_get_int24(packet, &mysql_packet_len);
+	if (err) return -1;
+
+    packet->offset = NET_HEADER_SIZE;
+    mysql_packet_len += NET_HEADER_SIZE;
 
 	/* 4.0 uses 2 byte, 4.1+ uses 4 bytes, but the proto-flag is in the lower 2 bytes */
 	err = err || network_mysqld_proto_peek_int16(packet, &l_cap);
 	if (err) return -1;
 
 	if (l_cap & CLIENT_PROTOCOL_41) {
+        unsigned char * cap = packet->data->str + packet->offset;
 		err = err || network_mysqld_proto_get_int32(packet, &auth->client_capabilities);
+        auth->client_capabilities &= 0xffff03ff;
+        /* set Extended Client Capabilities: 0x0003 */
+        cap[2] &= 0x03;
+
+
 		err = err || network_mysqld_proto_get_int32(packet, &auth->max_packet_size);
 		err = err || network_mysqld_proto_get_int8(packet, &auth->charset);
 
@@ -1501,11 +1513,14 @@ int network_mysqld_proto_get_auth_response(network_packet *packet, network_mysql
 			err = err || network_mysqld_proto_get_gstring(packet, auth->database);
 		}
 
-		if ((auth->server_capabilities & CLIENT_PLUGIN_AUTH) &&
+        if (mysql_packet_len != packet->offset) {
+            network_mysqld_proto_set_packet_len(packet->data, packet->offset - NET_HEADER_SIZE);
+            packet->data->len = packet->offset;
+        }
+		/*if ((auth->server_capabilities & CLIENT_PLUGIN_AUTH) &&
 		    (auth->client_capabilities & CLIENT_PLUGIN_AUTH)) {
-			/* parse out the plugin name */
 			err = err || network_mysqld_proto_get_gstring(packet, auth->auth_plugin_name);
-		}
+		}*/
 	} else {
 		err = err || network_mysqld_proto_get_int16(packet, &l_cap);
 		err = err || network_mysqld_proto_get_int24(packet, &auth->max_packet_size);

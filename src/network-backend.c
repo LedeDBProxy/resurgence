@@ -210,7 +210,7 @@ int network_backends_modify(network_backends_t * bs, guint ndx, backend_type_t t
 	network_backend_t * cur = bs->backends->pdata[ndx];
 
 	g_message("change backend: %s from type: %s, state: %s to type: %s, state: %s",
-		cur->addr->name, backend_type_t_str[cur->type], backend_state_t_str[cur->state],
+		cur->addr->name->str, backend_type_t_str[cur->type], backend_state_t_str[cur->state],
 		backend_type_t_str[type], backend_state_t_str[state]);
 
 	if (cur->type != type) cur->type = type;

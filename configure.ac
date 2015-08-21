@@ -452,6 +452,7 @@ AC_CONFIG_FILES([Makefile \
 		 plugins/Makefile \
 		 examples/Makefile \
 		 lib/Makefile \
+		 lib/shard/Makefile \
 		 lib/proxy/Makefile \
 		 mysql-proxy.spec \
 		 ])

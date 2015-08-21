@@ -19,7 +19,7 @@
 #  $%ENDLICENSE%$
 luaextdir = ${pkglibdir}/lua
 
-SUBDIRS = proxy 
+SUBDIRS = proxy shard
 
 ## those are in the end examples or proof-of-concepts
 example_scripts = \

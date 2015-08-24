@@ -366,6 +366,7 @@ local _getFields
 function read_query( packet )
     _total_queries_per_req = 0
 
+    _combinedNumberOfQueries = 0 
     tokens = nil
 
     if proxy.global.config.rwsplit.is_sharding_mode then
@@ -374,7 +375,6 @@ function read_query( packet )
         _combinedResultSet.fields = nil 
         _combinedResultSet.rows = nil 
         _combinedResultSet.affected_rows = 0 
-        _combinedNumberOfQueries = 0 
         _combinedLimit = {}
         _combinedLimit.rowsProcessed = 0 
         _combinedLimit.rowsSent = 0 

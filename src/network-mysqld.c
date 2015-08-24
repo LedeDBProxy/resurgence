@@ -1458,6 +1458,10 @@ void network_mysqld_con_handle(int event_fd, short events, void *user_data) {
 
 			recv_sock = con->server;
 
+            if (recv_sock == NULL) {
+				con->state = CON_STATE_ERROR;
+                break;
+            }
 			g_assert(events == 0 || event_fd == recv_sock->fd);
 
 			switch (network_mysqld_read(srv, recv_sock)) {
@@ -1761,6 +1765,11 @@ void network_mysqld_con_handle(int event_fd, short events, void *user_data) {
 
 				recv_sock = con->server;
 
+                if (recv_sock == NULL) {
+					con->state = CON_STATE_ERROR;
+                    break;
+                }
+
 				g_assert(events == 0 || event_fd == recv_sock->fd);
 
                 g_debug("%s: read query result, con:%p, socket:%p, fd:%d",
@@ -1981,6 +1990,11 @@ void network_mysqld_con_handle(int event_fd, short events, void *user_data) {
 			 */
 			network_socket *recv_sock;
 			recv_sock = con->server;
+
+            if  (recv_sock == NULL) {
+				con->state = CON_STATE_ERROR;
+                break;
+            }
 			g_assert(events == 0 || event_fd == recv_sock->fd);
 
 			switch (network_mysqld_read(srv, recv_sock)) {

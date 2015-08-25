@@ -641,15 +641,15 @@ function read_query( packet )
                 tokens     = tokens or assert(tokenizer.tokenize(cmd.query))
                 local stmt = tokenizer.first_stmt_token(tokens)
 
-	for i = 1, #tokens do
-		local token = tokens[i]
-		print("token: " .. token.token_name)
-		print("  val: " .. token.text)
-	end
+                for i = 1, #tokens do
+                    local token = tokens[i]
+                    print("token: " .. token.token_name)
+                    print("  val: " .. token.text)
+                end
 
-	local session_read_only = 0
+                local session_read_only = 0
 
-	if stmt.token_name == "TK_SQL_SELECT" then
+                if stmt.token_name == "TK_SQL_SELECT" then
                     session_read_only = 1
                     for i = 2, #tokens do
                         local token = tokens[i]

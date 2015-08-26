@@ -725,7 +725,12 @@ NETWORK_MYSQLD_PLUGIN_PROTO(proxy_read_auth) {
 	 */
 
 	if (con->client->response == NULL) {
-		auth = network_mysqld_auth_response_new(con->client->challenge->capabilities);
+
+        if (con->client->challenge == NULL) {
+            return NETWORK_SOCKET_ERROR;
+        }
+
+        auth = network_mysqld_auth_response_new(con->client->challenge->capabilities);
 
 		err = err || network_mysqld_proto_get_auth_response(&packet, auth);
 

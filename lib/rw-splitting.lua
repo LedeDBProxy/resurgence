@@ -1,31 +1,3 @@
---[[ $%BEGINLICENSE%$
- Copyright (c) 2007, 2012, Oracle and/or its affiliates. All rights reserved.
-
- This program is free software; you can redistribute it and/or
- modify it under the terms of the GNU General Public License as
- published by the Free Software Foundation; version 2 of the
- License.
-
- This program is distributed in the hope that it will be useful,
- but WITHOUT ANY WARRANTY; without even the implied warranty of
- MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
- GNU General Public License for more details.
-
- You should have received a copy of the GNU General Public License
- along with this program; if not, write to the Free Software
- Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA
- 02110-1301  USA
-
- $%ENDLICENSE%$ --]]
-
----
--- a flexible statement based load balancer with connection pooling
---
--- * build a connection pool of min_idle_connections for each backend and maintain
---   its size
--- * 
--- 
--- 
 local proto       = require("mysql.proto")
 local commands    = require("proxy.commands")
 local tokenizer   = require("proxy.tokenizer")
@@ -101,7 +73,12 @@ local last_group = nil
 local is_in_select_calc_found_rows = false
 
 
-function session_err(msg)
+function session_err(msg, enlarge)
+    if enlarge then
+        value = proxy.global.config.rwsplit.min_idle_connections
+        value = value + 1
+        proxy.global.config.rwsplit.min_idle_connections = value
+    end
     proxy.response = {
         type = proxy.MYSQLD_PACKET_ERR,
         errmsg = msg
@@ -145,7 +122,7 @@ function warm_up()
             s.state == proxy.BACKEND_STATE_UNKNOWN) then
             proxy.connection.backend_ndx = index
         else
-            return session_err("01,proxy rejects create backend connections")
+            return session_err("01,proxy rejects create backend connections", 0)
         end
     end
 
@@ -241,7 +218,7 @@ function connect_server()
 
         if pool.stop_phase then
             utils.debug("connection will be rejected", 1)
-            return session_err("001,proxy stops serving requests now")
+            return session_err("001,proxy stops serving requests now", 0)
         end
 
         utils.debug("[".. i .."].connected_clients = " .. connected_clients, 1)
@@ -276,7 +253,7 @@ function connect_server()
             if cur_idle == 0 and connected_clients >= max_idle_conns then
                 if init_phase then 
                     utils.debug("connection will be rejected because init phase", 1)
-                    return session_err("002,proxy stops serving requests now")
+                    return session_err("002,proxy stops serving requests now", 0)
                 else
                     is_backend_conn_keepalive = false
                 end
@@ -488,16 +465,16 @@ function dispose_one_query( packet, group )
                     proxy.connection.backend_ndx = backend_ndx
                 else
                     utils.debug("  [no rw connections yet", 1)
-                    return session_err("003,master connections are too small")
+                    return session_err("003,master connections are too small", 1)
                 end
             else
-                return session_err("004,proxy stops serving requests now")
+                return session_err("004,proxy stops serving requests now", 0)
             end
         end
 
         if b.pool.stop_phase then
             utils.debug("  stop serving requests", 1)
-            return session_err("005,proxy stops serving requests now")
+            return session_err("005,proxy stops serving requests now", 0)
         end
     end
 
@@ -547,7 +524,7 @@ function dispose_one_query( packet, group )
                 proxy.connection.backend_ndx = backend_ndx
             else
                 utils.debug("[no rw connections yet", 1)
-                return session_err("006,master connections are too small")
+                return session_err("006,master connections are too small", 1)
             end
         end
 
@@ -708,7 +685,7 @@ function dispose_one_query( packet, group )
                 end
             else
                 utils.debug("[no rw connections yet", 1)
-                return session_err("007,master connections are too small")
+                return session_err("007,master connections are too small", 1)
             end
         end
 
@@ -789,7 +766,7 @@ function dispose_one_query( packet, group )
                             utils.debug("  [set multiple_server_mode true]", 1)
                         else
                             utils.debug("  [no rw connections yet", 1)
-                            return session_err("008,master connections are too small")
+                            return session_err("008,master connections are too small", 1)
                         end
                     end
                 end
@@ -830,7 +807,7 @@ function dispose_one_query( packet, group )
     -- otherwise we can go on
     if backend_ndx == 0 then
         utils.debug("backend index is zero:", 1)
-        return session_err("009,connections are not enough")
+        return session_err("009,connections are not enough", 0)
     end
 
     if cmd.type ~= proxy.COM_QUIT or client_quit_need_sent then
@@ -869,7 +846,7 @@ function dispose_one_query( packet, group )
     utils.debug("backend_ndx:" .. backend_ndx, 1)
 
     if is_passed_but_req_rejected then
-        return session_err("010,too many connections")
+        return session_err("010,too many connections", 0)
     end
 
     local s = proxy.connection.server
@@ -1083,7 +1060,7 @@ function read_query_result( inj )
         -- or doesn't have permissions to read from it
         if res.query_status == proxy.MYSQLD_PACKET_ERR then
             proxy.queries:reset()
-            return session_err("011,can't switch server ".. proxy.connection.client.default_db)
+            return session_err("011,can't switch server ".. proxy.connection.client.default_db, 0)
         end
         return proxy.PROXY_IGNORE_RESULT
     end
@@ -1093,7 +1070,7 @@ function read_query_result( inj )
         if (not success) then
             stats.inc("invalidResults")
             _combinedNumberOfQueries = 0
-            return session_err("012: Error: " .. result .. " Query: '" .. _query .. "'")
+            return session_err("012: Error: " .. result .. " Query: '" .. _query .. "'", 0)
         end
     end
 

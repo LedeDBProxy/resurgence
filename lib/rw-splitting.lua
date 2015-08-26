@@ -48,7 +48,7 @@ if not proxy.global.config.rwsplit then
         default_index = 1,
         is_debug = true,
         is_warn_up = false,
-        is_sharding_mode = false,
+        is_sharding_mode = true,
         is_conn_reset_supported = false,
         is_slave_write_forbidden_set = false
     }
@@ -100,6 +100,15 @@ local last_group = nil
 -- if this was a SELECT SQL_CALC_FOUND_ROWS ... stay on the same connections
 local is_in_select_calc_found_rows = false
 
+
+function session_err(msg)
+    proxy.response = {
+        type = proxy.MYSQLD_PACKET_ERR,
+        errmsg = msg
+    }
+    return proxy.PROXY_SEND_RESULT
+end
+
 function warm_up()
     utils.debug("[connect_server] " .. proxy.connection.client.src.name)
 
@@ -136,11 +145,7 @@ function warm_up()
             s.state == proxy.BACKEND_STATE_UNKNOWN) then
             proxy.connection.backend_ndx = index
         else
-            proxy.response = {
-                type = proxy.MYSQLD_PACKET_ERR,
-                errmsg = "01,proxy rejects create backend connections"
-            }
-            return proxy.PROXY_SEND_RESULT
+            return session_err("01,proxy rejects create backend connections")
         end
     end
 
@@ -236,11 +241,7 @@ function connect_server()
 
         if pool.stop_phase then
             utils.debug("connection will be rejected", 1)
-            proxy.response = {
-                type = proxy.MYSQLD_PACKET_ERR,
-                errmsg = "001,proxy stops serving requests now"
-            }
-            return proxy.PROXY_SEND_RESULT
+            return session_err("001,proxy stops serving requests now")
         end
 
         utils.debug("[".. i .."].connected_clients = " .. connected_clients, 1)
@@ -275,11 +276,7 @@ function connect_server()
             if cur_idle == 0 and connected_clients >= max_idle_conns then
                 if init_phase then 
                     utils.debug("connection will be rejected because init phase", 1)
-                    proxy.response = {
-                        type = proxy.MYSQLD_PACKET_ERR,
-                        errmsg = "002,proxy stops serving requests now"
-                    }
-                    return proxy.PROXY_SEND_RESULT
+                    return session_err("002,proxy stops serving requests now")
                 else
                     is_backend_conn_keepalive = false
                 end
@@ -491,28 +488,16 @@ function dispose_one_query( packet, group )
                     proxy.connection.backend_ndx = backend_ndx
                 else
                     utils.debug("  [no rw connections yet", 1)
-                    proxy.response = {
-                        type = proxy.MYSQLD_PACKET_ERR,
-                        errmsg = "003,master connections are too small"
-                    }
-                    return proxy.PROXY_SEND_RESULT
+                    return session_err("003,master connections are too small")
                 end
             else
-                proxy.response = {
-                    type = proxy.MYSQLD_PACKET_ERR,
-                    errmsg = "004,proxy stops serving requests now"
-                }
-                return proxy.PROXY_SEND_RESULT
+                return session_err("004,proxy stops serving requests now")
             end
         end
 
         if b.pool.stop_phase then
             utils.debug("  stop serving requests", 1)
-            proxy.response = {
-                type = proxy.MYSQLD_PACKET_ERR,
-                errmsg = "005,proxy stops serving requests now"
-            }
-            return proxy.PROXY_SEND_RESULT
+            return session_err("005,proxy stops serving requests now")
         end
     end
 
@@ -562,11 +547,7 @@ function dispose_one_query( packet, group )
                 proxy.connection.backend_ndx = backend_ndx
             else
                 utils.debug("[no rw connections yet", 1)
-                proxy.response = {
-                    type = proxy.MYSQLD_PACKET_ERR,
-                    errmsg = "006,master connections are too small"
-                }
-                return proxy.PROXY_SEND_RESULT
+                return session_err("006,master connections are too small")
             end
         end
 
@@ -727,11 +708,7 @@ function dispose_one_query( packet, group )
                 end
             else
                 utils.debug("[no rw connections yet", 1)
-                proxy.response = {
-                    type = proxy.MYSQLD_PACKET_ERR,
-                    errmsg = "007, master connections are too small"
-                }
-                return proxy.PROXY_SEND_RESULT
+                return session_err("007,master connections are too small")
             end
         end
 
@@ -812,11 +789,7 @@ function dispose_one_query( packet, group )
                             utils.debug("  [set multiple_server_mode true]", 1)
                         else
                             utils.debug("  [no rw connections yet", 1)
-                            proxy.response = {
-                                type = proxy.MYSQLD_PACKET_ERR,
-                                errmsg = "008, master connections are too small"
-                            }
-                            return proxy.PROXY_SEND_RESULT
+                            return session_err("008,master connections are too small")
                         end
                     end
                 end
@@ -857,11 +830,7 @@ function dispose_one_query( packet, group )
     -- otherwise we can go on
     if backend_ndx == 0 then
         utils.debug("backend index is zero:", 1)
-        proxy.response = {
-            type = proxy.MYSQLD_PACKET_ERR,
-            errmsg = "009,connections are not enough"
-        }
-        return proxy.PROXY_SEND_RESULT
+        return session_err("009,connections are not enough")
     end
 
     if cmd.type ~= proxy.COM_QUIT or client_quit_need_sent then
@@ -900,11 +869,7 @@ function dispose_one_query( packet, group )
     utils.debug("backend_ndx:" .. backend_ndx, 1)
 
     if is_passed_but_req_rejected then
-        proxy.response = {
-            type = proxy.MYSQLD_PACKET_ERR,
-            errmsg = "010,too many connections"
-        }
-        return proxy.PROXY_SEND_RESULT
+        return session_err("010,too many connections")
     end
 
     local s = proxy.connection.server
@@ -1118,13 +1083,7 @@ function read_query_result( inj )
         -- or doesn't have permissions to read from it
         if res.query_status == proxy.MYSQLD_PACKET_ERR then
             proxy.queries:reset()
-
-            proxy.response = {
-                type = proxy.MYSQLD_PACKET_ERR,
-                errmsg = "011,can't switch server ".. proxy.connection.client.default_db
-            }
-
-            return proxy.PROXY_SEND_RESULT
+            return session_err("011,can't switch server ".. proxy.connection.client.default_db)
         end
         return proxy.PROXY_IGNORE_RESULT
     end
@@ -1133,12 +1092,8 @@ function read_query_result( inj )
         local success, result = pcall(_buildUpCombinedResultSet, inj)
         if (not success) then
             stats.inc("invalidResults")
-            proxy.response = {
-                type     = proxy.MYSQLD_PACKET_ERR,
-                errmsg   = "012: Error: " .. result .. " Query: '" .. _query .. "'"
-            }
             _combinedNumberOfQueries = 0
-            return proxy.PROXY_SEND_RESULT
+            return session_err("012: Error: " .. result .. " Query: '" .. _query .. "'")
         end
     end
 

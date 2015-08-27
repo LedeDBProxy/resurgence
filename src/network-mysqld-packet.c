@@ -1485,11 +1485,9 @@ int network_mysqld_proto_get_auth_response(network_packet *packet, network_mysql
 
 	if (l_cap & CLIENT_PROTOCOL_41) {
         unsigned char * cap = packet->data->str + packet->offset;
-		err = err || network_mysqld_proto_get_int32(packet, &auth->client_capabilities);
-        auth->client_capabilities &= 0xffff03ff;
-        /* set Extended Client Capabilities: 0x0003 */
+        /* set Extended Client Capabilities: 0x0003 in the packet data */
         cap[2] &= 0x03;
-
+		err = err || network_mysqld_proto_get_int32(packet, &auth->client_capabilities);
 
 		err = err || network_mysqld_proto_get_int32(packet, &auth->max_packet_size);
 		err = err || network_mysqld_proto_get_int8(packet, &auth->charset);

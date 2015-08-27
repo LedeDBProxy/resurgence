@@ -1768,7 +1768,8 @@ NETWORK_MYSQLD_PLUGIN_PROTO(proxy_connect_server) {
 	gboolean use_pooled_connection = FALSE;
 	network_backend_t *cur;
 
-	if (con->server && st->backend->state == BACKEND_STATE_MAINTAINING) {
+	if (con->server && (st->backend->state == BACKEND_STATE_MAINTAINING ||
+            st->backend->state == BACKEND_STATE_DELETED)) {
 		con->server = NULL;
 		return NETWORK_SOCKET_ERROR_RETRY;	
 	}

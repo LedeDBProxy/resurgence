@@ -1141,10 +1141,11 @@ void network_mysqld_con_handle(int event_fd, short events, void *user_data) {
 		ostate = con->state;
 #ifdef NETWORK_DEBUG_TRACE_STATE_CHANGES
 		/* if you need the state-change information without dtrace, enable this */
-		g_debug("%s: [%d] %s",
+		g_debug("%s: [%d] %s, con:%p",
 				G_STRLOC,
 				getpid(),
-				network_mysqld_con_state_get_name(con->state));
+				network_mysqld_con_state_get_name(con->state),
+                con->client);
 #endif
 
 		MYSQLPROXY_STATE_CHANGE(event_fd, events, con->state);

@@ -218,6 +218,8 @@ NETWORK_MYSQLD_PLUGIN_PROTO(proxy_timeout) {
 
 	if (st == NULL) return NETWORK_SOCKET_ERROR;
 
+    g_debug("%s, con:%p:call proxy_timeout",
+                            G_STRLOC, con);
 	switch (con->state) {
 	case CON_STATE_CONNECT_SERVER:
 		if (con->server) {
@@ -254,9 +256,14 @@ NETWORK_MYSQLD_PLUGIN_PROTO(proxy_timeout) {
         if (diff < 3600) {
             if (!con->client->is_server_conn_reserved) {
                 if (con->server) {
-                    g_debug("%s: server connection returned to pool",
-                            G_STRLOC);
-                    network_connection_pool_lua_add_connection(con);
+                    if (con->state >= CON_STATE_READ_QUERY) {
+                        network_connection_pool_lua_add_connection(con);
+                        g_debug("%s, con:%p:server connection returned to pool",
+                                G_STRLOC, con);
+                    } else {
+                        g_critical("%s, con:%p, state:%d:server connection returned to pool",
+                                G_STRLOC, con, con->state);
+                    }
                 }
             }
         } else {
@@ -750,6 +757,7 @@ NETWORK_MYSQLD_PLUGIN_PROTO(proxy_read_auth) {
 		g_string_assign_len(con->client->default_db, S(auth->database));
 
 	    got_all_data = TRUE;
+        g_debug("sock:%p, 1nd round auth", con->client);
 	} else {
 		GString *auth_data;
 		gsize auth_data_len;
@@ -765,6 +773,8 @@ NETWORK_MYSQLD_PLUGIN_PROTO(proxy_read_auth) {
 		g_string_append_len(con->client->response->auth_plugin_data, S(auth_data));
 
 		g_string_free(auth_data, TRUE);
+        
+        g_debug("sock:%p, 2nd round auth", con->client);
 	}
 
 	if (got_all_data) {
@@ -835,7 +845,8 @@ NETWORK_MYSQLD_PLUGIN_PROTO(proxy_read_auth) {
 
 					g_string_append_len(com_change_user, con->client->default_db->str, con->client->default_db->len + 1);
 					network_mysqld_proto_append_int16(com_change_user, con->client->charset_code);
-	                g_debug("sock:%p, change user, set charset:%s",con->client, charset[con->client->charset_code]);
+	                g_debug("sock:%p, change user, set charset:%s",
+                            con->client, charset[con->client->charset_code]);
 					/* network_mysqld_proto_append_int16(com_change_user, con->client->response->charset); */
 
 					/*if (con->client->challenge->capabilities & CLIENT_PLUGIN_AUTH) {
@@ -905,6 +916,7 @@ NETWORK_MYSQLD_PLUGIN_PROTO(proxy_read_auth) {
 					g_string_free(auth_resp, TRUE);
 				}
 			} else {
+                g_debug("sock:%p, append raw packet", con->client);
 				network_mysqld_queue_append_raw(send_sock, send_sock->send_queue, packet.data);
 				con->state = CON_STATE_SEND_AUTH;
 

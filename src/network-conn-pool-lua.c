@@ -340,6 +340,7 @@ network_socket *network_connection_pool_lua_swap(network_mysqld_con *con, int ba
 		
     if (con->client->response == NULL) {
         g_debug("%s: (swap) check if we have a connection for this user in the pool: nil", G_STRLOC);
+        return NULL;
     } else {
         g_debug("%s: (swap) check if we have a connection for this user in the pool '%s'", G_STRLOC, con->client->response->username->str);
     }
@@ -410,10 +411,16 @@ network_socket *network_connection_pool_lua_swap(network_mysqld_con *con, int ba
                 G_STRLOC, backend_ndx, backend->pool, send_sock->fd);
     } else {
 
-        g_debug("%s: (swap) take and move the current backend into the pool", G_STRLOC);
-        /* the backend is up and cool, take and move the current backend into the pool */
-        /* g_debug("%s: (swap) added the previous connection to the pool", G_STRLOC); */
-        network_connection_pool_lua_add_connection(con);
+        if (con->server) {
+            g_debug("%s: (swap) take and move the current backend into the pool", G_STRLOC);
+            /* the backend is up and cool, take and move the current backend into the pool */
+            /* g_debug("%s: (swap) added the previous connection to the pool", G_STRLOC); */
+            if (con->state < CON_STATE_READ_AUTH_RESULT) {
+                g_critical("%s, con:%p, state:%d:server connection returned to pool",
+                        G_STRLOC, con, con->state);
+            }
+            network_connection_pool_lua_add_connection(con);
+        }
     }
 
     /* connect to the new backend */

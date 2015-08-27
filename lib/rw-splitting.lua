@@ -175,7 +175,6 @@ function connect_server()
             print("  [".. i .."].state = " .. s.state)
         end
 
-
         -- prefer connections to the master 
         if s.type == proxy.BACKEND_TYPE_RW and
             (s.state == proxy.BACKEND_STATE_UP or
@@ -226,10 +225,22 @@ function connect_server()
     end
 
     if proxy.connection.backend_ndx == 0 then
-        --if is_debug then
-        --	print("  [" .. rw_ndx .. "] taking master as default")
-        --end
-        proxy.connection.backend_ndx = rw_ndx
+        if is_debug then
+        	print("  [" .. rw_ndx .. "] taking master as default")
+        end
+
+        if rw_ndx > 0 then
+            proxy.connection.backend_ndx = rw_ndx
+        else
+            if is_debug then 
+				print("connection will be rejected")
+			end
+            proxy.response = {
+				type = proxy.MYSQLD_PACKET_ERR,
+				errmsg = "rw ndx is zero"
+			}
+			return proxy.PROXY_SEND_RESULT
+        end
     else
         is_backend_conn_keepalive = true
     end

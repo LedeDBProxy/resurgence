@@ -256,7 +256,7 @@ NETWORK_MYSQLD_PLUGIN_PROTO(proxy_timeout) {
         if (diff < 3600) {
             if (!con->client->is_server_conn_reserved) {
                 if (con->server) {
-                    if (con->state >= CON_STATE_READ_QUERY) {
+                    if (con->state >= CON_STATE_READ_AUTH_RESULT) {
                         network_connection_pool_lua_add_connection(con);
                         g_debug("%s, con:%p:server connection returned to pool",
                                 G_STRLOC, con);
@@ -1875,6 +1875,11 @@ NETWORK_MYSQLD_PLUGIN_PROTO(proxy_connect_server) {
 		 * but the script said we don't want to use it
 		 */
 
+        if (con->state < CON_STATE_READ_AUTH_RESULT) {
+            g_critical("%s, con:%p, state:%d:server connection returned to pool",
+                    G_STRLOC, con, con->state);
+        }
+
 		network_connection_pool_lua_add_connection(con);
 
 		st->backend_ndx = bndx;
@@ -2138,6 +2143,11 @@ NETWORK_MYSQLD_PLUGIN_PROTO(proxy_disconnect_client) {
 		 *
 		 * this disconnects con->server and safes it from getting free()ed later
 		 */
+
+        if (con->state < CON_STATE_READ_AUTH_RESULT) {
+            g_critical("%s, con:%p, state:%d:server connection returned to pool",
+                    G_STRLOC, con, con->state);
+        }
 
 		network_connection_pool_lua_add_connection(con);
 	} else if (st->backend) {

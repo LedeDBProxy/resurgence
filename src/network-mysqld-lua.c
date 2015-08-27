@@ -138,7 +138,7 @@ static int proxy_connection_set(lua_State *L) {
 
 	if (strleq(key, keysize, C("backend_ndx"))) {
 		/**
-		 * in lua-land the ndx is based on 1, in C-land on 0 */
+		 * in lua-land the ndx is based on 0, in C-land on 0 */
 		int backend_ndx = luaL_checkinteger(L, 3) - 1;
 		network_socket *send_sock;
 			
@@ -146,6 +146,10 @@ static int proxy_connection_set(lua_State *L) {
 		if (backend_ndx == -1) {
 			/** drop the backend for now
 			 */
+            if (con->state < CON_STATE_READ_AUTH_RESULT) {
+                g_critical("%s, con:%p, state:%d:server connection returned to pool",
+                        G_STRLOC, con, con->state);
+            }
 			network_connection_pool_lua_add_connection(con); 
             g_debug("session dropped the backend :%p, server:%p, back ndx:%d", con, con->server, st->backend_ndx);
 		} else if (NULL != (send_sock = network_connection_pool_lua_swap(con, backend_ndx))) {

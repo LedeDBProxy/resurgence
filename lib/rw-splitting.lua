@@ -229,7 +229,6 @@ function connect_server()
         utils.debug("[".. i .."].type = " .. s.type, 1)
         utils.debug("[".. i .."].state = " .. s.state, 1)
 
-
         -- prefer connections to the master 
         if s.type == proxy.BACKEND_TYPE_RW and
             (s.state == proxy.BACKEND_STATE_UP or
@@ -273,7 +272,12 @@ function connect_server()
 
     if proxy.connection.backend_ndx == 0 then
         utils.debug("[" .. rw_ndx .. "] taking master as default", 1)
-        proxy.connection.backend_ndx = rw_ndx
+        if rw_ndx > 0 then
+            proxy.connection.backend_ndx = rw_ndx
+        else
+            utils.debug("connection will be rejected", 1)
+            return session_err("rw ndx is zero", 0)
+        end
     else
         is_backend_conn_keepalive = true
     end

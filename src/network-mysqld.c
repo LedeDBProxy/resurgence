@@ -1738,12 +1738,17 @@ void network_mysqld_con_handle(int event_fd, short events, void *user_data) {
 				if (con->server) network_mysqld_queue_reset(con->server);
 
                 con->valid_parallel_stmt_cnt--;
-                g_debug("%s: conn:%p, sub, now valid_parallel_stmt_cnt:%d", G_STRLOC, con, con->valid_parallel_stmt_cnt);
+                g_debug("%s: conn:%p, sub, now valid_parallel_stmt_cnt:%d",
+                        G_STRLOC, con, con->valid_parallel_stmt_cnt);
 
                 if (con->valid_parallel_stmt_cnt == 0) {
                     if (!con->is_still_in_trans) {
                         g_debug("%s: try to add prepare server connection returned to pool",
                                 G_STRLOC);
+                        if (con->state < CON_STATE_READ_AUTH_RESULT) {
+                            g_critical("%s, con:%p, state:%d:server connection returned to pool",
+                                    G_STRLOC, con, con->state);
+                        }
                         network_connection_pool_lua_add_connection(con);
                     } else {
                         con->state = CON_STATE_CLOSE_SERVER;

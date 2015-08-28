@@ -611,6 +611,11 @@ network_socket_retval_t network_mysqld_con_get_packet(chassis G_GNUC_UNUSED*chas
 	packet_len = network_mysqld_proto_get_packet_len(&header);
 	packet_id  = network_mysqld_proto_get_packet_id(&header);
 
+    g_debug("%s: recv queue length:%d, con:%p, client addr:%s, packet len:%d",
+                G_STRLOC, con->recv_queue_raw->chunks->length, 
+                con, con->src->name->str, packet_len);
+
+
 	/* move the packet from the raw queue to the recv-queue */
 	if ((packet = network_queue_pop_string(con->recv_queue_raw, packet_len + NET_HEADER_SIZE, NULL))) {
 #ifdef NETWORK_DEBUG_TRACE_IO
@@ -975,6 +980,11 @@ static int network_mysqld_con_track_auth_result_state(network_mysqld_con *con) {
 	guint8 state;
 	int err = 0;
 
+    if (con->server->recv_queue->chunks->length > 1) {
+        g_debug("%s: recv queue length is larger than 1, value:%d, con:%p", 
+                G_STRLOC, con->server->recv_queue->chunks->length, con);
+    }
+
 	/**
 	 * depending on the result-set we have different exit-points
 	 * - OK  -> READ_QUERY
@@ -1145,7 +1155,12 @@ void network_mysqld_con_handle(int event_fd, short events, void *user_data) {
 				G_STRLOC,
 				getpid(),
 				network_mysqld_con_state_get_name(con->state),
-                con->client);
+                con);
+        if (con->server) {
+            g_debug("0, send sock queue len:%d, server recv queue len:%d, sock:%p, con:%p", 
+                    con->server->send_queue->chunks->length, 
+                    con->server->recv_queue->chunks->length, con->server, con);
+        }
 #endif
 
 		MYSQLPROXY_STATE_CHANGE(event_fd, events, con->state);
@@ -1440,7 +1455,12 @@ void network_mysqld_con_handle(int event_fd, short events, void *user_data) {
 
 				break;
 			}
-			
+
+            if (con->server) {
+                g_debug("%s.%d: send sock queue len:%d, con:%p", 
+                        __FILE__, __LINE__, con->server->send_queue->chunks->length, con);
+            }
+
 			if (con->state != ostate) break; /* the state has changed (e.g. CON_STATE_ERROR) */
 
 			switch (plugin_call(srv, con, con->state)) {
@@ -1452,6 +1472,10 @@ void network_mysqld_con_handle(int event_fd, short events, void *user_data) {
 				break;
 			}
 
+            if (con->server) {
+                g_debug("%s.%d: send sock queue len:%d, con:%p", 
+                        __FILE__, __LINE__, con->server->send_queue->chunks->length, con);
+            }
 			break;
 		case CON_STATE_READ_AUTH_RESULT: {
 			/* read the auth result from the server */

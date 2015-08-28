@@ -231,6 +231,9 @@ network_socket *network_connection_pool_get(network_connection_pool *pool,
 
 	sock = found_entry->sock;
 
+    g_debug("%s: recv queue length:%d, sock:%p", 
+                        G_STRLOC, sock->recv_queue->chunks->length, sock);
+
 	network_connection_pool_entry_free(found_entry, FALSE);
 
 	/* remove the idle handler from the socket */	
@@ -248,6 +251,11 @@ network_socket *network_connection_pool_get(network_connection_pool *pool,
 network_connection_pool_entry *network_connection_pool_add(network_connection_pool *pool, 
         network_socket *sock, guint64 key) 
 {
+
+    if (sock->recv_queue->chunks->length > 0) {
+        g_critical("%s: recv queue length:%d, sock:%p", 
+                G_STRLOC, sock->recv_queue->chunks->length, sock);
+    }
 	network_connection_pool_entry *entry;
 	GQueue *conns = NULL;
 

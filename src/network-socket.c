@@ -525,6 +525,9 @@ network_socket_retval_t network_socket_read(network_socket *sock) {
 		GString *packet = g_string_sized_new(sock->to_read);
 
 		g_queue_push_tail(sock->recv_queue_raw->chunks, packet);
+        g_debug("%s: recv queue length:%d, sock:%p, client addr:%s",
+                G_STRLOC, sock->recv_queue_raw->chunks->length, 
+                sock, sock->src->name->str);
 
 		if (sock->socket_type == SOCK_STREAM) {
 			len = recv(sock->fd, packet->str, sock->to_read, 0);

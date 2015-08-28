@@ -41,7 +41,6 @@ if not proxy.global.config.rwsplit then
         mid_idle_connections = 40,
         max_idle_connections = 80,
         max_init_time = 10,
-
         is_debug = true,
         is_slave_write_forbidden_set = false
     }
@@ -259,6 +258,9 @@ function connect_server()
         local backend_state = proxy.global.backends[proxy.connection.backend_ndx].state
         if backend_state == proxy.BACKEND_STATE_UP then
             use_pool_conn = true
+            if cur_idle > max_idle_conns then
+                is_backend_conn_keepalive = false
+            end
             -- stay with it
             return proxy.PROXY_IGNORE_RESULT
         end

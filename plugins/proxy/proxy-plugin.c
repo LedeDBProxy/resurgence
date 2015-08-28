@@ -844,10 +844,12 @@ NETWORK_MYSQLD_PLUGIN_PROTO(proxy_read_auth) {
                 } */
 				if (config->pool_change_user && need_change_user) {
 					GString *com_change_user = g_string_new(NULL);
+                    network_mysqld_queue_reset(con->server);
 
 					/* copy incl. the nul */
 					g_string_append_c(com_change_user, COM_CHANGE_USER);
-					g_string_append_len(com_change_user, con->client->response->username->str, con->client->response->username->len + 1); /* nul-term */
+					g_string_append_len(com_change_user, con->client->response->username->str, 
+                            con->client->response->username->len + 1); /* nul-term */
 
 					g_assert_cmpint(con->client->response->auth_plugin_data->len, <, 250);
 

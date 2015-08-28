@@ -717,6 +717,9 @@ NETWORK_MYSQLD_PLUGIN_PROTO(proxy_read_auth) {
 	recv_sock = con->client;
 	send_sock = con->server;
 
+    if (send_sock) {
+        g_debug("0, send sock queue len:%d, con:%p", send_sock->send_queue->chunks->length, con);
+    }
  	packet.data = g_queue_peek_tail(recv_sock->recv_queue->chunks);
 	packet.offset = 0;
 
@@ -757,7 +760,7 @@ NETWORK_MYSQLD_PLUGIN_PROTO(proxy_read_auth) {
 		g_string_assign_len(con->client->default_db, S(auth->database));
 
 	    got_all_data = TRUE;
-        g_debug("sock:%p, 1nd round auth", con->client);
+        g_debug("sock:%p, 1nd round auth", con);
 	} else {
 		GString *auth_data;
 		gsize auth_data_len;
@@ -774,8 +777,12 @@ NETWORK_MYSQLD_PLUGIN_PROTO(proxy_read_auth) {
 
 		g_string_free(auth_data, TRUE);
         
-        g_debug("sock:%p, 2nd round auth", con->client);
+        g_debug("sock:%p, 2nd round auth", con);
 	}
+
+    if (send_sock) {
+        g_debug("1, send sock queue len:%d, con:%p", send_sock->send_queue->chunks->length, con);
+    }
 
 	if (got_all_data) {
 
@@ -801,6 +808,7 @@ NETWORK_MYSQLD_PLUGIN_PROTO(proxy_read_auth) {
 			/* replace the client challenge that is sent to the server */
 			inj = g_queue_pop_head(st->injected.queries);
 
+	        g_debug("con:%p, append packet to send queues", con);
 			network_mysqld_queue_append(send_sock, send_sock->send_queue, S(inj->query));
 
 			injection_free(inj);
@@ -826,6 +834,9 @@ NETWORK_MYSQLD_PLUGIN_PROTO(proxy_read_auth) {
 			 * that leaves temp-tables on the connection.
 			 */
 			if (con->server->is_authed) {
+                g_debug("%s: recv queue length:%d, con:%p, client addr:%s", 
+                        G_STRLOC, con->server->recv_queue->chunks->length, 
+                        con, con->client->dst->name->str);
                 int need_change_user = 1;
                 /* if (strncmp(con->client->response->username->str, con->server->response->username->str,
                             con->client->response->username->len) != 0) {
@@ -848,13 +859,14 @@ NETWORK_MYSQLD_PLUGIN_PROTO(proxy_read_auth) {
 					g_string_append_len(com_change_user, con->client->default_db->str, con->client->default_db->len + 1);
 					network_mysqld_proto_append_int16(com_change_user, con->client->charset_code);
 	                g_debug("sock:%p, change user, set charset:%s",
-                            con->client, charset[con->client->charset_code]);
+                            con, charset[con->client->charset_code]);
 					/* network_mysqld_proto_append_int16(com_change_user, con->client->response->charset); */
 
 					/*if (con->client->challenge->capabilities & CLIENT_PLUGIN_AUTH) {
 						g_string_append_len(com_change_user, con->client->response->auth_plugin_name->str, con->client->response->auth_plugin_name->len + 1);
 					}*/
 
+	                g_debug("con:%p, send queue length:%d", con, send_sock->send_queue->chunks->length);
 					network_mysqld_queue_append(
 							send_sock,
 							send_sock->send_queue, 
@@ -918,7 +930,7 @@ NETWORK_MYSQLD_PLUGIN_PROTO(proxy_read_auth) {
 					g_string_free(auth_resp, TRUE);
 				}
 			} else {
-                g_debug("sock:%p, append raw packet", con->client);
+                g_debug("sock:%p, append raw packet", con);
 				network_mysqld_queue_append_raw(send_sock, send_sock->send_queue, packet.data);
 				con->state = CON_STATE_SEND_AUTH;
 
@@ -931,7 +943,10 @@ NETWORK_MYSQLD_PLUGIN_PROTO(proxy_read_auth) {
 			break;
 		}
 
-		if (free_client_packet) {
+        if (send_sock) {
+            g_debug("2, send sock queue len:%d, con:%p", send_sock->send_queue->chunks->length, con);
+        }
+        if (free_client_packet) {
 			g_string_free(g_queue_pop_tail(recv_sock->recv_queue->chunks), TRUE);
 		} else {
 			/* just remove the link to the packet, the packet itself is part of the next queue already */
@@ -944,6 +959,10 @@ NETWORK_MYSQLD_PLUGIN_PROTO(proxy_read_auth) {
 				g_queue_pop_tail(recv_sock->recv_queue->chunks));
 		/* stay in this state and read the next packet */
 	}
+
+    if (send_sock) {
+        g_debug("3, send sock queue len:%d, con:%p", send_sock->send_queue->chunks->length, con);
+    }
 
 	return NETWORK_SOCKET_SUCCESS;
 }
@@ -2118,6 +2137,7 @@ static network_mysqld_lua_stmt_ret proxy_lua_disconnect_client(network_mysqld_co
 		g_debug("%s.%d: %s", __FILE__, __LINE__, "set sever_is_closed true");
     }
 #endif
+
 	return ret;
 }
 

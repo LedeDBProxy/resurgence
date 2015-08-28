@@ -251,6 +251,19 @@ int network_connection_pool_lua_add_connection(network_mysqld_con *con) {
 
     if (!con->server->response) return 0;
 
+    if (con->state >= CON_STATE_READ_QUERY) {
+        if (con->server->recv_queue->chunks->length > 0) {
+            g_critical("%s.%d: recv queue length :%d, state:%s",
+                    __FILE__, __LINE__, con->server->recv_queue->chunks->length, 
+                    network_mysqld_con_state_get_name(con->state));
+        } else {
+            g_debug("%s.%d: recv queue length:%d, state:%s",
+                    __FILE__, __LINE__, con->server->recv_queue->chunks->length,
+                    network_mysqld_con_state_get_name(con->state));
+        }
+        GString *packet;
+        while ((packet = g_queue_pop_head(con->server->recv_queue->chunks))) g_string_free(packet, TRUE);
+    }
 	/* the server connection is still authed */
 	con->server->is_authed = 1;
         

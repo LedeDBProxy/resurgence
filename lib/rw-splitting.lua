@@ -12,10 +12,10 @@ local tokens
 -- connection pool
 if not proxy.global.config.rwsplit then
     proxy.global.config.rwsplit = {
-        min_idle_connections = 1,
-        mid_idle_connections = 4,
-        max_idle_connections = 8,
-        max_init_time = 10,
+        min_idle_connections = 100,
+        mid_idle_connections = 1000,
+        max_idle_connections = 2000,
+        max_init_time = 1,
         default_user = "",
         default_index = 1,
         is_debug = true,
@@ -294,6 +294,9 @@ function connect_server()
         local backend_state = proxy.global.backends[proxy.connection.backend_ndx].state
         if backend_state == proxy.BACKEND_STATE_UP then
             use_pool_conn = true
+            if cur_idle > max_idle_conns then
+                is_backend_conn_keepalive = false
+            end
             -- stay with it
             return proxy.PROXY_IGNORE_RESULT
         end

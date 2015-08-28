@@ -138,7 +138,7 @@ static int proxy_connection_set(lua_State *L) {
 
 	if (strleq(key, keysize, C("backend_ndx"))) {
 		/**
-		 * in lua-land the ndx is based on 0, in C-land on 0 */
+		 * in lua-land the ndx is based on 1, in C-land on 0 */
 		int backend_ndx = luaL_checkinteger(L, 3) - 1;
 		network_socket *send_sock;
 			

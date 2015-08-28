@@ -345,10 +345,11 @@ network_socket *network_connection_pool_lua_swap(network_mysqld_con *con, int ba
 	 */
 		
     if (con->client->response == NULL) {
-        g_debug("%s: (swap) check if we have a connection for this user in the pool: nil", G_STRLOC);
-        return NULL;
+        g_debug("%s: (swap) check if we have a connection for this user in the pool: nil", 
+                G_STRLOC);
     } else {
-        g_debug("%s: (swap) check if we have a connection for this user in the pool '%s'", G_STRLOC, con->client->response->username->str);
+        g_debug("%s: (swap) check if we have a connection for this user in the pool '%s'", 
+                G_STRLOC, con->client->response->username->str);
     }
 
     info.key = con->client->src->key;

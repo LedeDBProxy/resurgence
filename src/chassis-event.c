@@ -316,7 +316,8 @@ void *chassis_event_loop(chassis_event_t *loop) {
 
 		if (r == -1) {
 			if (errno == EINTR) continue;
-			g_critical("%s: leaving chassis_event_loop early, errno != EINTR was: %s (%d)", G_STRLOC, g_strerror(errno), errno);
+			g_critical("%s: leaving chassis_event_loop early, errno != EINTR was: %s (%d)", 
+                    G_STRLOC, g_strerror(errno), errno);
 			break;
 		}
 	}

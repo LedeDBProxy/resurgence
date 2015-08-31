@@ -286,6 +286,14 @@ int network_connection_pool_lua_add_connection(network_mysqld_con *con) {
             int index = st->backend_ndx_array[i] - 1;
             server = server_list->server[index];
             backend = st->backend_array[i];
+
+            int pending = event_pending(&(server->event), EV_READ|EV_WRITE|EV_TIMEOUT, NULL);
+            if (pending) { 
+                g_message("%s: server event pending:%p, ev flags:%d, ev:%p", G_STRLOC, con,
+                        (server->event).ev_flags, &(server->event));
+                event_del(&(server->event));
+            }
+
             g_debug("%s: here add conn fd:%d to pool:%p ", G_STRLOC, server->fd, backend->pool); 
             pool_entry = network_connection_pool_add(backend->pool, server, con->client->src->key);
             event_set(&(server->event), server->fd, EV_READ, network_mysqld_con_idle_handle, pool_entry);
@@ -301,11 +309,19 @@ int network_connection_pool_lua_add_connection(network_mysqld_con *con) {
         con->valid_prepare_stmt_cnt = 0;
         g_debug("%s: con:%p, set valid_prepare_stmt_cnt 0", G_STRLOC, con);
 
+        int pending = event_pending(&(con->server->event), EV_READ|EV_WRITE|EV_TIMEOUT, NULL);
+        if (pending) { 
+            g_message("%s: server event pending:%p, ev flags:%d, ev:%p", G_STRLOC, con,
+                    (con->server->event).ev_flags, &(con->server->event));
+            event_del(&(con->server->event));
+        }
+
         g_debug("%s: add conn fd:%d to pool:%p", G_STRLOC, con->server->fd, st->backend->pool);
         /* insert the server socket into the connection pool */
         pool_entry = network_connection_pool_add(st->backend->pool, con->server, con->client->src->key);
 
-        event_set(&(con->server->event), con->server->fd, EV_READ, network_mysqld_con_idle_handle, pool_entry);
+        event_set(&(con->server->event), con->server->fd, EV_READ,
+                network_mysqld_con_idle_handle, pool_entry);
         chassis_event_add_local(con->srv, &(con->server->event)); 
 
         st->backend->connected_clients--;

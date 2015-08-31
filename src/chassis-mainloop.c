@@ -172,6 +172,15 @@ void chassis_free(chassis *chas) {
     while ((op = g_async_queue_try_pop(chas->event_queue))) {
         chassis_event_op_free(op);
     }
+	g_free(chas->event_hdr_version);
+
+	chassis_shutdown_hooks_free(chas->shutdown_hooks);
+
+	/* init the shutdown, without freeing share structures */	
+	if (chas->priv_finally_free_shared) chas->priv_finally_free_shared(chas, chas->priv);
+
+    /* free the pointers _AFTER_ the modules are shutdown */
+	if (chas->priv_free) chas->priv_free(chas, chas->priv);
 #ifdef HAVE_EVENT_BASE_FREE
 	/* only recent versions have this call */
 
@@ -184,16 +193,6 @@ void chassis_free(chassis *chas) {
 		if (chas->event_base) event_base_free(chas->event_base);
 	}
 #endif
-	g_free(chas->event_hdr_version);
-
-	chassis_shutdown_hooks_free(chas->shutdown_hooks);
-
-	/* init the shutdown, without freeing share structures */	
-	if (chas->priv_finally_free_shared) chas->priv_finally_free_shared(chas, chas->priv);
-
-    /* free the pointers _AFTER_ the modules are shutdown */
-	if (chas->priv_free) chas->priv_free(chas, chas->priv);
-
 	g_free(chas);
 }
 

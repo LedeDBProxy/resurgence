@@ -84,6 +84,7 @@ function connect_server()
 
     local rw_ndx = 0
     local max_idle_conns = 0
+    local min_idle_conns = 0
     local mid_idle_conns = 0
     local init_phase = false
     local cur_idle = 0
@@ -99,7 +100,6 @@ function connect_server()
         local pool     = s.pool -- we don't have a username yet, try to find a connections which is idling
         cur_idle = pool.users[""].cur_idle_connections
         init_phase = pool.init_phase
-        local min_idle_conns
         connected_clients = s.connected_clients
 
         if connected_clients > 0 then
@@ -258,7 +258,7 @@ function connect_server()
         local backend_state = proxy.global.backends[proxy.connection.backend_ndx].state
         if backend_state == proxy.BACKEND_STATE_UP then
             use_pool_conn = true
-            if cur_idle > max_idle_conns then
+            if cur_idle > (max_idle_conns + min_idle_conns) then
                 is_backend_conn_keepalive = false
             end
             -- stay with it

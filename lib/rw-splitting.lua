@@ -541,14 +541,7 @@ function read_query( packet )
                                             if is_debug then
                                                 print("  [set is_auto_commit false]" )
                                             end
-                                            if ro_server == true then
-                                                local rw_backend_ndx = lb.idle_failsafe_rw()
-                                                if rw_backend_ndx > 0 then
-                                                    backend_ndx = rw_backend_ndx
-                                                    proxy.connection.backend_ndx = backend_ndx
-                                                end
-                                            end
-                                            conn_reserved = true
+                                            rw_op = true
                                         else
                                             is_auto_commit = true
                                         end

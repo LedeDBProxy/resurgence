@@ -26,6 +26,11 @@
 
 #include "chassis-exports.h"
 
+#ifdef g_debug
+#undef g_debug
+#define g_debug(...) 
+#endif
+
 CHASSIS_API void     g_list_string_free(gpointer data, gpointer user_data);
 
 CHASSIS_API gboolean g_hash_table_true(gpointer key, gpointer value, gpointer user_data);

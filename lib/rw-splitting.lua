@@ -40,8 +40,8 @@ if not proxy.global.config.rwsplit then
         min_idle_connections = 1,
         mid_idle_connections = 40,
         max_idle_connections = 80,
-        max_init_time = 10,
-        is_debug = true,
+        max_init_time = 1,
+        is_debug = false,
         is_slave_write_forbidden_set = false
     }
 end
@@ -103,10 +103,8 @@ function connect_server()
         connected_clients = s.connected_clients
 
         if connected_clients > 0 then
-            print("  no need to init pool connections")
             pool.serve_req_after_init = true
         else
-            print("  init pool connections")
             pool.min_idle_connections = proxy.global.config.rwsplit.min_idle_connections
             pool.mid_idle_connections = proxy.global.config.rwsplit.mid_idle_connections
             pool.max_idle_connections = proxy.global.config.rwsplit.max_idle_connections
@@ -114,12 +112,10 @@ function connect_server()
         end
 
         if init_phase then
-            print("  init phase now")
             local init_time = pool.init_time
             if init_time > 0 and not pool.serve_req_after_init then
                 pool.set_init_time = 1
                 init_time = pool.init_time
-                print("  reset init")
             end
 
             local max_init_time = proxy.global.config.rwsplit.max_init_time
@@ -135,9 +131,6 @@ function connect_server()
             mid_idle_conns = math.floor(proxy.global.config.rwsplit.mid_idle_connections * init_time / max_init_time)
             max_idle_conns = math.floor(proxy.global.config.rwsplit.max_idle_connections * init_time / max_init_time)
 
-            print("  init time = " .. init_time)
-            print("  min_idle_conns = " .. min_idle_conns)
-            print("  max_idle_conns = " .. max_idle_conns)
             if mid_idle_conns < min_idle_conns then
                 mid_idle_conns = min_idle_conns
             end
@@ -647,12 +640,6 @@ function read_query( packet )
                 tokens     = tokens or assert(tokenizer.tokenize(cmd.query))
                 local stmt = tokenizer.first_stmt_token(tokens)
 
-                for i = 1, #tokens do
-                    local token = tokens[i]
-                    print("token: " .. token.token_name)
-                    print("  val: " .. token.text)
-                end
-
                 local session_read_only = 0
 
                 if stmt.token_name == "TK_SQL_SELECT" then
@@ -1112,8 +1099,6 @@ function disconnect_client()
     end
 
     proxy.global.stat_clients = proxy.global.stat_clients - 1
-
-    print("total clients:" .. proxy.global.stat_clients)
 
     if not is_backend_conn_keepalive or is_in_transaction or not is_auto_commit then 
         if is_debug then

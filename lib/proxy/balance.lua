@@ -24,16 +24,18 @@ module("proxy.balance", package.seeall)
 function idle_failsafe_rw(group)
 	local backend_ndx = 0
 
-	for i = 1, #proxy.global.backends do
+    for i = 1, #proxy.global.backends do
         local s = proxy.global.backends[i]
-        if s.group == group and s.type == proxy.BACKEND_TYPE_RW and s.state ~= proxy.BACKEND_STATE_DOWN then
-            local conns = s.pool.users[proxy.connection.client.username]
-            if conns.cur_idle_connections > 0 then
-                backend_ndx = i
-                break
+        if s.group == group and s.type == proxy.BACKEND_TYPE_RW then
+            if s.state == proxy.BACKEND_STATE_UP or s.state == proxy.BACKEND_STATE_UNKNOWN then
+                local conns = s.pool.users[proxy.connection.client.username]
+                if conns.cur_idle_connections > 0 then
+                    backend_ndx = i
+                    break
+                end
             end
         end
-	end
+    end
 
 	return backend_ndx
 end
@@ -44,13 +46,15 @@ function idle_ro(group)
 
 	for i = 1, #proxy.global.backends do
 		local s = proxy.global.backends[i]
-        if s.group == group and s.type == proxy.BACKEND_TYPE_RO and s.state ~= proxy.BACKEND_STATE_DOWN then
-            local conns = s.pool.users[proxy.connection.client.username]
-            -- pick a slave which has some idling connections
-            if conns.cur_idle_connections > 0 then
-                if max_conns == -1 or s.connected_clients < max_conns then
-                    max_conns = s.connected_clients
-                    max_conns_ndx = i
+        if s.group == group and s.type == proxy.BACKEND_TYPE_RO then
+            if s.state == proxy.BACKEND_STATE_UP or s.state == proxy.BACKEND_STATE_UNKNOWN then
+                local conns = s.pool.users[proxy.connection.client.username]
+                -- pick a slave which has some idling connections
+                if conns.cur_idle_connections > 0 then
+                    if max_conns == -1 or s.connected_clients < max_conns then
+                        max_conns = s.connected_clients
+                        max_conns_ndx = i
+                    end
                 end
             end
         end
@@ -62,11 +66,13 @@ end
 function choose_rw_backend_ndx(group)
 	local backend_ndx = 0
 
-	for i = 1, #proxy.global.backends do
-		local s = proxy.global.backends[i]
-        if s.group == group and s.type == proxy.BACKEND_TYPE_RW and s.state ~= proxy.BACKEND_STATE_DOWN then
-            backend_ndx = i
-            break
+    for i = 1, #proxy.global.backends do
+        local s = proxy.global.backends[i]
+        if s.group == group and s.type == proxy.BACKEND_TYPE_RW then
+            if s.state == proxy.BACKEND_STATE_UP or s.state == proxy.BACKEND_STATE_UNKNOWN then
+                backend_ndx = i
+                break
+            end
         end
     end
 
@@ -78,10 +84,13 @@ function choose_ro_backend_ndx(group)
 
     for i = 1, #proxy.global.backends do
         local s = proxy.global.backends[i]
-        if s.group == group and s.type == proxy.BACKEND_TYPE_RO and s.state ~= proxy.BACKEND_STATE_DOWN then
-            backend_ndx = i
+        if s.group == group and s.type == proxy.BACKEND_TYPE_RO then
+            if s.state == proxy.BACKEND_STATE_UP or s.state == proxy.BACKEND_STATE_UNKNOWN then
+                backend_ndx = i
+            end
         end
     end
 
 	return backend_ndx
 end
+

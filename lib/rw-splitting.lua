@@ -637,14 +637,7 @@ function dispose_one_query( packet, group )
                                         if nxt_nxt_token.text == "0" then
                                             is_auto_commit = false
                                             utils.debug("[set is_auto_commit false]", 1)
-                                            if ro_server == true then
-                                                local rw_backend_ndx = lb.idle_failsafe_rw(group)
-                                                if rw_backend_ndx > 0 then
-                                                    backend_ndx = rw_backend_ndx
-                                                    proxy.connection.backend_ndx = backend_ndx
-                                                end
-                                            end
-                                            conn_reserved = true
+                                            rw_op = true
                                         else
                                             is_auto_commit = true
                                         end

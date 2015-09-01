@@ -1802,9 +1802,6 @@ void network_mysqld_con_handle(int event_fd, short events, void *user_data) {
 
 				g_assert(events == 0 || event_fd == recv_sock->fd);
 
-                g_debug("%s: read query result, con:%p, socket:%p, fd:%d",
-                            G_STRLOC, con, con->server, recv_sock->fd);
-
 				switch (network_mysqld_read(srv, recv_sock)) {
 				case NETWORK_SOCKET_SUCCESS:
 					break;

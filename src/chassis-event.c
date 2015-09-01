@@ -34,6 +34,7 @@
 #include <event.h>
 
 #include "chassis-event.h"
+#include "glib-ext.h"
 
 #define C(x) x, sizeof(x) - 1
 #define closesocket(x) close(x)

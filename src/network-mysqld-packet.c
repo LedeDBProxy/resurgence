@@ -231,10 +231,6 @@ int network_mysqld_proto_get_com_query_result(network_packet *packet, network_my
 					}
 					query->warning_count = eof_packet->warnings;
 
-                    g_debug("%s: server status, got: %d, con:%p",
-                            G_STRLOC,
-                            eof_packet->server_status, con);
-
 					if (query->server_status & SERVER_MORE_RESULTS_EXISTS) {
 						query->state = PARSE_COM_QUERY_INIT;
 					} else {

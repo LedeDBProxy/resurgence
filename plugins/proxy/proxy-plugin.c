@@ -256,13 +256,19 @@ NETWORK_MYSQLD_PLUGIN_PROTO(proxy_timeout) {
         if (diff < 3600) {
             if (!con->client->is_server_conn_reserved) {
                 if (con->server) {
-                    if (con->state >= CON_STATE_READ_AUTH_RESULT) {
+                    if (con->state == CON_STATE_READ_AUTH_RESULT || 
+                            con->state == CON_STATE_READ_QUERY) 
+                    {
                         network_connection_pool_lua_add_connection(con);
                         g_debug("%s, con:%p:server connection returned to pool",
                                 G_STRLOC, con);
                     } else {
-                        g_critical("%s, con:%p, state:%d:server connection returned to pool",
-                                G_STRLOC, con, con->state);
+                        if (con->state == CON_STATE_READ_QUERY_RESULT) {
+                            con->state = CON_STATE_ERROR;
+                            con->sever_is_closed = TRUE;
+                            g_critical("%s, con:%p, state:%d:server state error",
+                                    G_STRLOC, con, network_mysqld_con_state_get_name(con->state));
+                        }
                     }
                 }
             }
@@ -1635,9 +1641,9 @@ NETWORK_MYSQLD_PLUGIN_PROTO(proxy_read_query_result) {
 				inj->qstat.server_status = com_query->server_status;
 				inj->qstat.warning_count = com_query->warning_count;
 				inj->qstat.query_status  = com_query->query_status;
-                g_debug("%s: server status, got: %d",
+                g_debug("%s: server status, got: %d, con:%p",
                         G_STRLOC,
-                        com_query->server_status);
+                        com_query->server_status, con);
 			} else {
                 g_debug("%s: no chance to get server status",
                         G_STRLOC);

@@ -251,7 +251,8 @@ int network_connection_pool_lua_add_connection(network_mysqld_con *con) {
 
     if (!con->server->response) return 0;
 
-    if (con->state != CON_STATE_READ_QUERY && con->state != CON_STATE_READ_AUTH_RESULT) {
+    if (con->state != CON_STATE_CLIENT_QUIT && con->state != CON_STATE_READ_QUERY && con->state != CON_STATE_READ_AUTH_RESULT) {
+		g_critical("%s: try to add state:%s to connect pool", G_STRLOC, network_mysqld_con_state_get_name(con->state));
         if (con->server->recv_queue->chunks->length > 0) {
             g_critical("%s.%d: recv queue length :%d, state:%s",
                     __FILE__, __LINE__, con->server->recv_queue->chunks->length, 
@@ -265,7 +266,7 @@ int network_connection_pool_lua_add_connection(network_mysqld_con *con) {
         GString *packet;
         while ((packet = g_queue_pop_head(con->server->recv_queue->chunks))) g_string_free(packet, TRUE);
 
-        con->sever_is_closed = TRUE;
+        con->server_is_closed = TRUE;
 
         return 0;
     }

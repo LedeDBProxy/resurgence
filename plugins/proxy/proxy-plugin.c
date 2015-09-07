@@ -266,7 +266,7 @@ NETWORK_MYSQLD_PLUGIN_PROTO(proxy_timeout) {
                         if (con->state == CON_STATE_READ_QUERY_RESULT) {
                             con->state = CON_STATE_ERROR;
                             con->sever_is_closed = TRUE;
-                            g_critical("%s, con:%p, state:%d:server state error",
+                            g_critical("%s, con:%p, state:%s:server state error",
                                     G_STRLOC, con, network_mysqld_con_state_get_name(con->state));
                         }
                     }

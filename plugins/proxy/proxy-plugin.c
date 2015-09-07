@@ -265,7 +265,7 @@ NETWORK_MYSQLD_PLUGIN_PROTO(proxy_timeout) {
                     } else {
                         if (con->state == CON_STATE_READ_QUERY_RESULT) {
                             con->state = CON_STATE_ERROR;
-                            con->sever_is_closed = TRUE;
+                            con->server_is_closed = TRUE;
                             g_critical("%s, con:%p, state:%s:server state error",
                                     G_STRLOC, con, network_mysqld_con_state_get_name(con->state));
                         }
@@ -2126,8 +2126,8 @@ static network_mysqld_lua_stmt_ret proxy_lua_disconnect_client(network_mysqld_co
 	g_assert(lua_isfunction(L, -1));
 
     if (st->connection_close) {
-        con->sever_is_closed = TRUE;
-		g_debug("%s.%d: %s", __FILE__, __LINE__, "set sever_is_closed true");
+        con->server_is_closed = TRUE;
+		g_debug("%s.%d: %s", __FILE__, __LINE__, "set server_is_closed true");
     }
 #endif
 
@@ -2166,7 +2166,7 @@ NETWORK_MYSQLD_PLUGIN_PROTO(proxy_disconnect_client) {
 		break;
 	}
 
-	if (con->state == CON_STATE_CLOSE_CLIENT && !con->sever_is_closed) {
+	if (con->state == CON_STATE_CLOSE_CLIENT && !con->server_is_closed) {
 		/* move the connection to the connection pool
 		 *
 		 * this disconnects con->server and safes it from getting free()ed later

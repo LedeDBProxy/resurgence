@@ -12,9 +12,9 @@ local tokens
 -- connection pool
 if not proxy.global.config.rwsplit then
     proxy.global.config.rwsplit = {
-        min_idle_connections = 100,
-        mid_idle_connections = 1000,
-        max_idle_connections = 2000,
+        min_idle_connections = 10,
+        mid_idle_connections = 40,
+        max_idle_connections = 80,
         max_init_time = 1,
         default_user = "",
         default_index = 1,
@@ -71,6 +71,30 @@ local last_group = nil
 
 -- if this was a SELECT SQL_CALC_FOUND_ROWS ... stay on the same connections
 local is_in_select_calc_found_rows = false
+
+function return_insert_id(utext, last_insert_id)
+    local rows = { }
+    local fields = {
+        {
+            name = utext,
+            type = proxy.MYSQL_TYPE_LONGLONG
+        },
+    }
+
+    rows[#rows + 1] = {
+        last_insert_id
+    }
+
+    proxy.response = {
+        type = proxy.MYSQLD_PACKET_OK,
+        resultset = {
+            fields = fields,
+            rows = rows
+        }
+    }
+    return proxy.PROXY_SEND_RESULT
+end
+
 
 
 function session_err(msg, enlarge)
@@ -233,15 +257,13 @@ function connect_server()
         if s.type == proxy.BACKEND_TYPE_RW and
             (s.state == proxy.BACKEND_STATE_UP or
             s.state == proxy.BACKEND_STATE_UNKNOWN) and
-            ((cur_idle < min_idle_conns and connected_clients < max_idle_conns)
-            or cur_idle > 0) then
+            (cur_idle < min_idle_conns and (connected_clients + cur_idle) < max_idle_conns) then
             proxy.connection.backend_ndx = i
             break
         elseif s.type == proxy.BACKEND_TYPE_RO and
             (s.state == proxy.BACKEND_STATE_UP or
             s.state == proxy.BACKEND_STATE_UNKNOWN) and
-            ((cur_idle < min_idle_conns and connected_clients < max_idle_conns)
-            or cur_idle > 0) then
+            (cur_idle < min_idle_conns and (connected_clients + cur_idle) < max_idle_conns) then
             proxy.connection.backend_ndx = i
             is_backend_conn_keepalive = true
             break
@@ -345,6 +367,10 @@ local _buildUpCombinedResultSet
 local _getFields
 
 function read_query( packet )
+    if is_passed_but_req_rejected then
+        return session_err("010,too many connections", 0)
+    end
+
     _total_queries_per_req = 0
 
     _combinedNumberOfQueries = 0 
@@ -556,6 +582,7 @@ function dispose_one_query( packet, group )
         if stmt.token_name == "TK_SQL_SELECT" then
             is_in_select_calc_found_rows = false
             local is_insert_id = false
+            local last_insert_id_name = nil
 
             for i = 2, #tokens do
                 local token = tokens[i]
@@ -572,6 +599,14 @@ function dispose_one_query( packet, group )
                     if utext == "LAST_INSERT_ID" or
                         utext == "@@INSERT_ID" then
                         is_insert_id = true
+                        last_insert_id_name = utext
+                    end
+                elseif not is_insert_id and token.token_name == "TK_FUNCTION" then
+                    local utext = token.text:upper()
+                    if utext == "LAST_INSERT_ID" then
+                        is_insert_id = true
+                        utext = utext ..  "()"
+                        last_insert_id_name = utext
                     end
                 end
 
@@ -594,8 +629,9 @@ function dispose_one_query( packet, group )
                 end
 
             else
-                conn_reserved = true
-                utils.debug("[this select statement should use the same connection] ", 1)
+                -- only support last insert id in non transaction environment
+                local last_insert_id = proxy.connection.last_insert_id
+                return return_insert_id(last_insert_id_name, last_insert_id)
             end
 
         else 
@@ -844,10 +880,6 @@ function dispose_one_query( packet, group )
 
     backend_ndx = proxy.connection.backend_ndx
     utils.debug("backend_ndx:" .. backend_ndx, 1)
-
-    if is_passed_but_req_rejected then
-        return session_err("010,too many connections", 0)
-    end
 
     local s = proxy.connection.server
     local sql_mode = proxy.connection.client.sql_mode
@@ -1117,16 +1149,20 @@ function disconnect_client()
 
     proxy.global.stat_clients = proxy.global.stat_clients - 1
 
-    if not is_backend_conn_keepalive or is_in_transaction or not is_auto_commit then 
-        utils.debug("  set connection_close true", 1)
-        if is_in_transaction then
-            utils.debug(" is_in_transaction is still true", 1) 
-        end
+    if proxy.connection.client_abnormal_close == true then
         proxy.connection.connection_close = true
     else
-        -- make sure we are disconnection from the connection
-        -- to move the connection into the pool
-        proxy.connection.backend_ndx = 0
+        if not is_backend_conn_keepalive or is_in_transaction or not is_auto_commit then 
+            utils.debug("  set connection_close true", 1)
+            if is_in_transaction then
+                utils.debug(" is_in_transaction is still true", 1) 
+            end
+            proxy.connection.connection_close = true
+        else
+            -- make sure we are disconnection from the connection
+            -- to move the connection into the pool
+            proxy.connection.backend_ndx = 0
+        end
     end
 
 end

@@ -308,6 +308,8 @@ struct network_mysqld_con {
 	int valid_parallel_stmt_cnt;
 	int shard_num;
 
+    guint64 last_insert_id;
+
 	/**
 	 * An integer indicating the result received from a server after sending an authentication request.
 	 * 
@@ -341,7 +343,7 @@ struct network_mysqld_con {
 	 * MySQL Proxy would report spurious errors for the latter case, if we failed to track this command.
 	 */
 	gboolean com_quit_seen;
-	gboolean sever_is_closed;
+	gboolean server_is_closed;
 
 	/**
 	 * Flag indicating whether we have received all data from load data infile.

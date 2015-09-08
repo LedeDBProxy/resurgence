@@ -61,6 +61,30 @@ local multiple_server_mode = false
 -- if this was a SELECT SQL_CALC_FOUND_ROWS ... stay on the same connections
 local is_in_select_calc_found_rows = false
 
+local function return_insert_id(utext, last_insert_id)
+    local rows = { }
+    local fields = {
+        {
+            name = utext,
+            type = proxy.MYSQL_TYPE_LONGLONG
+        },
+    }
+
+    rows[#rows + 1] = {
+        last_insert_id
+    }
+
+    proxy.response = {
+        type = proxy.MYSQLD_PACKET_OK,
+        resultset = {
+            fields = fields,
+            rows = rows
+        }
+    }
+    return proxy.PROXY_SEND_RESULT
+end
+
+
 --- 
 -- get a connection to a backend
 --
@@ -171,15 +195,13 @@ function connect_server()
         if s.type == proxy.BACKEND_TYPE_RW and
             (s.state == proxy.BACKEND_STATE_UP or
             s.state == proxy.BACKEND_STATE_UNKNOWN) and
-            ((cur_idle < min_idle_conns and connected_clients < max_idle_conns)
-            or cur_idle > 0) then
+            (cur_idle < min_idle_conns and (connected_clients + cur_idle) < max_idle_conns) then
             proxy.connection.backend_ndx = i
             break
         elseif s.type == proxy.BACKEND_TYPE_RO and
             (s.state == proxy.BACKEND_STATE_UP or
             s.state == proxy.BACKEND_STATE_UNKNOWN) and
-            ((cur_idle < min_idle_conns and connected_clients < max_idle_conns)
-            or cur_idle > 0) then
+            (cur_idle < min_idle_conns and (connected_clients + cur_idle) < max_idle_conns) then
             proxy.connection.backend_ndx = i
             is_backend_conn_keepalive = true
             break
@@ -273,7 +295,7 @@ end
 --
 -- auth.packet is the packet
 function read_auth_result( auth )
-    -- local is_debug = proxy.global.config.rwsplit.is_debug
+    local is_debug = proxy.global.config.rwsplit.is_debug
 
     --if is_debug then
     --    print("[read_auth_result] " .. proxy.connection.client.src.name)
@@ -308,6 +330,14 @@ end
 --- 
 -- read/write splitting
 function read_query( packet )
+    if is_passed_but_req_rejected then
+        proxy.response = {
+            type = proxy.MYSQLD_PACKET_ERR,
+            errmsg = "too many connections"
+        }
+        return proxy.PROXY_SEND_RESULT
+    end
+
     local is_debug = proxy.global.config.rwsplit.is_debug
     local cmd      = commands.parse(packet)
     local c        = proxy.connection.client
@@ -447,6 +477,7 @@ function read_query( packet )
         if stmt.token_name == "TK_SQL_SELECT" then
             is_in_select_calc_found_rows = false
             local is_insert_id = false
+            local last_insert_id_name = nil
 
             for i = 2, #tokens do
                 local token = tokens[i]
@@ -463,6 +494,14 @@ function read_query( packet )
                     if utext == "LAST_INSERT_ID" or
                         utext == "@@INSERT_ID" then
                         is_insert_id = true
+                        last_insert_id_name = utext
+                    end
+                elseif not is_insert_id and token.token_name == "TK_FUNCTION" then
+                    local utext = token.text:upper()
+                    if utext == "LAST_INSERT_ID" then
+                        is_insert_id = true
+                        utext = utext ..  "()"
+                        last_insert_id_name = utext
                     end
                 end
 
@@ -487,10 +526,9 @@ function read_query( packet )
                 end
 
             else
-                conn_reserved = true
-                if is_debug then
-                    print("  [this select statement should use the same connection] ")
-                end
+                -- only support last insert id in non transaction environment
+                local last_insert_id = proxy.connection.last_insert_id
+                return return_insert_id(last_insert_id_name, last_insert_id)
             end
 
         else 
@@ -771,14 +809,6 @@ function read_query( packet )
         if is_debug then
             print("  backend_ndx:" .. backend_ndx)
         end
-    end
-
-    if is_passed_but_req_rejected then
-        proxy.response = {
-            type = proxy.MYSQLD_PACKET_ERR,
-            errmsg = "too many connections"
-        }
-        return proxy.PROXY_SEND_RESULT
     end
 
     local s = proxy.connection.server
@@ -1100,18 +1130,21 @@ function disconnect_client()
 
     proxy.global.stat_clients = proxy.global.stat_clients - 1
 
-    if not is_backend_conn_keepalive or is_in_transaction or not is_auto_commit then 
-        if is_debug then
-            print("  set connection_close true ")
-            if is_in_transaction then
-                print(" is_in_transaction is still true") 
-            end
-        end
+    if proxy.connection.client_abnormal_close == true then
         proxy.connection.connection_close = true
     else
-        -- make sure we are disconnection from the connection
-        -- to move the connection into the pool
-        proxy.connection.backend_ndx = 0
+        if not is_backend_conn_keepalive or is_in_transaction or not is_auto_commit then 
+            if is_debug then print("  set connection_close true"); end
+            if is_in_transaction then
+                if is_debug then print(" is_in_transaction is still true"); end 
+            end
+            proxy.connection.connection_close = true
+        else
+            -- make sure we are disconnection from the connection
+            -- to move the connection into the pool
+            proxy.connection.backend_ndx = 0
+        end
+
     end
 
 end

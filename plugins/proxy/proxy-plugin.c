@@ -1637,6 +1637,10 @@ NETWORK_MYSQLD_PLUGIN_PROTO(proxy_read_query_result) {
 				if (!com_query->was_resultset) {
 					inj->qstat.affected_rows = com_query->affected_rows;
 					inj->qstat.insert_id     = com_query->insert_id;
+                    if (inj->qstat.insert_id > 0) {
+                        con->last_insert_id = inj->qstat.insert_id;   
+                        g_debug("%s: set last insert id:%d", G_STRLOC, con->last_insert_id);
+                    }
 				}
 				inj->qstat.server_status = com_query->server_status;
 				inj->qstat.warning_count = com_query->warning_count;

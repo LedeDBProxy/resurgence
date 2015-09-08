@@ -201,16 +201,11 @@ void chassis_event_handle(int G_GNUC_UNUSED event_fd, short G_GNUC_UNUSED events
 
         gsize ret;
 
-        g_debug("%s: cal chassis_event_handle, event queue:%p, event base:%p",
-                G_STRLOC, chas->event_queue, event_base);
         if (op = g_async_queue_try_pop_unlocked(chas->event_queue)) {
 
             chassis_event_op_apply(op, event_base);
 
             chassis_event_op_free(op);
-
-            g_debug("%s: cal chassis_event_handle, fd:%d",
-					G_STRLOC, event->notify_fd);
 
             if (1 != (ret = recv(event->notify_fd, ping, 1, 0))) {
                 /* we failed to pull .'s from the notify-queue */
@@ -235,9 +230,6 @@ void chassis_event_handle(int G_GNUC_UNUSED event_fd, short G_GNUC_UNUSED events
                         break;
                 }
             }
-            g_debug("%s: we reach here when cal chassis_event_handle, fd:%d",
-					G_STRLOC, event->notify_fd);
-
         }
     } while (op); /* even if op is 'free()d' it still is != NULL */
 }

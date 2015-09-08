@@ -307,6 +307,8 @@ struct network_mysqld_con {
     int is_still_in_trans;
 	int valid_prepare_stmt_cnt;
 
+	guint64 last_insert_id;
+
 	/**
 	 * An integer indicating the result received from a server after sending an authentication request.
 	 * 

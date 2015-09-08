@@ -90,6 +90,14 @@ static int proxy_connection_get(lua_State *L) {
             index = st->backend_ndx_array[st->backend_ndx];
         }
 		lua_pushinteger(L, index);
+	} else if (strleq(key, keysize, C("client_abnormal_close"))) {
+         if (con->state == CON_STATE_READ_QUERY_RESULT || con->state == CON_STATE_ERROR) {
+             lua_pushboolean (L, 1);
+         } else {
+             lua_pushboolean (L, 0);
+         }
+	} else if (strleq(key, keysize, C("last_insert_id"))) {
+	    lua_pushnumber(L, con->last_insert_id);
 	} else if (strleq(key, keysize, C("backend_ndx"))) {
 		lua_pushinteger(L, st->backend_ndx + 1);
 	} else if ((con->server && (strleq(key, keysize, C("server")))) ||

@@ -188,7 +188,7 @@ void network_mysqld_priv_shutdown(chassis *chas, chassis_private *priv) {
 		network_mysqld_con *con = priv->cons->pdata[i];
 		plugin_call_cleanup(chas, con);
         con->proxy_state = CON_STATE_PROXY_QUIT;
-        g_critical("%s.%d: %p set proxy state CON_STATE_PROXY_QUIT", 
+        g_debug("%s.%d: %p set proxy state CON_STATE_PROXY_QUIT", 
                 __FILE__, __LINE__, con);
 	}
 }
@@ -201,7 +201,7 @@ void network_mysqld_priv_finally_free_shared(chassis *chas, chassis_private *pri
     len = priv->cons->len;
     for (i = 0; i < len; i++) {
 		network_mysqld_con *con = priv->cons->pdata[i];
-        g_critical("%s.%d: %p finally release", __FILE__, __LINE__, con);
+        g_debug("%s.%d: %p finally release", __FILE__, __LINE__, con);
         network_mysqld_con_free(con);
 	}
 }

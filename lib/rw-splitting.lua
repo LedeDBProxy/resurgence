@@ -114,12 +114,15 @@ function warm_up()
     utils.debug("[connect_server] " .. proxy.connection.client.src.name)
 
     if not proxy.global.stat_clients then
-        proxy.global.stat_clients = 0
+        proxy.global.stat_clients = { }
     end
-    proxy.global.stat_clients = proxy.global.stat_clients + 1
-    
+
     local index    = proxy.global.config.rwsplit.default_index
 
+    if not proxy.global.stat_clients[index] then
+        proxy.global.stat_clients[index] = 0
+    end
+    
     -- init one backend 
     if index <= #proxy.global.backends then
         local user     = proxy.global.config.rwsplit.default_user
@@ -145,6 +148,7 @@ function warm_up()
         if (s.state == proxy.BACKEND_STATE_UP or
             s.state == proxy.BACKEND_STATE_UNKNOWN) then
             proxy.connection.backend_ndx = index
+            proxy.global.stat_clients[index] = proxy.global.stat_clients[index] + 1
         else
             return session_err("01,proxy rejects create backend connections", 0)
         end
@@ -170,9 +174,8 @@ function connect_server()
     end
 
     if not proxy.global.stat_clients then
-        proxy.global.stat_clients = 0
+        proxy.global.stat_clients = { }
     end
-    proxy.global.stat_clients = proxy.global.stat_clients + 1
 
     local rw_ndx = 0
     local max_idle_conns = 0
@@ -181,13 +184,17 @@ function connect_server()
     local init_phase = false
     local cur_idle = 0
     local connected_clients = 0
-    local total_clients = 0
+    local total_clients = 1
     local total_available_conns = 0
 
-    total_clients = proxy.global.stat_clients + 1
 
     -- init all backends 
     for i = 1, #proxy.global.backends do
+
+        if not proxy.global.stat_clients[i] then
+            proxy.global.stat_clients[i] = 0
+        end
+
         local s        = proxy.global.backends[i]
         local pool     = s.pool -- we don't have a username yet, try to find a connections which is idling
         cur_idle = pool.users[""].cur_idle_connections
@@ -196,6 +203,7 @@ function connect_server()
          end
         connected_clients = s.connected_clients
 
+        total_clients = total_clients + proxy.global.stat_clients[i] 
         if connected_clients > 0 then
             pool.serve_req_after_init = true
         else
@@ -324,6 +332,8 @@ function connect_server()
         end
     end
 
+    local final_ndx = proxy.connection.backend_ndx
+    proxy.global.stat_clients[final_ndx] = proxy.global.stat_clients[final_ndx] + 1
   	utils.debug("[" .. proxy.connection.backend_ndx .. "] idle-conns below min-idle", 1)
 
     -- open a new connection 
@@ -397,8 +407,8 @@ function read_query( packet )
                 _combinedNumberOfQueries = _combinedNumberOfQueries + 1
             end
             local result = dispose_one_query(packet, group)
-            if result == proxy.PROXY_SEND_RESULT then
-                return proxy.PROXY_SEND_RESULT
+            if result ~= proxy.PROXY_SEND_QUERY then
+                return result
             end
         end
     else
@@ -1147,7 +1157,11 @@ end
 function disconnect_client()
     utils.debug("[disconnect_client] " .. proxy.connection.client.src.name)
 
-    proxy.global.stat_clients = proxy.global.stat_clients - 1
+    local backend_ndx = proxy.connection.backend_ndx
+
+    if  backend_ndx > 0 then
+        proxy.global.stat_clients[backend_ndx] = proxy.global.stat_clients[backend_ndx] - 1
+    end
 
     if proxy.connection.client_abnormal_close == true then
         proxy.connection.connection_close = true
@@ -1161,7 +1175,9 @@ function disconnect_client()
         else
             -- make sure we are disconnection from the connection
             -- to move the connection into the pool
-            proxy.connection.backend_ndx = 0
+            if  backend_ndx > 0 then
+                proxy.connection.backend_ndx = 0
+            end
         end
     end
 

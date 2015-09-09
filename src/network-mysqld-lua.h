@@ -87,7 +87,7 @@ typedef struct {
 } network_mysqld_con_lua_t;
 
 NETWORK_API network_mysqld_con_lua_t *network_mysqld_con_lua_new();
-NETWORK_API void network_mysqld_con_lua_free(network_mysqld_con_lua_t *st);
+NETWORK_API void network_mysqld_con_lua_free(network_mysqld_con *con, network_mysqld_con_lua_t *st);
 
 /** be sure to include network-mysqld.h */
 NETWORK_API network_mysqld_register_callback_ret network_mysqld_con_lua_register_callback(network_mysqld_con *con, const char *lua_script);

@@ -144,7 +144,6 @@ function warm_up()
         utils.debug("[".. index .."].type = " .. s.type, 1)
         utils.debug("[".. index .."].state = " .. s.state, 1)
 
-        -- prefer connections to the master 
         if (s.state == proxy.BACKEND_STATE_UP or
             s.state == proxy.BACKEND_STATE_UNKNOWN) then
             proxy.connection.backend_ndx = index
@@ -334,7 +333,8 @@ function connect_server()
 
     local final_ndx = proxy.connection.backend_ndx
     proxy.global.stat_clients[final_ndx] = proxy.global.stat_clients[final_ndx] + 1
-  	utils.debug("[" .. proxy.connection.backend_ndx .. "] idle-conns below min-idle", 1)
+  	utils.debug("use backend ndx:" .. proxy.connection.backend_ndx, 1)
+  	utils.debug("connection created:" .. proxy.global.stat_clients[final_ndx], 1)
 
     -- open a new connection 
 end
@@ -1159,10 +1159,6 @@ function disconnect_client()
 
     local backend_ndx = proxy.connection.backend_ndx
 
-    if  backend_ndx > 0 then
-        proxy.global.stat_clients[backend_ndx] = proxy.global.stat_clients[backend_ndx] - 1
-    end
-
     if proxy.connection.client_abnormal_close == true then
         proxy.connection.connection_close = true
     else
@@ -1291,7 +1287,7 @@ function _buildUpCombinedResultSet(inj)
                 proxy.response.type = proxy.MYSQLD_PACKET_OK
                 proxy.response.resultset = _combinedResultSet
             else
-                proxy.response.type = proxy.MYSQLD_PACKET_RAW;
+                proxy.response.type = proxy.MYSQLD_PACKET_RAW
                 proxy.response.packets = {
                     "\000" .. -- fields
                     string.char(_combinedResultSet.affected_rows) ..

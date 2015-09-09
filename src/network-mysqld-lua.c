@@ -52,10 +52,54 @@ network_mysqld_con_lua_t *network_mysqld_con_lua_new() {
 	return st;
 }
 
-void network_mysqld_con_lua_free(network_mysqld_con_lua_t *st) {
+void network_mysqld_con_lua_free(network_mysqld_con *con, network_mysqld_con_lua_t *st) {
 	if (!st) return;
 
 	network_injection_queue_free(st->injected.queries);
+
+    /* If con still has server list, then all are closed */
+    if (con->server_list != NULL) {
+        int i, checked = 0;
+        network_socket *server;
+        network_backend_t *backend;
+        server_list_t *server_list = con->server_list;
+	    network_mysqld_con_lua_t *st = con->plugin_con_state;
+
+        for (i = 0; i < MAX_SERVER_NUM; i++) {
+
+            if (st->backend_ndx_array[i] == 0) {
+                continue;
+            }
+
+            int index = st->backend_ndx_array[i] - 1;
+            server = server_list->server[index];
+            backend = st->backend_array[i];
+
+            int pending = event_pending(&(server->event), EV_READ|EV_WRITE|EV_TIMEOUT, NULL);
+            if (pending) { 
+                g_message("%s: server event pending:%p, ev flags:%d, ev:%p", G_STRLOC, con,
+                        (server->event).ev_flags, &(server->event));
+                event_del(&(server->event));
+            }
+
+            network_socket_free(server);
+
+            backend->connected_clients--;
+            checked++;
+
+            if (checked >= server_list->num) {
+                g_free(st->backend_ndx_array);
+                g_free(st->backend_array);
+                g_free(con->server_list);
+                st->backend_ndx_array = NULL;
+                st->backend_array = NULL;
+                con->server_list = NULL;
+                break;
+            }
+        }
+
+        con->server = NULL;
+    }
 
 	g_free(st);
 }
@@ -77,13 +121,22 @@ static int proxy_connection_get(lua_State *L) {
 	/**
 	 * we to split it in .client and .server here
 	 */
+    if ((con->server && (strleq(key, keysize, C("server")))) ||
+	           (con->client && (strleq(key, keysize, C("client"))))) {
+		network_socket **socket_p;
 
-	if (strleq(key, keysize, C("default_db"))) {
-		return luaL_error(L, "proxy.connection.default_db is deprecated, use proxy.connection.client.default_db or proxy.connection.server.default_db instead");
-	} else if (strleq(key, keysize, C("thread_id"))) {
-		return luaL_error(L, "proxy.connection.thread_id is deprecated, use proxy.connection.server.thread_id instead");
-	} else if (strleq(key, keysize, C("mysqld_version"))) {
-		return luaL_error(L, "proxy.connection.mysqld_version is deprecated, use proxy.connection.server.mysqld_version instead");
+		socket_p = lua_newuserdata(L, sizeof(network_socket)); /* the table underneat proxy.socket */
+
+		if (key[0] == 's') {
+			*socket_p = con->server;
+		} else {
+			*socket_p = con->client;
+		}
+
+		network_socket_lua_getmetatable(L);
+		lua_setmetatable(L, -2); /* tie the metatable to the table   (sp -= 1) */
+	} else if (strleq(key, keysize, C("backend_ndx"))) {
+		lua_pushinteger(L, st->backend_ndx + 1);
 	} else if (strleq(key, keysize, C("selected_server_ndx"))) {
         int index = 0;
         if (st->backend_ndx >= 0 && st->backend_ndx_array != NULL) {
@@ -98,22 +151,6 @@ static int proxy_connection_get(lua_State *L) {
         }
 	} else if (strleq(key, keysize, C("last_insert_id"))) {
 	    lua_pushnumber(L, con->last_insert_id);
-	} else if (strleq(key, keysize, C("backend_ndx"))) {
-		lua_pushinteger(L, st->backend_ndx + 1);
-	} else if ((con->server && (strleq(key, keysize, C("server")))) ||
-	           (con->client && (strleq(key, keysize, C("client"))))) {
-		network_socket **socket_p;
-
-		socket_p = lua_newuserdata(L, sizeof(network_socket)); /* the table underneat proxy.socket */
-
-		if (key[0] == 's') {
-			*socket_p = con->server;
-		} else {
-			*socket_p = con->client;
-		}
-
-		network_socket_lua_getmetatable(L);
-		lua_setmetatable(L, -2); /* tie the metatable to the table   (sp -= 1) */
 	} else if(strleq(key, keysize, C("valid_parallel_stmt_cnt"))) {
 		lua_pushinteger(L, con->valid_parallel_stmt_cnt);
 	} else if(strleq(key, keysize, C("shard_num"))) {
@@ -124,7 +161,13 @@ static int proxy_connection_get(lua_State *L) {
         if (is_still_in_trans) {
             con->is_still_in_trans = 1;
         }
-	} else {
+	} else if (strleq(key, keysize, C("default_db"))) {
+		return luaL_error(L, "proxy.connection.default_db is deprecated, use proxy.connection.client.default_db or proxy.connection.server.default_db instead");
+	} else if (strleq(key, keysize, C("thread_id"))) {
+		return luaL_error(L, "proxy.connection.thread_id is deprecated, use proxy.connection.server.thread_id instead");
+	} else if (strleq(key, keysize, C("mysqld_version"))) {
+		return luaL_error(L, "proxy.connection.mysqld_version is deprecated, use proxy.connection.server.mysqld_version instead");
+	}else {
 		lua_pushnil(L);
 	}
 

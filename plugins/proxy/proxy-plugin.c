@@ -2212,7 +2212,7 @@ NETWORK_MYSQLD_PLUGIN_PROTO(proxy_disconnect_client) {
 	}
 #endif
 
-	network_mysqld_con_lua_free(st);
+	network_mysqld_con_lua_free(con, st);
 
 	con->plugin_con_state = NULL;
 

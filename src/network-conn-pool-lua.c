@@ -392,8 +392,8 @@ network_socket *network_connection_pool_lua_swap(network_mysqld_con *con, int ba
     info.key = con->client->src->key;
     info.state = con->state;
 
-    g_debug("%s: (swap) check server switch for conn:%p, valid_parallel_stmt_cnt:%d, orig back ndx:%d, now:%d",
-            G_STRLOC, con, con->valid_parallel_stmt_cnt, st->backend_ndx, backend_ndx);
+    g_debug("%s: (swap) check server switch for conn:%p, valid_parallel_stmt_cnt:%d, orig back ndx:%d, now:%d", G_STRLOC, con, con->valid_parallel_stmt_cnt, st->backend_ndx, backend_ndx);
+
     /**
      * TODO only valid for successional prepare statements,not valid for data partition
      */

@@ -295,8 +295,8 @@ void network_mysqld_con_free(network_mysqld_con *con) {
 		con->parse.data_free(con->parse.data);
 	}
 
-	if (con->server) network_socket_free(con->server);
-	if (con->client) network_socket_free(con->client);
+    if (con->server) network_socket_free(con->server);
+    if (con->client) network_socket_free(con->client);
 
 	g_string_free(con->auth_switch_to_method, TRUE);
 	g_string_free(con->auth_switch_to_data, TRUE);

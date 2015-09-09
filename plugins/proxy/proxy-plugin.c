@@ -2198,12 +2198,7 @@ NETWORK_MYSQLD_PLUGIN_PROTO(proxy_disconnect_client) {
         }
 
 		network_connection_pool_lua_add_connection(con);
-	} else if (st->backend) {
-		/* we have backend assigned and want to close the connection to it */
-		st->backend->connected_clients--;
-		g_debug("%s.%d: %s:%d", __FILE__, __LINE__, "connected_clients is subtracted, now value", 
-                st->backend->connected_clients);
-	}
+	} 
 
 #ifdef HAVE_LUA_H
 	/* remove this cached script from registry */

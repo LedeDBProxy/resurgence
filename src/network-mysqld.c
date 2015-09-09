@@ -306,6 +306,9 @@ void network_mysqld_con_free(network_mysqld_con *con) {
 	g_ptr_array_remove_fast(con->srv->priv->cons, con);
 	chassis_timestamps_free(con->timestamps);
 
+    g_debug("%s: connections total: %d",
+            G_STRLOC, con->srv->priv->cons->len);
+
 	g_free(con);
 }
 
@@ -2171,7 +2174,10 @@ void network_mysqld_con_accept(int G_GNUC_UNUSED event_fd, short events, void *u
 
 	/* looks like we open a client connection */
 	client_con = network_mysqld_con_new();
-	client_con->client = client;
+    client_con->client = client;
+
+    g_debug("%s: add a new client connection: %p",
+            G_STRLOC, client_con);
 
 	NETWORK_MYSQLD_CON_TRACK_TIME(client_con, "accept");
 

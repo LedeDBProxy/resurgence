@@ -85,6 +85,9 @@ void network_mysqld_con_lua_free(network_mysqld_con *con, network_mysqld_con_lua
             network_socket_free(server);
 
             backend->connected_clients--;
+            g_debug("%s: connected_clients sub, con:%p, now clients:%d", G_STRLOC, 
+                    con, backend->connected_clients);
+
             checked++;
 
             if (checked >= server_list->num) {
@@ -99,6 +102,12 @@ void network_mysqld_con_lua_free(network_mysqld_con *con, network_mysqld_con_lua
         }
 
         con->server = NULL;
+    } else {
+        if (con->server) {
+            st->backend->connected_clients--;
+            g_debug("%s: connected_clients sub, con:%p, now clients:%d", G_STRLOC, 
+                    con, st->backend->connected_clients);
+        }
     }
 
 	g_free(st);

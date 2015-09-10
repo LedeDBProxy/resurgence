@@ -1923,7 +1923,7 @@ NETWORK_MYSQLD_PLUGIN_PROTO(proxy_connect_server) {
 		 */
 
         if (con->state < CON_STATE_READ_AUTH_RESULT) {
-            g_critical("%s, con:%p, state:%d:server connection returned to pool",
+            g_debug("%s, con:%p, state:%d:server connection returned to pool",
                     G_STRLOC, con, con->state);
         }
 

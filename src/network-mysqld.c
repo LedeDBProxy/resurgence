@@ -1775,7 +1775,7 @@ void network_mysqld_con_handle(int event_fd, short events, void *user_data) {
                         g_debug("%s: try to add prepare server connection returned to pool",
                                 G_STRLOC);
                         if (con->state < CON_STATE_READ_AUTH_RESULT) {
-                            g_critical("%s, con:%p, state:%d:server connection returned to pool",
+                            g_debug("%s, con:%p, state:%d:server connection returned to pool",
                                     G_STRLOC, con, con->state);
                         }
                         network_connection_pool_lua_add_connection(con, 0);

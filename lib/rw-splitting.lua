@@ -32,18 +32,33 @@ local tokenizer   = require("proxy.tokenizer")
 local lb          = require("proxy.balance")
 local auto_config = require("proxy.auto-config")
 
+local testsuit = false
+
 --- config
 --
 -- connection pool
 if not proxy.global.config.rwsplit then
-    proxy.global.config.rwsplit = {
-        min_idle_connections = 1,
-        mid_idle_connections = 40,
-        max_idle_connections = 80,
-        max_init_time = 1,
-        is_debug = false,
-        is_slave_write_forbidden_set = false
-    }
+    if testsuit then
+		proxy.global.config.rwsplit = {
+			min_idle_connections = 1,
+			mid_idle_connections = 4,
+			max_idle_connections = 8,
+			-- = down--up for each backend
+			max_init_time = 1,
+
+			is_debug = true,
+			is_slave_write_forbidden_set = false
+		}
+    else
+		proxy.global.config.rwsplit = {
+			min_idle_connections = 1,
+			mid_idle_connections = 40,
+			max_idle_connections = 80,
+			max_init_time = 1,
+			is_debug = false,
+			is_slave_write_forbidden_set = false
+		}
+    end
 end
 
 ---
@@ -123,7 +138,13 @@ function connect_server()
         local s        = proxy.global.backends[i]
         local pool     = s.pool -- we don't have a username yet, try to find a connections which is idling
         cur_idle = pool.users[""].cur_idle_connections
-        init_phase = pool.init_phase
+        if testsuit then
+			local root_cur_idle = pool.users["root"].cur_idle_connections
+			print("  root idle:" .. root_cur_idle)
+			--init_phase = pool.init_phase
+        else
+			init_phase = pool.init_phase
+        end
         connected_clients = s.connected_clients
 
         if connected_clients > 0 then
@@ -251,7 +272,7 @@ function connect_server()
 			end
             proxy.response = {
 				type = proxy.MYSQLD_PACKET_ERR,
-				errmsg = "rw ndx is zero"
+				errmsg = "(proxy) all backends are down"
 			}
 			return proxy.PROXY_SEND_RESULT
         end

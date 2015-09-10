@@ -306,6 +306,8 @@ void network_mysqld_con_free(network_mysqld_con *con) {
 	g_ptr_array_remove_fast(con->srv->priv->cons, con);
 	chassis_timestamps_free(con->timestamps);
 
+	g_debug("%s: connections total: %d, free con:%p",
+            G_STRLOC, con->srv->priv->cons->len, con);
 	g_free(con);
 }
 
@@ -1089,6 +1091,7 @@ void network_mysqld_con_handle(int event_fd, short events, void *user_data) {
 			case EPIPE: /* hp/ux */
 				if (con->client && event_fd == con->client->fd) {
 					/* the client closed the connection, let's keep the server side open */
+                                        con->state_bef_clt_close = con->state;
 					con->state = CON_STATE_CLOSE_CLIENT;
 				} else if (con->server && event_fd == con->server->fd && con->com_quit_seen) {
 					con->state = CON_STATE_CLOSE_SERVER;
@@ -1114,6 +1117,7 @@ void network_mysqld_con_handle(int event_fd, short events, void *user_data) {
 		} else { /* Linux */
 			if (con->client && event_fd == con->client->fd) {
 				/* the client closed the connection, let's keep the server side open */
+                               con->state_bef_clt_close = con->state;
 				con->state = CON_STATE_CLOSE_CLIENT;
 			} else if (con->server && event_fd == con->server->fd && con->com_quit_seen) {
 				con->state = CON_STATE_CLOSE_SERVER;
@@ -1178,6 +1182,7 @@ void network_mysqld_con_handle(int event_fd, short events, void *user_data) {
 						G_STRLOC, which_connection,	event_fd, events);
 			}
 			plugin_call_cleanup(srv, con);
+        		g_debug("%s.%d: client conn %p released", __FILE__, __LINE__, con);
 			network_mysqld_con_free(con);
 
 			con = NULL;
@@ -1191,6 +1196,8 @@ void network_mysqld_con_handle(int event_fd, short events, void *user_data) {
 			 * let's keep it open for reuse */
 
 			plugin_call_cleanup(srv, con);
+        		g_debug("%s.%d: client conn %p released, state:%d", __FILE__, __LINE__, 
+                             con, con->state);
 #ifdef NETWORK_MYSQLD_WANT_CON_TRACK_TIME 
 			/* dump the timestamps of this connection */
 			if (srv->log->min_lvl == G_LOG_LEVEL_DEBUG) {
@@ -1772,7 +1779,7 @@ void network_mysqld_con_handle(int event_fd, short events, void *user_data) {
                             g_critical("%s, con:%p, state:%d:server connection returned to pool",
                                     G_STRLOC, con, con->state);
                         }
-                        network_connection_pool_lua_add_connection(con);
+                        network_connection_pool_lua_add_connection(con, 0);
                     } else {
                         con->state = CON_STATE_CLOSE_SERVER;
                     }
@@ -2123,6 +2130,7 @@ void network_mysqld_con_handle(int event_fd, short events, void *user_data) {
 				break;
 			}
 				
+                         con->state_bef_clt_close = con->state;
 			con->state = CON_STATE_CLOSE_CLIENT;
 
 			break;
@@ -2174,6 +2182,9 @@ void network_mysqld_con_accept(int G_GNUC_UNUSED event_fd, short events, void *u
 	/* looks like we open a client connection */
 	client_con = network_mysqld_con_new();
 	client_con->client = client;
+
+        g_debug("%s: add a new client connection: %p",
+            G_STRLOC, client_con);
 
 	NETWORK_MYSQLD_CON_TRACK_TIME(client_con, "accept");
 

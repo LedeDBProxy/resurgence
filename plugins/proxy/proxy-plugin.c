@@ -259,7 +259,7 @@ NETWORK_MYSQLD_PLUGIN_PROTO(proxy_timeout) {
                     if (con->state == CON_STATE_READ_AUTH_RESULT || 
                             con->state == CON_STATE_READ_QUERY) 
                     {
-                        network_connection_pool_lua_add_connection(con);
+                        network_connection_pool_lua_add_connection(con, 0);
                         g_debug("%s, con:%p:server connection returned to pool",
                                 G_STRLOC, con);
                     } else {
@@ -1829,6 +1829,9 @@ NETWORK_MYSQLD_PLUGIN_PROTO(proxy_connect_server) {
 					__FILE__, __LINE__, con->server->dst->name->str, con->server->fd);
 			/* increment the connected clients value only if we connected successfully */
 			st->backend->connected_clients++;
+			g_debug("%s, con:%p, backend ndx:%d:connected_clients++, clients:%d",
+                        G_STRLOC, con, st->backend_ndx, st->backend->connected_clients);
+
 			break;
 		case NETWORK_SOCKET_ERROR:
 		case NETWORK_SOCKET_ERROR_RETRY:
@@ -1911,7 +1914,7 @@ NETWORK_MYSQLD_PLUGIN_PROTO(proxy_connect_server) {
                     G_STRLOC, con, con->state);
         }
 
-		network_connection_pool_lua_add_connection(con);
+		network_connection_pool_lua_add_connection(con, 0);
 
 		st->backend_ndx = bndx;
 	}
@@ -1972,6 +1975,8 @@ NETWORK_MYSQLD_PLUGIN_PROTO(proxy_connect_server) {
 
 			/* increment the connected clients value only if we connected successfully */
 			st->backend->connected_clients++;
+                        g_debug("%s, con:%p, backend ndx:%d:connected_clients++, total clients:%d",
+                        G_STRLOC, con, st->backend_ndx, st->backend->connected_clients);
 			break;
 		default:
 			g_message("%s.%d: connecting to backend (%s) failed, marking it as down for ...", 
@@ -2181,12 +2186,7 @@ NETWORK_MYSQLD_PLUGIN_PROTO(proxy_disconnect_client) {
                     G_STRLOC, con, con->state);
         }
 
-		network_connection_pool_lua_add_connection(con);
-	} else if (st->backend) {
-		/* we have backend assigned and want to close the connection to it */
-		st->backend->connected_clients--;
-		g_debug("%s.%d: %s:%d", __FILE__, __LINE__, "connected_clients is subtraced, now value", 
-                st->backend->connected_clients);
+		network_connection_pool_lua_add_connection(con, 0);
 	}
 
 #ifdef HAVE_LUA_H
@@ -2196,7 +2196,10 @@ NETWORK_MYSQLD_PLUGIN_PROTO(proxy_disconnect_client) {
 	}
 #endif
 
-	network_mysqld_con_lua_free(st);
+        if (con->server_list != NULL) {
+    		g_critical("%s.%d: conn server list is not freed:%p", __FILE__, __LINE__, con);
+        }
+	network_mysqld_con_lua_free(con, st);
 
 	con->plugin_con_state = NULL;
 

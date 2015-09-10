@@ -52,10 +52,63 @@ network_mysqld_con_lua_t *network_mysqld_con_lua_new() {
 	return st;
 }
 
-void network_mysqld_con_lua_free(network_mysqld_con_lua_t *st) {
+void network_mysqld_con_lua_free(network_mysqld_con *con, network_mysqld_con_lua_t *st) {
+        g_debug("%s: call network_mysqld_con_lua_free con:%p", G_STRLOC, con);
+
 	if (!st) return;
 
 	network_injection_queue_free(st->injected.queries);
+
+	if (con->server_list != NULL) {
+		int i, checked = 0; 
+		network_socket *server;
+		network_backend_t *backend;
+		server_list_t *server_list = con->server_list;
+		network_mysqld_con_lua_t *st = con->plugin_con_state;
+
+		for (i = 0; i < MAX_SERVER_NUM; i++) {
+
+			if (st->backend_ndx_array[i] == 0) {
+				continue;
+			}
+
+			int index = st->backend_ndx_array[i] - 1;
+			server = server_list->server[index];
+			backend = st->backend_array[i];
+
+			int pending = event_pending(&(server->event), EV_READ|EV_WRITE|EV_TIMEOUT, NULL);
+			if (pending) { 
+				g_debug("%s: server event pending:%p, ev flags:%d, ev:%p", G_STRLOC, con,
+						(server->event).ev_flags, &(server->event));
+				event_del(&(server->event));
+			}
+
+			network_socket_free(server);
+			backend->connected_clients--;
+			g_debug("%s: connected_clients sub, con:%p, now clients:%d", G_STRLOC, 
+					con, backend->connected_clients);
+
+			checked++;
+
+			if (checked >= server_list->num) {
+				g_free(st->backend_ndx_array);
+				g_free(st->backend_array);
+				g_free(con->server_list);
+				st->backend_ndx_array = NULL;
+				st->backend_array = NULL;
+				con->server_list = NULL;
+				break;
+			}
+		}
+
+		con->server = NULL;
+	} else {
+		if (con->server) {
+			st->backend->connected_clients--;
+			g_debug("%s: connected_clients sub, con:%p, now clients:%d", G_STRLOC, 
+					con, st->backend->connected_clients);
+		}
+	}
 
 	g_free(st);
 }
@@ -156,7 +209,7 @@ static int proxy_connection_set(lua_State *L) {
                 g_critical("%s, con:%p, state:%d:server connection returned to pool",
                         G_STRLOC, con, con->state);
             }
-			network_connection_pool_lua_add_connection(con); 
+			network_connection_pool_lua_add_connection(con, 0); 
             g_debug("session dropped the backend :%p, server:%p, back ndx:%d", 
                     con, con->server, st->backend_ndx);
 		} else if (NULL != (send_sock = network_connection_pool_lua_swap(con, backend_ndx))) {

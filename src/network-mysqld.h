@@ -256,6 +256,8 @@ struct network_mysqld_con {
 	 * @see network_mysqld_con_handle
 	 */
 	network_mysqld_con_state_t state;
+	/*Save the state before client closed, Then check the state, If the state is valid, reuse it.*/
+	network_mysqld_con_state_t state_bef_clt_close;
 	proxy_session_state_t proxy_state;
 
 	/**

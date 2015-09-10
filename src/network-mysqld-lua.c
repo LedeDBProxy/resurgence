@@ -210,7 +210,7 @@ static int proxy_connection_set(lua_State *L) {
                 g_critical("%s, con:%p, state:%d:server connection returned to pool",
                         G_STRLOC, con, con->state);
             }
-			network_connection_pool_lua_add_connection(con); 
+			network_connection_pool_lua_add_connection(con, 0); 
             g_debug("session dropped the backend :%p, server:%p, back ndx:%d", 
                     con, con->server, st->backend_ndx);
 		} else if (NULL != (send_sock = network_connection_pool_lua_swap(con, backend_ndx))) {

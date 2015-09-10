@@ -259,7 +259,7 @@ NETWORK_MYSQLD_PLUGIN_PROTO(proxy_timeout) {
                     if (con->state == CON_STATE_READ_AUTH_RESULT || 
                             con->state == CON_STATE_READ_QUERY) 
                     {
-                        network_connection_pool_lua_add_connection(con);
+                        network_connection_pool_lua_add_connection(con, 0);
                         g_debug("%s, con:%p:server connection returned to pool",
                                 G_STRLOC, con);
                     } else {
@@ -1927,7 +1927,7 @@ NETWORK_MYSQLD_PLUGIN_PROTO(proxy_connect_server) {
                     G_STRLOC, con, con->state);
         }
 
-		network_connection_pool_lua_add_connection(con);
+		network_connection_pool_lua_add_connection(con, 0);
 
 		st->backend_ndx = bndx;
 	}
@@ -2197,7 +2197,7 @@ NETWORK_MYSQLD_PLUGIN_PROTO(proxy_disconnect_client) {
                     G_STRLOC, con, con->state);
         }
 
-		network_connection_pool_lua_add_connection(con);
+		network_connection_pool_lua_add_connection(con, 0);
 	} 
 
 #ifdef HAVE_LUA_H

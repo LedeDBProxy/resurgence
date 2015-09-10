@@ -1092,6 +1092,7 @@ void network_mysqld_con_handle(int event_fd, short events, void *user_data) {
 			case EPIPE: /* hp/ux */
 				if (con->client && event_fd == con->client->fd) {
 					/* the client closed the connection, let's keep the server side open */
+                    con->state_bef_clt_close = con->state;
 					con->state = CON_STATE_CLOSE_CLIENT;
 				} else if (con->server && event_fd == con->server->fd && con->com_quit_seen) {
 					con->state = CON_STATE_CLOSE_SERVER;
@@ -1117,6 +1118,7 @@ void network_mysqld_con_handle(int event_fd, short events, void *user_data) {
 		} else { /* Linux */
 			if (con->client && event_fd == con->client->fd) {
 				/* the client closed the connection, let's keep the server side open */
+                con->state_bef_clt_close = con->state;
 				con->state = CON_STATE_CLOSE_CLIENT;
 			} else if (con->server && event_fd == con->server->fd && con->com_quit_seen) {
 				con->state = CON_STATE_CLOSE_SERVER;
@@ -1776,7 +1778,7 @@ void network_mysqld_con_handle(int event_fd, short events, void *user_data) {
                             g_critical("%s, con:%p, state:%d:server connection returned to pool",
                                     G_STRLOC, con, con->state);
                         }
-                        network_connection_pool_lua_add_connection(con);
+                        network_connection_pool_lua_add_connection(con, 0);
                     } else {
                         con->state = CON_STATE_CLOSE_SERVER;
                     }
@@ -2124,6 +2126,7 @@ void network_mysqld_con_handle(int event_fd, short events, void *user_data) {
 				break;
 			}
 				
+            con->state_bef_clt_close = con->state;
 			con->state = CON_STATE_CLOSE_CLIENT;
 
 			break;

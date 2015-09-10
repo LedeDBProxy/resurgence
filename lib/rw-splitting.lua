@@ -311,20 +311,19 @@ function connect_server()
         is_backend_conn_keepalive = true
     end
 
-
-    -- pick a random backend
-    --
-    -- we someone have to skip DOWN backends
-
-    -- ok, did we got a backend ?
+    local backend = proxy.global.backends[proxy.connection.backend_ndx]
+    cur_idle = backend.pool.users[""].cur_idle_connections
+    connected_clients =  backend.connected_clients
 
     if cur_idle > 0 and proxy.connection.server then 
         utils.debug("using pooled connection from: " .. proxy.connection.backend_ndx, 1)
-        local backend_state = proxy.global.backends[proxy.connection.backend_ndx].state
+        local backend_state = backend.state
         if backend_state == proxy.BACKEND_STATE_UP then
             use_pool_conn = true
-            if cur_idle > (max_idle_conns + min_idle_conns) then
+            if backend.type == proxy.BACKEND_TYPE_RW and 
+                (cur_idle + connected_clients) > (max_idle_conns + min_idle_conns) then
                 is_backend_conn_keepalive = false
+                utils.debug("set is_backend_conn_keepalive false when retrieving from pool", 1)
             end
             -- stay with it
             return proxy.PROXY_IGNORE_RESULT
@@ -628,7 +627,7 @@ function dispose_one_query( packet, group )
 
             -- if we ask for the last-insert-id we have to ask it on the original 
             -- connection
-            if not is_insert_id then
+            if is_backend_conn_keepalive and not is_insert_id then
                 rw_op = false
                 local ro_backend_ndx = lb.idle_ro(group)
                 if ro_backend_ndx > 0 then
@@ -699,9 +698,10 @@ function dispose_one_query( packet, group )
                 end
             end
 
-            if is_auto_commit and (stmt.token_name == "TK_SQL_USE" or stmt.token_name == "TK_SQL_SET" or
-                stmt.token_name == "TK_SQL_SHOW" or stmt.token_name == "TK_SQL_DESC"
-                or stmt.token_name == "TK_SQL_EXPLAIN") then
+            if is_backend_conn_keepalive and is_auto_commit and 
+                (stmt.token_name == "TK_SQL_USE" or stmt.token_name == "TK_SQL_SET" or
+                stmt.token_name == "TK_SQL_SHOW" or stmt.token_name == "TK_SQL_DESC" or 
+                stmt.token_name == "TK_SQL_EXPLAIN") then
                 rw_op = false
                 local ro_backend_ndx = lb.idle_ro(group)
                 if ro_backend_ndx > 0 then
@@ -791,7 +791,7 @@ function dispose_one_query( packet, group )
                         end
                     end
 
-                    if ps_cnt == 0 and session_read_only == 1 then
+                    if is_backend_conn_keepalive and ps_cnt == 0 and session_read_only == 1 then
                         local ro_backend_ndx = lb.idle_ro(group)
                         if ro_backend_ndx > 0 then
                             backend_ndx = ro_backend_ndx
@@ -835,7 +835,8 @@ function dispose_one_query( packet, group )
 
     if backend_ndx == 0 then
         local rw_backend_ndx = lb.idle_failsafe_rw(group)
-        if rw_backend_ndx <= 0 and proxy.global.config.rwsplit.is_slave_write_forbidden_set then
+        if is_backend_conn_keepalive and rw_backend_ndx <= 0 and 
+            proxy.global.config.rwsplit.is_slave_write_forbidden_set then
             local ro_backend_ndx = lb.idle_ro(group)
             if ro_backend_ndx > 0 then
                 backend_ndx = ro_backend_ndx

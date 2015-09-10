@@ -239,21 +239,41 @@ static void network_mysqld_con_idle_handle(int event_fd, short events, void *use
  * move the con->server into connection pool and disconnect the 
  * proxy from its backend 
  */
-int network_connection_pool_lua_add_connection(network_mysqld_con *con) {
+int network_connection_pool_lua_add_connection(network_mysqld_con *con, int is_swap) {
     int i;
+    gboolean to_be_put_to_pool = TRUE;
 	network_connection_pool_entry *pool_entry = NULL;
 	network_mysqld_con_lua_t *st = con->plugin_con_state;
 
-    if (st->to_be_closed_after_serve_req) return 0;
+    /* Only valid for RW connection */
+    if (st->backend != NULL && st->backend->type == BACKEND_TYPE_RW && 
+            st->to_be_closed_after_serve_req) 
+    {
+        g_debug("%s: to_be_closed_after_serve_req true for con:%p", G_STRLOC, con);
+        return 0;
+    }
 
 	/* con-server is already disconnected, got out */
 	if (!con->server) return 0;
 
     if (!con->server->response) return 0;
 
-    if (con->state != CON_STATE_CLIENT_QUIT && con->state != CON_STATE_READ_QUERY 
-            && con->state != CON_STATE_READ_AUTH_RESULT) 
+    /* Only valid for non conn swap */  
+    if (is_swap && con->state != CON_STATE_CLIENT_QUIT && 
+            con->state != CON_STATE_READ_QUERY && 
+            con->state != CON_STATE_READ_AUTH_RESULT)
     {
+        if (con->state == CON_STATE_CLOSE_CLIENT) {
+            if (con->state_bef_clt_close != CON_STATE_READ_QUERY && 
+                    con->state_bef_clt_close != CON_STATE_READ_AUTH_RESULT) {
+                to_be_put_to_pool = FALSE;
+            }
+        } else {
+            to_be_put_to_pool = FALSE;
+        }
+    }
+    
+    if (to_be_put_to_pool == FALSE) {
         if (con->server->recv_queue->chunks->length > 0) {
             g_critical("%s.%d: recv queue length :%d, state:%s",
                     __FILE__, __LINE__, con->server->recv_queue->chunks->length, 
@@ -346,7 +366,7 @@ int network_connection_pool_lua_add_connection(network_mysqld_con *con) {
 
     con->server = NULL;
 
-	return 0;
+	return 1;
 }
 
 /**
@@ -457,21 +477,16 @@ network_socket *network_connection_pool_lua_swap(network_mysqld_con *con, int ba
     } else {
 
         if (con->server) {
-            g_debug("%s: (swap) take and move the current backend into the pool", G_STRLOC);
-            /* the backend is up and cool, take and move the current backend into the pool */
-            /* g_debug("%s: (swap) added the previous connection to the pool", G_STRLOC); */
-            if (con->state < CON_STATE_READ_AUTH_RESULT) {
-                g_critical("%s, con:%p, state:%d:server connection returned to pool",
-                        G_STRLOC, con, con->state);
+            if (network_connection_pool_lua_add_connection(con, 1) > 0) {
+                g_debug("%s: (swap) take and move the current backend into the pool", G_STRLOC);
             }
-            network_connection_pool_lua_add_connection(con);
         }
     }
 
     /* connect to the new backend */
     st->backend = backend;
-    st->backend->connected_clients++;
     st->backend_ndx = backend_ndx;
+    st->backend->connected_clients++;
 
 	return send_sock;
 }

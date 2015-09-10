@@ -206,7 +206,7 @@ static int proxy_connection_set(lua_State *L) {
 			/** drop the backend for now
 			 */
             if (con->state < CON_STATE_READ_AUTH_RESULT) {
-                g_critical("%s, con:%p, state:%d:server connection returned to pool",
+                g_debug("%s, con:%p, state:%d:server connection returned to pool",
                         G_STRLOC, con, con->state);
             }
 			network_connection_pool_lua_add_connection(con, 0); 

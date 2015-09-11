@@ -61,10 +61,10 @@ local _query
 --
 -- is_in_transaction tracks the state of the transactions
 local is_passed_but_req_rejected = false
-local is_in_transaction       = false
-local is_auto_commit          = true
-local is_prepared             = false
-local is_backend_conn_keepalive = true
+local is_in_transaction          = false
+local is_auto_commit             = true
+local is_prepared                = false
+local is_backend_conn_keepalive  = true
 local use_pool_conn = false
 local multiple_server_mode = false
 local last_group = nil
@@ -630,14 +630,13 @@ function dispose_one_query( packet, group )
                 if is_backend_conn_keepalive then
                     rw_op = false
                     local ro_backend_ndx = lb.idle_ro(group)
-                    if ro_backend_ndx > 0 then
+                    if backend_ndx ~= ro_backend_ndx and ro_backend_ndx > 0 then
                         backend_ndx = ro_backend_ndx
                         proxy.connection.backend_ndx = backend_ndx
 
                         utils.debug("[use ro server: " .. backend_ndx .. "]", 1)
                     end
                 end
-
             else
                 -- only support last insert id in non transaction environment
                 local last_insert_id = proxy.connection.last_insert_id
@@ -705,7 +704,7 @@ function dispose_one_query( packet, group )
                 stmt.token_name == "TK_SQL_EXPLAIN") then
                 rw_op = false
                 local ro_backend_ndx = lb.idle_ro(group)
-                if ro_backend_ndx > 0 then
+                if backend_ndx ~= ro_backend_ndx and ro_backend_ndx > 0 then
                     backend_ndx = ro_backend_ndx
                     proxy.connection.backend_ndx = backend_ndx
 
@@ -794,7 +793,7 @@ function dispose_one_query( packet, group )
 
                     if is_backend_conn_keepalive and ps_cnt == 0 and session_read_only == 1 then
                         local ro_backend_ndx = lb.idle_ro(group)
-                        if ro_backend_ndx > 0 then
+                        if backend_ndx ~= ro_backend_ndx and ro_backend_ndx > 0 then
                             backend_ndx = ro_backend_ndx
                             proxy.connection.backend_ndx = backend_ndx
 

@@ -339,6 +339,9 @@ int network_connection_pool_lua_add_connection(network_mysqld_con *con, int is_s
                 break;
             }
         }
+
+        con->server_list = NULL;
+
     } else {
         con->valid_parallel_stmt_cnt = 0;
         g_debug("%s: con:%p, set valid_parallel_stmt_cnt 0", G_STRLOC, con);

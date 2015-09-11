@@ -255,17 +255,19 @@ int network_connection_pool_lua_add_connection(network_mysqld_con *con, int is_s
 
     if (!con->server->response) return 0;
 
-    if (is_swap && con->state != CON_STATE_CLIENT_QUIT &&
-		    con->state != CON_STATE_READ_QUERY && 
-		    con->state != CON_STATE_READ_AUTH_RESULT) {
-	    if (con->state == CON_STATE_CLOSE_CLIENT) {
-		    if (con->state_bef_clt_close != CON_STATE_READ_QUERY && 
-				    con->state_bef_clt_close != CON_STATE_READ_AUTH_RESULT) {
-			    to_be_put_to_pool = FALSE;
-		    }
-	    } else {
-		    to_be_put_to_pool = FALSE;
-	    }
+    /* Only valid for non conn swap */  
+    if (!is_swap && con->state != CON_STATE_CLIENT_QUIT && 
+            con->state != CON_STATE_READ_QUERY && 
+            con->state != CON_STATE_READ_AUTH_RESULT)
+    {
+        if (con->state == CON_STATE_CLOSE_CLIENT) {
+            if (con->state_bef_clt_close != CON_STATE_READ_QUERY && 
+                    con->state_bef_clt_close != CON_STATE_READ_AUTH_RESULT) {
+                to_be_put_to_pool = FALSE;
+            }
+        } else {
+            to_be_put_to_pool = FALSE;
+        }
     }
 
 

@@ -222,7 +222,8 @@ function connect_server()
         elseif s.type == proxy.BACKEND_TYPE_RO and
             (s.state == proxy.BACKEND_STATE_UP or
             s.state == proxy.BACKEND_STATE_UNKNOWN) and
-            (cur_idle < min_idle_conns and (connected_clients + cur_idle) < max_idle_conns) then
+            (cur_idle > min_idle_conns or 
+            (cur_idle < min_idle_conns and (connected_clients + cur_idle) < max_idle_conns)) then
             proxy.connection.backend_ndx = i
             is_backend_conn_keepalive = true
             break
@@ -291,8 +292,13 @@ function connect_server()
         local backend_state = backend.state
         if backend_state == proxy.BACKEND_STATE_UP then
             use_pool_conn = true
+<<<<<<< HEAD
             if backend.type == proxy.BACKEND_TYPE_RW  and 
                    (cur_idle + connected_clients) > (max_idle_conns + min_idle_conns) then
+=======
+            if backend.type == proxy.BACKEND_TYPE_RW and (cur_idle > mid_idle_conns) and
+                (cur_idle + connected_clients) > (max_idle_conns + min_idle_conns) then
+>>>>>>> 22477ab... Fix read write balance problem
                 is_backend_conn_keepalive = false
     	        if is_debug then print("  [" .. proxy.connection.backend_ndx .. "] set conn keepalive false"); end
             end
@@ -531,17 +537,17 @@ function read_query( packet )
                 end
             end
 
-            -- if we ask for the last-insert-id we have to ask it on the original 
-            -- connection
-            if is_backend_conn_keepalive and not is_insert_id then
-                rw_op = false
-                local ro_backend_ndx = lb.idle_ro()
-                if ro_backend_ndx > 0 then
-                    backend_ndx = ro_backend_ndx
-                    proxy.connection.backend_ndx = backend_ndx
+            if not is_insert_id then
+                if is_backend_conn_keepalive then
+                    rw_op = false
+                    local ro_backend_ndx = lb.idle_ro(group)
+                    if ro_backend_ndx > 0 then
+                        backend_ndx = ro_backend_ndx
+                        proxy.connection.backend_ndx = backend_ndx
 
-                    if is_debug then
-                        print("  [use ro server: " .. backend_ndx .. "]")
+                        if is_debug then
+                            print("  [use ro server: " .. backend_ndx .. "]")
+                        end
                     end
                 end
 

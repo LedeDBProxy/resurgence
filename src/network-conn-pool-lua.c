@@ -259,7 +259,7 @@ int network_connection_pool_lua_add_connection(network_mysqld_con *con, int is_s
     if (!con->server->response) return 0;
 
     /* Only valid for non conn swap */  
-    if (is_swap && con->state != CON_STATE_CLIENT_QUIT && 
+    if (!is_swap && con->state != CON_STATE_CLIENT_QUIT && 
             con->state != CON_STATE_READ_QUERY && 
             con->state != CON_STATE_READ_AUTH_RESULT)
     {

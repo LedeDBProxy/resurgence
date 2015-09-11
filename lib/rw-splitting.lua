@@ -270,7 +270,8 @@ function connect_server()
         elseif s.type == proxy.BACKEND_TYPE_RO and
             (s.state == proxy.BACKEND_STATE_UP or
             s.state == proxy.BACKEND_STATE_UNKNOWN) and
-            (cur_idle < min_idle_conns and (connected_clients + cur_idle) < max_idle_conns) then
+            (cur_idle > min_idle_conns or 
+            (cur_idle < min_idle_conns and (connected_clients + cur_idle) < max_idle_conns)) then
             proxy.connection.backend_ndx = i
             is_backend_conn_keepalive = true
             break
@@ -320,7 +321,7 @@ function connect_server()
         local backend_state = backend.state
         if backend_state == proxy.BACKEND_STATE_UP then
             use_pool_conn = true
-            if backend.type == proxy.BACKEND_TYPE_RW and 
+            if backend.type == proxy.BACKEND_TYPE_RW and (cur_idle > mid_idle_conns) and
                 (cur_idle + connected_clients) > (max_idle_conns + min_idle_conns) then
                 is_backend_conn_keepalive = false
                 utils.debug("set is_backend_conn_keepalive false when retrieving from pool", 1)
@@ -625,16 +626,16 @@ function dispose_one_query( packet, group )
                 end
             end
 
-            -- if we ask for the last-insert-id we have to ask it on the original 
-            -- connection
-            if is_backend_conn_keepalive and not is_insert_id then
-                rw_op = false
-                local ro_backend_ndx = lb.idle_ro(group)
-                if ro_backend_ndx > 0 then
-                    backend_ndx = ro_backend_ndx
-                    proxy.connection.backend_ndx = backend_ndx
+            if not is_insert_id then
+                if is_backend_conn_keepalive then
+                    rw_op = false
+                    local ro_backend_ndx = lb.idle_ro(group)
+                    if ro_backend_ndx > 0 then
+                        backend_ndx = ro_backend_ndx
+                        proxy.connection.backend_ndx = backend_ndx
 
-                    utils.debug("[use ro server: " .. backend_ndx .. "]", 1)
+                        utils.debug("[use ro server: " .. backend_ndx .. "]", 1)
+                    end
                 end
 
             else

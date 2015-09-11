@@ -60,7 +60,6 @@ local _query
 -- read/write splitting sends all non-transactional SELECTs to the slaves
 --
 -- is_in_transaction tracks the state of the transactions
-local is_passed_but_req_rejected = false
 local is_in_transaction          = false
 local is_auto_commit             = true
 local is_prepared                = false
@@ -180,7 +179,6 @@ function connect_server()
     local max_idle_conns = 0
     local mid_idle_conns = 0
     local min_idle_conns = 0
-    local init_phase = false
     local cur_idle = 0
     local connected_clients = 0
     local total_clients = 1
@@ -189,13 +187,13 @@ function connect_server()
 
     -- init all backends 
     for i = 1, #proxy.global.backends do
-
         if not proxy.global.stat_clients[i] then
             proxy.global.stat_clients[i] = 0
         end
 
         local s        = proxy.global.backends[i]
         local pool     = s.pool -- we don't have a username yet, try to find a connections which is idling
+        local init_phase = false
         cur_idle = pool.users[""].cur_idle_connections
         if proxy.global.config.rwsplit.is_debug ~= true then
             init_phase = pool.init_phase
@@ -291,15 +289,6 @@ function connect_server()
         end
     end
 
-    -- fuzzy check which is not accurate
-    if init_phase and cur_idle <= min_idle_conns and total_available_conns < total_clients then
-        is_passed_but_req_rejected = true
-        utils.debug("total avail conn:" .. total_available_conns .. ",total clients:" .. total_clients, 1)
-        utils.debug("is_passed_but_req_rejected set true", 1)
-    else
-        is_passed_but_req_rejected = false
-    end
-
     if proxy.connection.backend_ndx == 0 then
         utils.debug("[" .. rw_ndx .. "] taking master as default", 1)
         if rw_ndx > 0 then
@@ -377,10 +366,6 @@ local _buildUpCombinedResultSet
 local _getFields
 
 function read_query( packet )
-    if is_passed_but_req_rejected then
-        return session_err("010,too many connections", 0)
-    end
-
     _total_queries_per_req = 0
 
     _combinedNumberOfQueries = 0 

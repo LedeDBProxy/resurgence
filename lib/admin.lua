@@ -65,6 +65,22 @@ local function adjust_nodestate(nodestate)
 	return newnodestate
 end
 
+local function ret_2_query_result(rows,parameter,ret)
+            if type(ret) == "table" then
+				for k,v in pairs(ret) do
+					if type(v) == "table" then
+						ret_2_query_result(rows, parameter.."."..k,v)
+					else
+						rows[#rows + 1] = {parameter.."."..k, tostring(v)}
+						if admin.log_debug_mode then print(parameter.."."..k,type(v), tostring(v)) end
+					end
+				end
+			else
+				rows[#rows + 1] = {parameter, tostring(ret)}
+				if admin.log_debug_mode then print(parameter,type(ret), tostring(ret)) end
+			end
+end
+
 function read_query(packet)
 	if packet:byte() == proxy.COM_INIT_DB or packet:byte() == proxy.COM_QUIT then
 		proxy.response = {
@@ -143,6 +159,7 @@ function read_query(packet)
 		rows[#rows + 1] = { "SELECT VERSION", "display the version of MySQL proxy" }
 		rows[#rows + 1] = { "CONFIG GET modulenames", "display the module config/show modules can be configed." }
 		rows[#rows + 1] = { "CONFIG SET module.parameter value", "set the parameters with value" }
+		rows[#rows + 1] = { "STATS GET modulenames", "display the stats of modulenames." }
 	elseif string.find(query_lower, "select conn_num from backends where") then
 		local parameters = string.match(query_lower, 
 								"select conn_num from backends where (.+)$")
@@ -173,26 +190,33 @@ function read_query(packet)
 			}
 		end
 
-	elseif string.find(query_lower, "config get") then
-		local parameter = string.match(query_lower, "config get (%w+)")
+	elseif string.find(query_lower, "config get") or 
+			string.find(query_lower, "stats get") then
+		local key, parameter = string.match(query_lower, "(%a+) get[ ]*([%w_]*)")
+        local config = proxy.global.config
+        if key == "stats" then
+			config = proxy.global.stats
+        end
+		if not config then config = {} end
 		
-		if not parameter then
+		if not parameter or #parameter == 0 then
 			fields = {
 				{ name = "name",
 				  type = proxy.MYSQL_TYPE_STRING },
 			}
-			for k,v in pairs(proxy.global.config) do
+			for k,v in pairs(config) do
 				rows[#rows+1] = {k}
 			end
 		else
-			local command = "return proxy.global.config."..parameter
-			local func = loadstring(command)
-			local ret
+			local command = "return proxy.global."..key .."."..parameter
+            if admin.log_debug_mode then print(command) end
+			local ret, status
+			local status, func = pcall(loadstring, command)
 			if func then
-				ret = func()
+				status, ret = pcall(func)
 			end
-			if not func or not ret then
-				set_error("config is not exist")
+			if not func or not status or not ret then
+				set_error(key.." is not exist")
 				return proxy.PROXY_SEND_RESULT
 			end
 
@@ -202,30 +226,42 @@ function read_query(packet)
 				{ name = "value",
 				  type = proxy.MYSQL_TYPE_STRING },
 			}
-
-			if type(ret) == "table" then
-				for k,v in pairs(ret) do
-					rows[#rows + 1] = {k, tostring(v)}
-					if admin.log_debug_mode then print(k,type(v), tostring(v)) end
-				end
-			else
-				rows[#rows + 1] = {parameter, tostring(ret)}
-				if admin.log_debug_mode then print(parameter,type(ret), tostring(ret)) end
-			end
-		end
-
-	elseif string.find(query_lower, "config set") then
-		local parameters, name, values = string.match(query_lower, "config set (%w+)%.([%w_]+) (%w+)")
+			ret_2_query_result(rows,parameter, ret)
+        end
+	elseif string.find(query_lower, "config set") or
+            string.find(query_lower, "stats set") then
+		local key, parameters, name, values = string.match(query_lower, "(%w+) set ([%w_]+)%.([%w_%.]+)[ =](%w+)")
+        if admin.log_debug_mode then print(key, parameters, name, values) end
 		if not name or not values then
 			set_error("sql format is wrong")
 			return proxy.PROXY_SEND_RESULT
 		end
-		if not proxy.global.config[parameters] then 
-			set_error("config not exist")
+        local config = proxy.global.config
+        if key == 'stats' then
+			config = proxy.global.stats
+		end
+		if not config or not config[parameters] then 
+			set_error(key.."."..parameters.."."..name.." not exist")
 			return proxy.PROXY_SEND_RESULT
 		end
 
-		local keytype = type(proxy.global.config[parameters][name])
+		name = string.gsub(name, '([^%.]+)', '[%1]', 1)
+		name = string.gsub(name, '%.(%d+)', '[%1]')
+
+        local command = "proxy.global."..key.."."..parameters..name.." = ".. values .."; return 0"
+		local ret
+		local status, func = pcall(loadstring, command)
+		if func then
+			local status, ret = pcall(func)
+		end
+		if not func or not status then
+			set_error(key.."."..parameters..name.." is not exist or bad values")
+			return proxy.PROXY_SEND_RESULT
+		end
+
+--[==[ remove to loadstring. No need to change type now. 
+     TODO: we may check the values whether it has been set correctly.
+		local keytype = type(config[parameters].name)
 		if keytype == "boolean" then
 			if values == "true" then
 				values = true
@@ -236,7 +272,8 @@ function read_query(packet)
 			values = tonumber(values)
 		end
 
-		proxy.global.config[parameters][name] = values
+		config[parameters][name] = values
+]==]
 		affected_rows = 1
 		
 	elseif string.find(query_lower, "add slave") then

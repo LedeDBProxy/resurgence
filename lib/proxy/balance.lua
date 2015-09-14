@@ -21,31 +21,62 @@
 
 module("proxy.balance", package.seeall)
 
-function idle_failsafe_rw()
-	local backend_ndx = 0
 
-	for i = 1, #proxy.global.backends do
+local function add_new_connection()
+    local global = proxy.global
+    local rwsplit = global.config.rwsplit
+    if rwsplit.auto_warm_up then
+        rwsplit.warm_up = rwsplit.warm_up + 1
+        if rwsplit.auto_warm_up_connect then
+            print('now warm_up value is ', rwsplit.warm_up)
+            if not global.warm_up_port then
+                local ip, port=string.match(proxy.connection.client.dst.name, '([^:]*):(%d*)')
+                global.warm_up_ip, global.warm_up_port = ip, port
+            end
+            local ip, port = global.warm_up_ip, global.warm_up_port
+            if global.warm_up_pipe_handle then
+                print('try to create new session, but it already in create step..')
+            else
+                local command = '/tmp/new.sh '.. ip .. ' '.. port
+                global.warm_up_pipe_handle = io.popen(command)
+                global.warm_up_pid = "select 'mysql_proxy_"..global.warm_up_pipe_handle:read().."'"
+                print('prepare to create new pipe handle, command is ', command,
+                      'sql is ', global.warm_up_pid)
+            end
+        end
+    end
+end
+
+function idle_failsafe_rw()
+    local backend_ndx = 0
+
+    for i = 1, #proxy.global.backends do
         local s = proxy.global.backends[i]
         if s.type == proxy.BACKEND_TYPE_RW then
             if s.state == proxy.BACKEND_STATE_UP or s.state == proxy.BACKEND_STATE_UNKNOWN then
                 local conns = s.pool.users[proxy.connection.client.username]
                 if conns.cur_idle_connections > 0 then
                     backend_ndx = i
+                    if conns.cur_idle_connections <= s.pool.min_idle_connections then
+                        add_new_connection()
+                    end
                     break
+                else
+                    add_new_connection()
                 end
             end
         end
-	end
+    end
 
-	return backend_ndx
+    return backend_ndx
 end
 
 function idle_ro() 
-	local max_conns = -1
-	local max_conns_ndx = 0
+    local max_conns = -1
+    local max_conns_ndx = 0
 
-	for i = 1, #proxy.global.backends do
-		local s = proxy.global.backends[i]
+    for i = 1, #proxy.global.backends do
+        local s = proxy.global.backends[i]
         if s.type == proxy.BACKEND_TYPE_RO then
             if s.state == proxy.BACKEND_STATE_UP or s.state == proxy.BACKEND_STATE_UNKNOWN then
                 local conns = s.pool.users[proxy.connection.client.username]
@@ -58,7 +89,7 @@ function idle_ro()
                 end
             end
         end
-	end
+    end
 
-	return max_conns_ndx
+    return max_conns_ndx
 end

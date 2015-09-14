@@ -46,17 +46,23 @@ if not proxy.global.config.rwsplit then
             -- = down--up for each backend
             max_init_time = 1,
 
-            is_debug = true,
-            is_slave_write_forbidden_set = false
+            is_debug = false,
+            is_slave_write_forbidden_set = false,
+            auto_warm_up = false,
+            auto_warm_up_connect = false,
+            warm_up = 0,
         }
     else
         proxy.global.config.rwsplit = {
-            min_idle_connections = 1,
+            min_idle_connections = 10,
             mid_idle_connections = 40,
             max_idle_connections = 80,
             max_init_time = 1,
             is_debug = false,
-            is_slave_write_forbidden_set = false
+            is_slave_write_forbidden_set = false,
+            auto_warm_up = false,
+            auto_warm_up_connect = false,
+            warm_up = 0,
         }
     end
 end
@@ -64,7 +70,7 @@ end
 --stat
 if not proxy.global.stats then
     proxy.global.stats = {
-        query_info = {
+       	query_info = {
             ro = 0,
             rw = 0,
         },
@@ -171,6 +177,16 @@ function connect_server()
             pool.mid_idle_connections = proxy.global.config.rwsplit.mid_idle_connections
             pool.max_idle_connections = proxy.global.config.rwsplit.max_idle_connections
             pool.max_init_time = proxy.global.config.rwsplit.max_init_time
+        end
+
+        if proxy.global.config.rwsplit.warm_up > 0 and
+             s.type == proxy.BACKEND_TYPE_RW and
+            (s.state == proxy.BACKEND_STATE_UP or
+            s.state == proxy.BACKEND_STATE_UNKNOWN) then
+            proxy.connection.backend_ndx = i
+            print('current warm_up is ', proxy.global.config.rwsplit.warm_up, 'create new connection')
+            proxy.global.config.rwsplit.warm_up = proxy.global.config.rwsplit.warm_up -1
+            return
         end
 
         if init_phase then
@@ -292,7 +308,7 @@ function connect_server()
     cur_idle = backend.pool.users[""].cur_idle_connections
     connected_clients =  backend.connected_clients
 
-    if cur_idle > 0 and proxy.connection.server then 
+    if cur_idle > min_idle_conns and proxy.connection.server then 
         --if is_debug then
         --	print("  using pooled connection from: " .. proxy.connection.backend_ndx)
         --end
@@ -302,7 +318,9 @@ function connect_server()
             if backend.type == proxy.BACKEND_TYPE_RW and (cur_idle > mid_idle_conns) and
                 (cur_idle + connected_clients) > (max_idle_conns + min_idle_conns) then
                 is_backend_conn_keepalive = false
-                if is_debug then print("  [" .. proxy.connection.backend_ndx .. "] set conn keepalive false"); end
+                if is_debug then 
+                    print("  [" .. proxy.connection.backend_ndx .. "] set conn keepalive false"); 
+                end
             end
             -- stay with it
             return proxy.PROXY_IGNORE_RESULT
@@ -402,14 +420,20 @@ function read_query( packet )
                     backend_ndx = rw_backend_ndx
                     proxy.connection.backend_ndx = backend_ndx
                 else
-                    if is_debug then
-                        print("  [no rw connections yet")
+                    local ro_backend_ndx = lb.idle_ro()
+                    if ro_backend_ndx > 0 and ro_backend_ndx ~= backend_ndx then
+                        backend_ndx = ro_backend_ndx
+                        proxy.connection.backend_ndx = backend_ndx
+                    else
+                        if is_debug then
+                            print('both master/slave have no idle connection');
+                        end
+                        proxy.response = {
+                            type = proxy.MYSQLD_PACKET_ERR,
+                            errmsg = "1,master/slave connections are too small"
+                        }
+                        return proxy.PROXY_SEND_RESULT
                     end
-                    proxy.response = {
-                        type = proxy.MYSQLD_PACKET_ERR,
-                        errmsg = "1,master connections are too small"
-                    }
-                    return proxy.PROXY_SEND_RESULT
                 end
             else
                 proxy.response = {
@@ -444,6 +468,16 @@ function read_query( packet )
     end
 
     if cmd.type == proxy.COM_QUIT then
+        if proxy.global.warm_up_pipe_handle then
+            if (proxy.global.warm_up_conn and proxy.global.warm_up_conn == proxy.connection) then
+                print('close old pipe handle', proxy.global.warm_up_pipe_handle,
+                      'for connection', proxy.global.warm_up_conn)
+                io.close(proxy.global.warm_up_pipe_handle)
+                proxy.global.warm_up_pipe_handle = nil
+                proxy.global.warm_up_conn = nil
+            end
+        end
+
         if backend_ndx <= 0 or (is_backend_conn_keepalive and not is_in_transaction) then
             -- don't send COM_QUIT to the backend. We manage the connection
             -- in all aspects.
@@ -466,14 +500,14 @@ function read_query( packet )
     if cmd.type == proxy.COM_BINLOG_DUMP then
         -- if we don't have a backend selected, let's pick the master
         --
-        if backend_ndx == 0 then
+        if backend_ndx == 0 or ro_server == true then
             local rw_backend_ndx = lb.idle_failsafe_rw()
             if rw_backend_ndx > 0 then
                 backend_ndx = rw_backend_ndx
                 proxy.connection.backend_ndx = backend_ndx
             else
                 if is_debug then
-                    print("  [no rw connections yet")
+                    print(' master have no idle connection');
                 end
                 proxy.response = {
                     type = proxy.MYSQLD_PACKET_ERR,
@@ -496,6 +530,14 @@ function read_query( packet )
     -- send all non-transactional SELECTs to a slave
     if not is_in_transaction and
         cmd.type == proxy.COM_QUERY then
+        if proxy.global.warm_up_pipe_handle and proxy.global.warm_up_pid then
+            if proxy.global.warm_up_pid == cmd.query then
+                print('setup warm_up_conn to ', proxy.connection,'for query', cmd.query)
+                proxy.global.warm_up_conn = proxy.connection
+                return return_insert_id('id', 1)
+            end
+        end
+
         tokens     = tokens or assert(tokenizer.tokenize(cmd.query))
 
         local stmt = tokenizer.first_stmt_token(tokens)
@@ -654,7 +696,7 @@ function read_query( packet )
                 end
             else
                 if is_debug then
-                    print("  [no rw connections yet")
+                    print('2, master have no idle connection');
                 end
                 proxy.response = {
                     type = proxy.MYSQLD_PACKET_ERR,
@@ -747,7 +789,7 @@ function read_query( packet )
                             end
                         else
                             if is_debug then
-                                print("  [no rw connections yet")
+                                print('3, master have no idle connection');
                             end
                             proxy.response = {
                                 type = proxy.MYSQLD_PACKET_ERR,

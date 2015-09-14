@@ -61,6 +61,24 @@ if not proxy.global.config.rwsplit then
     end
 end
 
+--stat
+if not proxy.global.stats then
+	proxy.global.stats = {
+       	query_info = {
+            ro = 0,
+            rw = 0,
+        },
+	    backend_info = {
+            ro = 0,
+            rw = 0,
+        },
+        backend_details = {
+        },
+    }
+end
+
+local stats = proxy.global.stats
+
 ---
 -- read/write splitting sends all non-transactional SELECTs to the slaves
 --
@@ -217,6 +235,7 @@ function connect_server()
             s.state == proxy.BACKEND_STATE_UNKNOWN) and
             (cur_idle < min_idle_conns and (connected_clients + cur_idle) < max_idle_conns) then
             proxy.connection.backend_ndx = i
+            rw_ndx = i
             break
         elseif s.type == proxy.BACKEND_TYPE_RO and
             (s.state == proxy.BACKEND_STATE_UP or
@@ -759,6 +778,34 @@ function read_query( packet )
             proxy.connection.backend_ndx = backend_ndx
         end
     end
+
+    if not stats.backend_details[backend_ndx] then 
+        stats.backend_details[backend_ndx] = {
+            ro = 0,
+            rw = 0,
+        }
+	end
+
+    if rw_op then
+        stats.query_info.rw = stats.query_info.rw + 1
+        if is_debug and stats.query_info.rw % 100 == 0 then
+           print("rw stat:" .. stats.query_info.rw)
+           print("ro stat:" .. stats.query_info.ro)
+           print("master executed:" .. stats.backend_info.rw)
+           print("ro server executed:" .. stats.backend_info.ro)
+        end
+        stats.backend_details[backend_ndx].rw = stats.backend_details[backend_ndx].rw + 1
+    else
+        stats.query_info.ro = stats.query_info.ro + 1
+        stats.backend_details[backend_ndx].ro = stats.backend_details[backend_ndx].ro + 1
+    end
+
+	local s = proxy.global.backends[backend_ndx] 
+	if s.type == proxy.BACKEND_TYPE_RW then
+		stats.backend_info.rw = stats.backend_info.rw + 1
+	else
+		stats.backend_info.ro = stats.backend_info.ro + 1
+	end
 
     -- by now we should have a backend
     --

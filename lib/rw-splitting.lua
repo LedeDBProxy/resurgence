@@ -18,6 +18,7 @@ if not proxy.global.config.rwsplit then
         max_init_time = 1,
         default_user = "",
         default_index = 1,
+        master_slave_ratio = 2,
         is_debug = true,
         is_warn_up = false,
         is_sharding_mode = true,
@@ -134,6 +135,10 @@ function warm_up()
 
         min_idle_conns = proxy.global.config.rwsplit.min_idle_connections
         max_idle_conns = proxy.global.config.rwsplit.max_idle_connections
+        if s.type ~= proxy.BACKEND_TYPE_RW then
+            min_idle_conns = min_idle_conns / proxy.global.config.rwsplit.master_slave_ratio
+            max_idle_conns = max_idle_conns / proxy.global.config.rwsplit.master_slave_ratio
+        end
 
         utils.debug("[".. index .."].user = " .. user, 1)
         utils.debug("[".. index .."].connected_clients = " .. connected_clients, 1)
@@ -204,9 +209,16 @@ function connect_server()
         if connected_clients > 0 then
             pool.serve_req_after_init = true
         else
-            pool.min_idle_connections = proxy.global.config.rwsplit.min_idle_connections
-            pool.mid_idle_connections = proxy.global.config.rwsplit.mid_idle_connections
-            pool.max_idle_connections = proxy.global.config.rwsplit.max_idle_connections
+            if s.type ~= proxy.BACKEND_TYPE_RW then
+                local ratio = proxy.global.config.rwsplit.master_slave_ratio
+                pool.min_idle_connections = proxy.global.config.rwsplit.min_idle_connections / ratio
+                pool.mid_idle_connections = proxy.global.config.rwsplit.mid_idle_connections / ratio
+                pool.max_idle_connections = proxy.global.config.rwsplit.max_idle_connections / ratio
+            else
+                pool.min_idle_connections = proxy.global.config.rwsplit.min_idle_connections
+                pool.mid_idle_connections = proxy.global.config.rwsplit.mid_idle_connections
+                pool.max_idle_connections = proxy.global.config.rwsplit.max_idle_connections
+            end
             pool.max_init_time = proxy.global.config.rwsplit.max_init_time
         end
 
@@ -248,6 +260,13 @@ function connect_server()
         if pool.stop_phase then
             utils.debug("connection will be rejected", 1)
             return session_err("001,proxy stops serving requests now", 0)
+        end
+
+        if s.type ~= proxy.BACKEND_TYPE_RW then
+            local ratio = proxy.global.config.rwsplit.master_slave_ratio
+            min_idle_conns = min_idle_conns / ratio
+            mid_idle_conns = mid_idle_conns / ratio
+            max_idle_conns = max_idle_conns / ratio
         end
 
         utils.debug("[".. i .."].connected_clients = " .. connected_clients, 1)
@@ -293,6 +312,9 @@ function connect_server()
         utils.debug("[" .. rw_ndx .. "] taking master as default", 1)
         if rw_ndx > 0 then
             proxy.connection.backend_ndx = rw_ndx
+            min_idle_conns = proxy.global.config.rwsplit.min_idle_connections
+            mid_idle_conns = proxy.global.config.rwsplit.mid_idle_connections
+            max_idle_conns = proxy.global.config.rwsplit.max_idle_connections
         else
             utils.debug("connection will be rejected", 1)
             return session_err("rw ndx is zero", 0)
@@ -492,7 +514,7 @@ function dispose_one_query( packet, group )
                     backend_ndx = rw_backend_ndx
                     proxy.connection.backend_ndx = backend_ndx
                 else
-                    utils.debug("  [no rw connections yet", 1)
+                    utils.debug("no rw connections yet", 1)
                     return session_err("003,master connections are too small", 1)
                 end
             else
@@ -551,7 +573,7 @@ function dispose_one_query( packet, group )
                 backend_ndx = rw_backend_ndx
                 proxy.connection.backend_ndx = backend_ndx
             else
-                utils.debug("[no rw connections yet", 1)
+                utils.debug("no rw connections yet", 1)
                 return session_err("006,master connections are too small", 1)
             end
         end
@@ -715,7 +737,7 @@ function dispose_one_query( packet, group )
                     utils.debug("[set multiple_server_mode true in complex env]", 1)
                 end
             else
-                utils.debug("[no rw connections yet", 1)
+                utils.debug("no rw connections yet", 1)
                 return session_err("007,master connections are too small", 1)
             end
         end
@@ -794,9 +816,9 @@ function dispose_one_query( packet, group )
                             multiple_server_mode = true
                             backend_ndx = rw_backend_ndx
                             proxy.connection.backend_ndx = backend_ndx
-                            utils.debug("  [set multiple_server_mode true]", 1)
+                            utils.debug("[set multiple_server_mode true]", 1)
                         else
-                            utils.debug("  [no rw connections yet", 1)
+                            utils.debug("no rw connections yet", 1)
                             return session_err("008,master connections are too small", 1)
                         end
                     end
@@ -878,6 +900,29 @@ function dispose_one_query( packet, group )
     utils.debug("backend_ndx:" .. backend_ndx, 1)
 
     local s = proxy.connection.server
+    
+    if not proxy.global.ro_stat then
+        proxy.global.ro_stat = 0
+        proxy.global.ro_stats = 0
+    end
+
+    if not proxy.global.rw_stat then
+        proxy.global.rw_stat = 0
+        proxy.global.rw_stats = 0
+    end
+
+    if rw_op then
+        proxy.global.rw_stat = proxy.global.rw_stat + 1
+    else
+        proxy.global.ro_stat = proxy.global.ro_stat + 1
+    end
+
+    if s.type == proxy.BACKEND_TYPE_RW then
+        proxy.global.rw_stats = proxy.global.rw_stats + 1
+    else
+        proxy.global.ro_stats = proxy.global.ro_stats + 1
+    end
+
     local sql_mode = proxy.connection.client.sql_mode
     local srv_sql_mode = proxy.connection.server.sql_mode
 

@@ -184,7 +184,6 @@ network_socket *network_connection_pool_get(network_connection_pool *pool,
 		GString *username,
 		GString *UNUSED_PARAM(default_db), conn_ctl_info *info) {
 
-    guint32  cur;
     guint    len, i;
 	network_socket *sock = NULL;
 	network_connection_pool_entry *entry, *found_entry = NULL;
@@ -195,8 +194,8 @@ network_socket *network_connection_pool_get(network_connection_pool *pool,
 	 * if we know this use, return a authed connection 
 	 */
 	if (conns) {
-        cur = time(0);
         len = g_queue_get_length(conns);
+#ifdef NO_RW_SPLIT
         for (i = 0; i < len; i++) {
             entry = g_queue_peek_nth(conns, i);
             if (entry->key == info->key) {
@@ -207,13 +206,14 @@ network_socket *network_connection_pool_get(network_connection_pool *pool,
                 }
             }
         }
+#endif
 
         if (!found_entry && len > 0) {
             entry = g_queue_peek_nth(conns, 0);
             found_entry = entry;
             g_queue_pop_nth (conns, 0);
-            g_debug("%s: (get) entry for user '%s' -> %p, cur:%u",
-                    G_STRLOC, username ? username->str : "", entry, cur);
+            g_debug("%s: (get) entry for user '%s' -> %p",
+                    G_STRLOC, username ? username->str : "", entry);
         }
 
 		if (conns->length == 0) {

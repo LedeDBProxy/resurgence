@@ -57,6 +57,24 @@ end
 local _total_queries_per_req 
 local _query
 
+--stat
+if not proxy.global.stats then
+	proxy.global.stats = {
+       	query_info = {
+            ro = 0,
+            rw = 0,
+        },
+	    backend_info = {
+            ro = 0,
+            rw = 0,
+        },
+        backend_details = {
+        },
+    }
+end
+
+local queryStats = proxy.global.stats
+
 ---
 -- read/write splitting sends all non-transactional SELECTs to the slaves
 --
@@ -72,7 +90,7 @@ local last_group = nil
 -- if this was a SELECT SQL_CALC_FOUND_ROWS ... stay on the same connections
 local is_in_select_calc_found_rows = false
 
-function return_insert_id(utext, last_insert_id)
+local function return_insert_id(utext, last_insert_id)
     local rows = { }
     local fields = {
         {
@@ -97,9 +115,9 @@ end
 
 
 
-function session_err(msg, enlarge)
+local function session_err(msg, enlarge)
     if enlarge then
-        value = proxy.global.config.rwsplit.min_idle_connections
+        local value = proxy.global.config.rwsplit.min_idle_connections
         value = value + 1
         proxy.global.config.rwsplit.min_idle_connections = value
     end
@@ -110,7 +128,7 @@ function session_err(msg, enlarge)
     return proxy.PROXY_SEND_RESULT
 end
 
-function warm_up()
+local function warm_up()
     utils.debug("[connect_server] " .. proxy.connection.client.src.name)
 
     if not proxy.global.stat_clients then
@@ -283,6 +301,7 @@ function connect_server()
             s.state == proxy.BACKEND_STATE_UNKNOWN) and
             (cur_idle < min_idle_conns and (connected_clients + cur_idle) < max_idle_conns) then
             proxy.connection.backend_ndx = i
+            rw_ndx = i
             break
         elseif s.type == proxy.BACKEND_TYPE_RO and
             (s.state == proxy.BACKEND_STATE_UP or
@@ -855,6 +874,34 @@ function dispose_one_query( packet, group )
         end
     end
 
+    if not queryStats.backend_details[backend_ndx] then 
+        queryStats.backend_details[backend_ndx] = {
+            ro = 0,
+            rw = 0,
+        }
+	end
+
+    if rw_op then
+        queryStats.query_info.rw = queryStats.query_info.rw + 1
+        if queryStats.query_info.rw % 100 == 0 then
+           utils.debug("rw stat:" .. queryStats.query_info.rw)
+           utils.debug("ro stat:" .. queryStats.query_info.ro)
+           utils.debug("master executed:" .. queryStats.backend_info.rw)
+           utils.debug("ro server executed:" .. queryStats.backend_info.ro)
+        end
+        queryStats.backend_details[backend_ndx].rw = queryStats.backend_details[backend_ndx].rw + 1
+    else
+        queryStats.query_info.ro = queryStats.query_info.ro + 1
+        queryStats.backend_details[backend_ndx].ro = queryStats.backend_details[backend_ndx].ro + 1
+    end
+
+	local s = proxy.global.backends[backend_ndx] 
+	if s.type == proxy.BACKEND_TYPE_RW then
+		queryStats.backend_info.rw = queryStats.backend_info.rw + 1
+	else
+		queryStats.backend_info.ro = queryStats.backend_info.ro + 1
+	end
+
     -- by now we should have a backend
     --
     -- in case the master is down, we have to close the client connections
@@ -1177,7 +1224,6 @@ function read_query_result( inj )
         end
     end
 
-    return result
 end
 
 --- 
@@ -1236,7 +1282,7 @@ end
 local orderByType = "asc"
 local orderByIndex = 1
 
-function fcompare(a, b)
+local function fcompare(a, b)
     local col_type = _combinedResultSet.fields[orderByIndex].type
     if orderByType == "desc" then
         if col_type ~= 3 then

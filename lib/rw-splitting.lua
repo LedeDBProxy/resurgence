@@ -39,36 +39,36 @@ local testsuit = false
 -- connection pool
 if not proxy.global.config.rwsplit then
     if testsuit then
-		proxy.global.config.rwsplit = {
-			min_idle_connections = 1,
-			mid_idle_connections = 4,
-			max_idle_connections = 8,
-			-- = down--up for each backend
-			max_init_time = 1,
+        proxy.global.config.rwsplit = {
+            min_idle_connections = 1,
+            mid_idle_connections = 4,
+            max_idle_connections = 8,
+            -- = down--up for each backend
+            max_init_time = 1,
 
-			is_debug = true,
-			is_slave_write_forbidden_set = false
-		}
+            is_debug = true,
+            is_slave_write_forbidden_set = false
+        }
     else
-		proxy.global.config.rwsplit = {
-			min_idle_connections = 1,
-			mid_idle_connections = 40,
-			max_idle_connections = 80,
-			max_init_time = 1,
-			is_debug = false,
-			is_slave_write_forbidden_set = false
-		}
+        proxy.global.config.rwsplit = {
+            min_idle_connections = 1,
+            mid_idle_connections = 40,
+            max_idle_connections = 80,
+            max_init_time = 1,
+            is_debug = false,
+            is_slave_write_forbidden_set = false
+        }
     end
 end
 
 --stat
 if not proxy.global.stats then
-	proxy.global.stats = {
-       	query_info = {
+    proxy.global.stats = {
+        query_info = {
             ro = 0,
             rw = 0,
         },
-	    backend_info = {
+        backend_info = {
             ro = 0,
             rw = 0,
         },
@@ -156,11 +156,11 @@ function connect_server()
         local init_phase = false
         cur_idle = pool.users[""].cur_idle_connections
         if testsuit then
-			local root_cur_idle = pool.users["root"].cur_idle_connections
-			print("  root idle:" .. root_cur_idle)
-			--init_phase = pool.init_phase
+            local root_cur_idle = pool.users["root"].cur_idle_connections
+            print("  root idle:" .. root_cur_idle)
+            --init_phase = pool.init_phase
         else
-			init_phase = pool.init_phase
+            init_phase = pool.init_phase
         end
         connected_clients = s.connected_clients
 
@@ -269,20 +269,20 @@ function connect_server()
 
     if proxy.connection.backend_ndx == 0 then
         if is_debug then
-        	print("  [" .. rw_ndx .. "] taking master as default")
+            print("  [" .. rw_ndx .. "] taking master as default")
         end
 
         if rw_ndx > 0 then
             proxy.connection.backend_ndx = rw_ndx
         else
             if is_debug then 
-				print("connection will be rejected")
-			end
+                print("connection will be rejected")
+            end
             proxy.response = {
-				type = proxy.MYSQLD_PACKET_ERR,
-				errmsg = "(proxy) all backends are down"
-			}
-			return proxy.PROXY_SEND_RESULT
+                type = proxy.MYSQLD_PACKET_ERR,
+                errmsg = "(proxy) all backends are down"
+            }
+            return proxy.PROXY_SEND_RESULT
         end
     else
         is_backend_conn_keepalive = true
@@ -302,7 +302,7 @@ function connect_server()
             if backend.type == proxy.BACKEND_TYPE_RW and (cur_idle > mid_idle_conns) and
                 (cur_idle + connected_clients) > (max_idle_conns + min_idle_conns) then
                 is_backend_conn_keepalive = false
-    	        if is_debug then print("  [" .. proxy.connection.backend_ndx .. "] set conn keepalive false"); end
+                if is_debug then print("  [" .. proxy.connection.backend_ndx .. "] set conn keepalive false"); end
             end
             -- stay with it
             return proxy.PROXY_IGNORE_RESULT
@@ -358,7 +358,7 @@ end
 --- 
 -- read/write splitting
 function read_query( packet )
-   
+
     local is_debug = proxy.global.config.rwsplit.is_debug
     local cmd      = commands.parse(packet)
     local c        = proxy.connection.client
@@ -764,7 +764,6 @@ function read_query( packet )
         end
     end
 
-
     if backend_ndx == 0 then
         local rw_backend_ndx = lb.idle_failsafe_rw()
         if is_backend_conn_keepalive and rw_backend_ndx <= 0 and proxy.global.config.rwsplit.is_slave_write_forbidden_set then
@@ -779,36 +778,6 @@ function read_query( packet )
         end
     end
 
-    if not stats.backend_details[backend_ndx] then 
-        stats.backend_details[backend_ndx] = {
-            ro = 0,
-            rw = 0,
-        }
-	end
-
-    if rw_op then
-        stats.query_info.rw = stats.query_info.rw + 1
-        if is_debug and stats.query_info.rw % 100 == 0 then
-           print("rw stat:" .. stats.query_info.rw)
-           print("ro stat:" .. stats.query_info.ro)
-           print("master executed:" .. stats.backend_info.rw)
-           print("ro server executed:" .. stats.backend_info.ro)
-        end
-        stats.backend_details[backend_ndx].rw = stats.backend_details[backend_ndx].rw + 1
-    else
-        stats.query_info.ro = stats.query_info.ro + 1
-        stats.backend_details[backend_ndx].ro = stats.backend_details[backend_ndx].ro + 1
-    end
-
-	local s = proxy.global.backends[backend_ndx] 
-	if s.type == proxy.BACKEND_TYPE_RW then
-		stats.backend_info.rw = stats.backend_info.rw + 1
-	else
-		stats.backend_info.ro = stats.backend_info.ro + 1
-	end
-
-    -- by now we should have a backend
-    --
     -- in case the master is down, we have to close the client connections
     -- otherwise we can go on
     if backend_ndx == 0 then
@@ -817,6 +786,34 @@ function read_query( packet )
         end
         proxy.queries:append(1, packet, { resultset_is_needed = true })
         return proxy.PROXY_SEND_QUERY
+    end
+
+    if not stats.backend_details[backend_ndx] then 
+        stats.backend_details[backend_ndx] = {
+            ro = 0,
+            rw = 0,
+        }
+    end
+
+    if rw_op then
+        stats.query_info.rw = stats.query_info.rw + 1
+        if is_debug and stats.query_info.rw % 100 == 0 then
+            print("rw stat:" .. stats.query_info.rw)
+            print("ro stat:" .. stats.query_info.ro)
+            print("master executed:" .. stats.backend_info.rw)
+            print("ro server executed:" .. stats.backend_info.ro)
+        end
+        stats.backend_details[backend_ndx].rw = stats.backend_details[backend_ndx].rw + 1
+    else
+        stats.query_info.ro = stats.query_info.ro + 1
+        stats.backend_details[backend_ndx].ro = stats.backend_details[backend_ndx].ro + 1
+    end
+
+    local s = proxy.global.backends[backend_ndx] 
+    if s.type == proxy.BACKEND_TYPE_RW then
+        stats.backend_info.rw = stats.backend_info.rw + 1
+    else
+        stats.backend_info.ro = stats.backend_info.ro + 1
     end
 
     if cmd.type == proxy.COM_STMT_EXECUTE then

@@ -20,7 +20,7 @@ if not proxy.global.config.rwsplit then
         default_index = 1,
         master_slave_ratio = 2,
         is_debug = true,
-        is_warn_up = false,
+        is_warm_up = false,
         is_sharding_mode = true,
         is_conn_reset_supported = false,
         is_slave_write_forbidden_set = false
@@ -172,7 +172,7 @@ function connect_server()
 
     utils.debug("[connect_server] " .. proxy.connection.client.src.name)
 
-    if proxy.global.config.rwsplit.is_warn_up then
+    if proxy.global.config.rwsplit.is_warm_up then
         return warm_up()
     end
 

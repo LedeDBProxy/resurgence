@@ -423,7 +423,7 @@ function read_query(packet)
         }
         if id > 0 and id <= #proxy.global.backends then
             if proxy.global.config.rwsplit ~= nil then
-                proxy.global.config.rwsplit.is_warn_up = true
+                proxy.global.config.rwsplit.is_warm_up = true
                 proxy.global.config.rwsplit.default_user = user
                 proxy.global.config.rwsplit.default_index = id
                 rows[#rows + 1] = { "warm up succeeded " }
@@ -437,7 +437,7 @@ function read_query(packet)
 		    return proxy.PROXY_SEND_RESULT
         end
     elseif string.find(query_lower, "set warm up over") then
-        proxy.global.config.rwsplit.is_warn_up = false
+        proxy.global.config.rwsplit.is_warm_up = false
         proxy.global.config.rwsplit.max_init_time = 1
         fields = {
             { name = "status",

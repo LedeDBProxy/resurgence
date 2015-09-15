@@ -874,6 +874,13 @@ function dispose_one_query( packet, group )
         end
     end
 
+    -- in case the master is down, we have to close the client connections
+    -- otherwise we can go on
+    if backend_ndx == 0 then
+        utils.debug("backend index is zero:", 1)
+        return session_err("009,connections are not enough", 0)
+    end
+
     if not queryStats.backend_details[backend_ndx] then 
         queryStats.backend_details[backend_ndx] = {
             ro = 0,
@@ -901,15 +908,6 @@ function dispose_one_query( packet, group )
 	else
 		queryStats.backend_info.ro = queryStats.backend_info.ro + 1
 	end
-
-    -- by now we should have a backend
-    --
-    -- in case the master is down, we have to close the client connections
-    -- otherwise we can go on
-    if backend_ndx == 0 then
-        utils.debug("backend index is zero:", 1)
-        return session_err("009,connections are not enough", 0)
-    end
 
     if cmd.type ~= proxy.COM_QUIT or client_quit_need_sent then
         proxy.queries:append_after_nth(cmd.type, base, packet, { resultset_is_needed = true } )

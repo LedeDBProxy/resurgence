@@ -59,12 +59,12 @@ local _query
 
 --stat
 if not proxy.global.stats then
-	proxy.global.stats = {
-       	query_info = {
+    proxy.global.stats = {
+        query_info = {
             ro = 0,
             rw = 0,
         },
-	    backend_info = {
+        backend_info = {
             ro = 0,
             rw = 0,
         },
@@ -140,7 +140,7 @@ local function warm_up()
     if not proxy.global.stat_clients[index] then
         proxy.global.stat_clients[index] = 0
     end
-    
+
     -- init one backend 
     if index <= #proxy.global.backends then
         local user     = proxy.global.config.rwsplit.default_user
@@ -220,7 +220,7 @@ function connect_server()
         cur_idle = pool.users[""].cur_idle_connections
         if proxy.global.config.rwsplit.is_debug ~= true then
             init_phase = pool.init_phase
-         end
+        end
         connected_clients = s.connected_clients
 
         total_clients = total_clients + proxy.global.stat_clients[i] 
@@ -363,8 +363,8 @@ function connect_server()
 
     local final_ndx = proxy.connection.backend_ndx
     proxy.global.stat_clients[final_ndx] = proxy.global.stat_clients[final_ndx] + 1
-  	utils.debug("use backend ndx:" .. proxy.connection.backend_ndx, 1)
-  	utils.debug("connection created:" .. proxy.global.stat_clients[final_ndx], 1)
+    utils.debug("use backend ndx:" .. proxy.connection.backend_ndx, 1)
+    utils.debug("connection created:" .. proxy.global.stat_clients[final_ndx], 1)
 
     -- open a new connection 
 end
@@ -570,7 +570,7 @@ function dispose_one_query( packet, group )
 
             if proxy.global.config.rwsplit.is_conn_reset_supported then
                 proxy.queries:prepend_after_nth(cmd.type, base, string.char(31), 
-                             { resultset_is_needed = true } )
+                { resultset_is_needed = true } )
                 _total_queries_per_req = _total_queries_per_req + 1
             else
                 return proxy.PROXY_SEND_NONE
@@ -874,6 +874,13 @@ function dispose_one_query( packet, group )
         end
     end
 
+    if rw_op then
+        queryStats.query_info.rw = queryStats.query_info.rw + 1
+    else
+        queryStats.query_info.ro = queryStats.query_info.ro + 1
+    end
+
+
     -- in case the master is down, we have to close the client connections
     -- otherwise we can go on
     if backend_ndx == 0 then
@@ -886,28 +893,20 @@ function dispose_one_query( packet, group )
             ro = 0,
             rw = 0,
         }
-	end
+    end
 
     if rw_op then
-        queryStats.query_info.rw = queryStats.query_info.rw + 1
-        if queryStats.query_info.rw % 100 == 0 then
-           utils.debug("rw stat:" .. queryStats.query_info.rw)
-           utils.debug("ro stat:" .. queryStats.query_info.ro)
-           utils.debug("master executed:" .. queryStats.backend_info.rw)
-           utils.debug("ro server executed:" .. queryStats.backend_info.ro)
-        end
         queryStats.backend_details[backend_ndx].rw = queryStats.backend_details[backend_ndx].rw + 1
     else
-        queryStats.query_info.ro = queryStats.query_info.ro + 1
         queryStats.backend_details[backend_ndx].ro = queryStats.backend_details[backend_ndx].ro + 1
     end
 
-	local s = proxy.global.backends[backend_ndx] 
-	if s.type == proxy.BACKEND_TYPE_RW then
-		queryStats.backend_info.rw = queryStats.backend_info.rw + 1
-	else
-		queryStats.backend_info.ro = queryStats.backend_info.ro + 1
-	end
+    local s = proxy.global.backends[backend_ndx] 
+    if s.type == proxy.BACKEND_TYPE_RW then
+        queryStats.backend_info.rw = queryStats.backend_info.rw + 1
+    else
+        queryStats.backend_info.ro = queryStats.backend_info.ro + 1
+    end
 
     if cmd.type ~= proxy.COM_QUIT or client_quit_need_sent then
         proxy.queries:append_after_nth(cmd.type, base, packet, { resultset_is_needed = true } )
@@ -945,7 +944,7 @@ function dispose_one_query( packet, group )
     utils.debug("backend_ndx:" .. backend_ndx, 1)
 
     local s = proxy.connection.server
-    
+
     if not proxy.global.ro_stat then
         proxy.global.ro_stat = 0
         proxy.global.ro_stats = 0
@@ -1121,7 +1120,7 @@ function dispose_one_query( packet, group )
         utils.debug("client default db: " .. c.default_db, 1)
         utils.debug("syncronizing", 1)
         proxy.queries:prepend_after_nth(proxy.PROXY_IGNORE_RESULT, base,
-         string.char(proxy.COM_INIT_DB) .. c.default_db, { resultset_is_needed = true })
+        string.char(proxy.COM_INIT_DB) .. c.default_db, { resultset_is_needed = true })
         _total_queries_per_req = _total_queries_per_req + 1
     end
 
@@ -1165,7 +1164,7 @@ function read_query_result( inj )
     utils.debug("init db cmd:" .. proxy.COM_INIT_DB, 1)
     utils.debug("res status:" .. res.query_status, 1)
 
-    
+
     if not is_backend_conn_keepalive then
         proxy.connection.to_be_closed_after_serve_req = true
     end
@@ -1264,11 +1263,11 @@ function _getFields(resultSet)
         newFields = {}
         while fields[fieldCount] do
             table.insert(
-                newFields,
-                {
-                    type = fields[fieldCount].type,
-                    name = fields[fieldCount].name
-                }
+            newFields,
+            {
+                type = fields[fieldCount].type,
+                name = fields[fieldCount].name
+            }
             )
 
             fieldCount = fieldCount + 1
@@ -1317,7 +1316,7 @@ function _buildUpCombinedResultSet(inj)
                         (_combinedLimit.rows < 0 or _combinedLimit.rowsSent < _combinedLimit.rows)
                         and
                         (_combinedLimit.from < 0 or _combinedLimit.rowsProcessed >= _combinedLimit.from)
-                    ) then
+                        ) then
                         table.insert(_combinedResultSet.rows, row)
                         _combinedLimit.rowsSent = _combinedLimit.rowsSent + 1
                     end
@@ -1333,7 +1332,7 @@ function _buildUpCombinedResultSet(inj)
         end
         if (resultSet.affected_rows) then
             _combinedResultSet.affected_rows = _combinedResultSet.affected_rows + 
-                                                tonumber(resultSet.affected_rows)
+            tonumber(resultSet.affected_rows)
         end
 
         if (resultSet.query_status and (resultSet.query_status < 0)) then

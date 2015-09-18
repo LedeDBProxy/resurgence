@@ -96,3 +96,13 @@ function idle_ro()
 
     return max_conns_ndx
 end
+
+function idle_ndx(n)
+    local s = proxy.global.backends[n]
+    local conns = s.pool.users[proxy.connection.client.username]
+    if conns.cur_idle_connections > 0 then
+        return true
+    else
+        return false
+    end
+end

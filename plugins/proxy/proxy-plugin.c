@@ -1881,6 +1881,7 @@ NETWORK_MYSQLD_PLUGIN_PROTO(proxy_connect_server) {
 		break;
 	case PROXY_IGNORE_RESULT:
 		use_pooled_connection = TRUE;
+        con->pool_conn_used = 1;
 
 		break;
 	default:
@@ -2175,14 +2176,16 @@ NETWORK_MYSQLD_PLUGIN_PROTO(proxy_disconnect_client) {
 		break;
 	}
 
-	if (con->state == CON_STATE_CLOSE_CLIENT && !con->server_is_closed) {
+	if ((con->state == CON_STATE_CLOSE_CLIENT && !con->server_is_closed) ||
+            (con->pool_conn_used && con->state_bef_clt_close == CON_STATE_SEND_HANDSHAKE))
+    {
 		/* move the connection to the connection pool
 		 *
 		 * this disconnects con->server and safes it from getting free()ed later
 		 */
 
         if (con->state < CON_STATE_READ_AUTH_RESULT) {
-            g_critical("%s, con:%p, state:%d:server connection returned to pool",
+            g_message("%s, con:%p, state:%d:server connection returned to pool",
                     G_STRLOC, con, con->state);
         }
 

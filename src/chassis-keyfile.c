@@ -97,7 +97,7 @@ gboolean chassis_keyfile_to_options_with_error(GKeyFile *keyfile, const gchar *i
 		case G_OPTION_ARG_NONE: 
 			arg_bool = g_key_file_get_boolean(keyfile, ini_group_name, entry->long_name, &gerr);
 			if (!gerr) {
-				*(int *)(entry->arg_data) = arg_bool;
+				*(gboolean *)(entry->arg_data) = arg_bool;
 			}
 			break;
 		case G_OPTION_ARG_INT: 
@@ -110,7 +110,7 @@ gboolean chassis_keyfile_to_options_with_error(GKeyFile *keyfile, const gchar *i
 		case G_OPTION_ARG_DOUBLE: 
 			arg_double = g_key_file_get_double(keyfile, ini_group_name, entry->long_name, &gerr);
 			if (!gerr) {
-				*(gint *)(entry->arg_data) = arg_double;
+				*(gdouble *)(entry->arg_data) = arg_double;
 			}
 			break;
 #endif

@@ -305,6 +305,7 @@ struct network_mysqld_con {
 	 * It does not follow the MySQL protocol by itself and its client network_socket will always be NULL.
 	 */
 	int is_listen_socket;
+	int pool_conn_used;
     int is_still_in_trans;
 	int valid_parallel_stmt_cnt;
 	int shard_num;

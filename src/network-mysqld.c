@@ -1385,6 +1385,7 @@ void network_mysqld_con_handle(int event_fd, short events, void *user_data) {
 				/**
 				 * writing failed, closing connection
 				 */
+                con->state_bef_clt_close = con->state;
 				con->state = CON_STATE_ERROR;
 				break;
 			}
@@ -1996,6 +1997,7 @@ void network_mysqld_con_handle(int event_fd, short events, void *user_data) {
 				/**
 				 * writing failed, closing connection
 				 */
+                con->state_bef_clt_close = con->state;
 				con->state = CON_STATE_ERROR;
 				break;
 			}
@@ -2084,6 +2086,7 @@ void network_mysqld_con_handle(int event_fd, short events, void *user_data) {
 				/**
 				 * writing failed, closing connection
 				 */
+                con->state_bef_clt_close = con->state;
 				con->state = CON_STATE_ERROR;
 				break;
 			}

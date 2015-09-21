@@ -269,10 +269,16 @@ int network_connection_pool_lua_add_connection(network_mysqld_con *con, int is_s
                 to_be_put_to_pool = FALSE;
             }
         } else {
-            to_be_put_to_pool = FALSE;
+            if (con->state == CON_STATE_ERROR &&
+                    con->pool_conn_used && con->state_bef_clt_close == CON_STATE_SEND_HANDSHAKE) 
+            {
+                g_message("%s: client exit before sending handshake, con:%p", G_STRLOC, con);
+            } else {
+                to_be_put_to_pool = FALSE;
+            }
         }
     }
-    
+ 
     if (to_be_put_to_pool == FALSE) {
         if (con->server->recv_queue->chunks->length > 0) {
             g_critical("%s.%d: recv queue length :%d, state:%s",

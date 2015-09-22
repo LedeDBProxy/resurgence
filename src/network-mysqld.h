@@ -256,7 +256,7 @@ struct network_mysqld_con {
 	 * @see network_mysqld_con_handle
 	 */
 	network_mysqld_con_state_t state;
-	network_mysqld_con_state_t state_bef_clt_close;
+	network_mysqld_con_state_t prev_state;
 	proxy_session_state_t proxy_state;
 
 	/**

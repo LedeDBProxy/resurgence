@@ -155,16 +155,16 @@ static int proxy_connection_get(lua_State *L) {
 	} else if (strleq(key, keysize, C("client_abnormal_close"))) {
         if (con->state == CON_STATE_READ_QUERY_RESULT) {
             lua_pushboolean (L, 1);
-        } else if (con->state == CON_STATE_ERROR) {
-            if (con->pool_conn_used && 
-                    con->state_bef_clt_close <= CON_STATE_READ_QUERY) 
-            {
-                lua_pushboolean (L, 0);
-            } else {
-                lua_pushboolean (L, 1);
-            }
+            g_debug("%s: set client_abnormal_close true: %p", G_STRLOC, con);
         } else {
-            lua_pushboolean (L, 0);
+            if (con->pool_conn_used && 
+                    con->prev_state > CON_STATE_READ_QUERY) 
+            {
+                lua_pushboolean (L, 1);
+                g_debug("%s: set client_abnormal_close true: %p", G_STRLOC, con);
+            } else {
+                lua_pushboolean (L, 0);
+            }
         }
 	} else if (strleq(key, keysize, C("last_insert_id"))) {
 	    lua_pushnumber(L, con->last_insert_id);

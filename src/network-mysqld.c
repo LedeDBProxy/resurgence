@@ -149,6 +149,7 @@ plugin_call_timeout(chassis *srv, network_mysqld_con *con) {
 				G_STRLOC,
 				con->client ? con->client->src->name->str : "(client)",
 				con->server ? con->server->dst->name->str : "(server)");
+        con->prev_state = con->state;
 		con->state = CON_STATE_ERROR;
 		return NETWORK_SOCKET_SUCCESS;
 	}
@@ -757,6 +758,7 @@ network_socket_retval_t plugin_call(chassis *srv, network_mysqld_con *con, int s
 				break;
 			case MYSQLD_PACKET_ERR:
 				/* ERR delivered to client, close the connection now */
+                con->prev_state = con->state;
 				con->state = CON_STATE_ERROR;
 				break;
 			case 0x01: /* more auth data */
@@ -786,6 +788,7 @@ network_socket_retval_t plugin_call(chassis *srv, network_mysqld_con *con, int s
 				g_debug("%s.%d: unexpected state for SEND_AUTH_RESULT: %02x", 
 						__FILE__, __LINE__,
 						con->auth_result_state);
+                con->prev_state = con->state;
 				con->state = CON_STATE_ERROR;
 				break;
 			}
@@ -885,7 +888,8 @@ network_socket_retval_t plugin_call(chassis *srv, network_mysqld_con *con, int s
 	case CON_STATE_READ_LOCAL_INFILE_DATA:
 		func = con->plugins.con_read_local_infile_data;
 
-		if (!func) { /* the plugins have to implement this function to track LOAD DATA LOCAL INFILE handling work */
+		if (!func) { 
+            con->prev_state = con->state;
 			con->state = CON_STATE_ERROR;
 		}
 
@@ -902,6 +906,7 @@ network_socket_retval_t plugin_call(chassis *srv, network_mysqld_con *con, int s
 		func = con->plugins.con_read_local_infile_result;
 
 		if (!func) { /* the plugins have to implement this function to track LOAD DATA LOCAL INFILE handling work */
+            con->prev_state = con->state;
 			con->state = CON_STATE_ERROR;
 		}
 
@@ -1092,11 +1097,12 @@ void network_mysqld_con_handle(int event_fd, short events, void *user_data) {
 			case EPIPE: /* hp/ux */
 				if (con->client && event_fd == con->client->fd) {
 					/* the client closed the connection, let's keep the server side open */
-                    con->state_bef_clt_close = con->state;
+                    con->prev_state = con->state;
 					con->state = CON_STATE_CLOSE_CLIENT;
 				} else if (con->server && event_fd == con->server->fd && con->com_quit_seen) {
 					con->state = CON_STATE_CLOSE_SERVER;
 				} else {
+                    con->prev_state = con->state;
 					/* server side closed on use, oops, close both sides */
 					con->state = CON_STATE_ERROR;
 				}
@@ -1104,6 +1110,7 @@ void network_mysqld_con_handle(int event_fd, short events, void *user_data) {
 			default:
 				g_critical("ioctl(%d, FIONREAD, ...) failed: %s", event_fd, g_strerror(errno));
 
+                con->prev_state = con->state;
 				con->state = CON_STATE_ERROR;
 				break;
 			}
@@ -1118,11 +1125,12 @@ void network_mysqld_con_handle(int event_fd, short events, void *user_data) {
 		} else { /* Linux */
 			if (con->client && event_fd == con->client->fd) {
 				/* the client closed the connection, let's keep the server side open */
-                con->state_bef_clt_close = con->state;
+                con->prev_state = con->state;
 				con->state = CON_STATE_CLOSE_CLIENT;
 			} else if (con->server && event_fd == con->server->fd && con->com_quit_seen) {
 				con->state = CON_STATE_CLOSE_SERVER;
 			} else {
+                con->prev_state = con->state;
 				/* server side closed on use, oops, close both sides */
 				con->state = CON_STATE_ERROR;
 			}
@@ -1134,6 +1142,7 @@ void network_mysqld_con_handle(int event_fd, short events, void *user_data) {
 			/* the plugin did set a reasonable next state */
 			break;
 		default:
+            con->prev_state = con->state;
 			con->state = CON_STATE_ERROR;
 			break;
 		}
@@ -1257,6 +1266,7 @@ void network_mysqld_con_handle(int event_fd, short events, void *user_data) {
 				 */
 				g_critical("%s.%d: plugin_call(CON_STATE_INIT) != NETWORK_SOCKET_SUCCESS", __FILE__, __LINE__);
 
+                con->prev_state = con->state;
 				con->state = CON_STATE_ERROR;
 				
 				break;
@@ -1312,6 +1322,7 @@ void network_mysqld_con_handle(int event_fd, short events, void *user_data) {
 						G_STRLOC, 
 						retval);
 
+                con->prev_state = con->state;
 				con->state = CON_STATE_ERROR;
 				
 				break;
@@ -1340,7 +1351,9 @@ void network_mysqld_con_handle(int event_fd, short events, void *user_data) {
 			case NETWORK_SOCKET_ERROR_RETRY:
 			case NETWORK_SOCKET_ERROR:
 				g_critical("%s.%d: network_mysqld_read(CON_STATE_READ_HANDSHAKE) returned an error", __FILE__, __LINE__);
-				con->state = CON_STATE_ERROR;
+                con->prev_state = con->state;
+                con->state = CON_STATE_ERROR;
+
 				break;
 			}
 
@@ -1362,6 +1375,7 @@ void network_mysqld_con_handle(int event_fd, short events, void *user_data) {
 				break;
 			default:
 				g_critical("%s.%d: ...", __FILE__, __LINE__);
+                con->prev_state = con->state;
 				con->state = CON_STATE_ERROR;
 				break;
 			}
@@ -1385,7 +1399,7 @@ void network_mysqld_con_handle(int event_fd, short events, void *user_data) {
 				/**
 				 * writing failed, closing connection
 				 */
-                con->state_bef_clt_close = con->state;
+                con->prev_state = con->state;
 				con->state = CON_STATE_ERROR;
 				break;
 			}
@@ -1397,6 +1411,7 @@ void network_mysqld_con_handle(int event_fd, short events, void *user_data) {
 				break;
 			default:
 				g_critical("%s.%d: plugin_call(CON_STATE_SEND_HANDSHAKE) != NETWORK_SOCKET_SUCCESS", __FILE__, __LINE__);
+                con->prev_state = con->state;
 				con->state = CON_STATE_ERROR;
 				break;
 			}
@@ -1437,6 +1452,7 @@ void network_mysqld_con_handle(int event_fd, short events, void *user_data) {
 				break;
 			default:
 				g_critical("%s.%d: plugin_call(CON_STATE_READ_AUTH) != NETWORK_SOCKET_SUCCESS", __FILE__, __LINE__);
+                con->prev_state = con->state;
 				con->state = CON_STATE_ERROR;
 				break;
 			}
@@ -1456,6 +1472,7 @@ void network_mysqld_con_handle(int event_fd, short events, void *user_data) {
 				return;
 			case NETWORK_SOCKET_ERROR_RETRY:
 			case NETWORK_SOCKET_ERROR:
+                con->prev_state = con->state;
 				/* might be a connection close, we should just close the connection and be happy */
 				con->state = CON_STATE_ERROR;
 
@@ -1474,6 +1491,7 @@ void network_mysqld_con_handle(int event_fd, short events, void *user_data) {
 				break;
 			default:
 				g_critical("%s.%d: plugin_call(CON_STATE_SEND_AUTH) != NETWORK_SOCKET_SUCCESS", __FILE__, __LINE__);
+                con->prev_state = con->state;
 				con->state = CON_STATE_ERROR;
 				break;
 			}
@@ -1490,6 +1508,7 @@ void network_mysqld_con_handle(int event_fd, short events, void *user_data) {
 			recv_sock = con->server;
 
             if (recv_sock == NULL) {
+                con->prev_state = con->state;
 				con->state = CON_STATE_ERROR;
                 break;
             }
@@ -1507,12 +1526,14 @@ void network_mysqld_con_handle(int event_fd, short events, void *user_data) {
 			case NETWORK_SOCKET_ERROR_RETRY:
 			case NETWORK_SOCKET_ERROR:
 				g_critical("%s.%d: network_mysqld_read(CON_STATE_READ_AUTH_RESULT) returned an error", __FILE__, __LINE__);
+                con->prev_state = con->state;
 				con->state = CON_STATE_ERROR;
 				break;
 			}
 			if (con->state != ostate) break; /* the state has changed (e.g. CON_STATE_ERROR) */
 
 			if (0 != network_mysqld_con_track_auth_result_state(con)) {
+                con->prev_state = con->state;
 				con->state = CON_STATE_ERROR;
 				break;
 			}
@@ -1523,6 +1544,7 @@ void network_mysqld_con_handle(int event_fd, short events, void *user_data) {
 			default:
 				g_critical("%s.%d: plugin_call(CON_STATE_READ_AUTH_RESULT) != NETWORK_SOCKET_SUCCESS", __FILE__, __LINE__);
 
+                con->prev_state = con->state;
 				con->state = CON_STATE_ERROR;
 				break;
 			}
@@ -1543,7 +1565,7 @@ void network_mysqld_con_handle(int event_fd, short events, void *user_data) {
 			case NETWORK_SOCKET_ERROR_RETRY:
 			case NETWORK_SOCKET_ERROR:
 				g_debug("%s.%d: network_mysqld_write(CON_STATE_SEND_AUTH_RESULT) returned an error", __FILE__, __LINE__);
-
+                con->prev_state = con->state;
 				con->state = CON_STATE_ERROR;
 				break;
 			}
@@ -1555,6 +1577,7 @@ void network_mysqld_con_handle(int event_fd, short events, void *user_data) {
 				break;
 			default:
 				g_critical("%s.%d: ...", __FILE__, __LINE__);
+                con->prev_state = con->state;
 				con->state = CON_STATE_ERROR;
 				break;
 			}
@@ -1575,6 +1598,7 @@ void network_mysqld_con_handle(int event_fd, short events, void *user_data) {
 			case NETWORK_SOCKET_ERROR_RETRY:
 			case NETWORK_SOCKET_ERROR:
 				g_critical("%s.%d: network_mysqld_read(CON_STATE_READ_AUTH_OLD_PASSWORD) returned an error", __FILE__, __LINE__);
+                con->prev_state = con->state;
 				con->state = CON_STATE_ERROR;
 				return;
 			}
@@ -1586,6 +1610,7 @@ void network_mysqld_con_handle(int event_fd, short events, void *user_data) {
 				break;
 			default:
 				g_critical("%s.%d: plugin_call(CON_STATE_READ_AUTH_OLD_PASSWORD) != NETWORK_SOCKET_SUCCESS", __FILE__, __LINE__);
+                con->prev_state = con->state;
 				con->state = CON_STATE_ERROR;
 				break;
 			}
@@ -1607,6 +1632,7 @@ void network_mysqld_con_handle(int event_fd, short events, void *user_data) {
 			case NETWORK_SOCKET_ERROR:
 				/* might be a connection close, we should just close the connection and be happy */
 				g_debug("%s.%d: network_mysqld_write(CON_STATE_SEND_AUTH_OLD_PASSWORD) returned an error", __FILE__, __LINE__);
+                con->prev_state = con->state;
 				con->state = CON_STATE_ERROR;
 				break;
 			}
@@ -1617,6 +1643,7 @@ void network_mysqld_con_handle(int event_fd, short events, void *user_data) {
 				break;
 			default:
 				g_critical("%s.%d: plugin_call(CON_STATE_SEND_AUTH_OLD_PASSWORD) != NETWORK_SOCKET_SUCCESS", __FILE__, __LINE__);
+                con->prev_state = con->state;
 				con->state = CON_STATE_ERROR;
 				break;
 			}
@@ -1651,6 +1678,7 @@ void network_mysqld_con_handle(int event_fd, short events, void *user_data) {
 				case NETWORK_SOCKET_ERROR_RETRY:
 				case NETWORK_SOCKET_ERROR:
 					g_critical("%s.%d: network_mysqld_read(CON_STATE_READ_QUERY) returned an error", __FILE__, __LINE__);
+                    con->prev_state = con->state;
 					con->state = CON_STATE_ERROR;
 					return;
 				}
@@ -1691,6 +1719,7 @@ void network_mysqld_con_handle(int event_fd, short events, void *user_data) {
 			default:
 				g_critical("%s.%d: plugin_call(CON_STATE_READ_QUERY) failed", __FILE__, __LINE__);
 
+                con->prev_state = con->state;
 				con->state = CON_STATE_ERROR;
 				break;
 			}
@@ -1731,6 +1760,7 @@ void network_mysqld_con_handle(int event_fd, short events, void *user_data) {
 				if (0 != network_mysqld_con_command_states_init(con, &packet)) {
 					g_debug("%s: tracking mysql protocol states failed",
 							G_STRLOC);
+                    con->prev_state = con->state;
 					con->state = CON_STATE_ERROR;
 
 					break;
@@ -1753,6 +1783,7 @@ void network_mysqld_con_handle(int event_fd, short events, void *user_data) {
 				/**
 				 * write() failed, close the connections 
 				 */
+                con->prev_state = con->state;
 				con->state = CON_STATE_ERROR;
 				break;
 			}
@@ -1802,6 +1833,7 @@ void network_mysqld_con_handle(int event_fd, short events, void *user_data) {
 				recv_sock = con->server;
 
                 if (recv_sock == NULL) {
+                    con->prev_state = con->state;
 					con->state = CON_STATE_ERROR;
                     break;
                 }
@@ -1820,6 +1852,7 @@ void network_mysqld_con_handle(int event_fd, short events, void *user_data) {
 				case NETWORK_SOCKET_ERROR_RETRY:
 				case NETWORK_SOCKET_ERROR:
 					g_critical("%s.%d: network_mysqld_read(CON_STATE_READ_QUERY_RESULT) returned an error", __FILE__, __LINE__);
+                    con->prev_state = con->state;
 					con->state = CON_STATE_ERROR;
 					break;
 				}
@@ -1837,10 +1870,12 @@ void network_mysqld_con_handle(int event_fd, short events, void *user_data) {
 					break;
 				case NETWORK_SOCKET_ERROR:
 					/* something nasty happend, let's close the connection */
+                    con->prev_state = con->state;
 					con->state = CON_STATE_ERROR;
 					break;
 				default:
 					g_critical("%s.%d: ...", __FILE__, __LINE__);
+                    con->prev_state = con->state;
 					con->state = CON_STATE_ERROR;
 					break;
 				}
@@ -1868,6 +1903,7 @@ void network_mysqld_con_handle(int event_fd, short events, void *user_data) {
 				 *
 				 * close the connection and clean up
 				 */
+                con->prev_state = con->state;
 				con->state = CON_STATE_ERROR;
 				break;
 			}
@@ -1886,6 +1922,7 @@ void network_mysqld_con_handle(int event_fd, short events, void *user_data) {
 			case NETWORK_SOCKET_SUCCESS:
 				break;
 			default:
+                con->prev_state = con->state;
 				con->state = CON_STATE_ERROR;
 				break;
 			}
@@ -1934,6 +1971,7 @@ void network_mysqld_con_handle(int event_fd, short events, void *user_data) {
 					g_critical("%s: network_mysqld_read(%s) returned an error",
 							G_STRLOC,
 							network_mysqld_con_state_get_name(ostate));
+                    con->prev_state = con->state;
 					con->state = CON_STATE_ERROR;
 					break;
 				}
@@ -1961,6 +1999,7 @@ void network_mysqld_con_handle(int event_fd, short events, void *user_data) {
 							network_mysqld_con_state_get_name(ostate),
 							call_ret);
 
+                    con->prev_state = con->state;
 					con->state = CON_STATE_ERROR;
 					break;
 				}
@@ -1997,7 +2036,7 @@ void network_mysqld_con_handle(int event_fd, short events, void *user_data) {
 				/**
 				 * writing failed, closing connection
 				 */
-                con->state_bef_clt_close = con->state;
+                con->prev_state = con->state;
 				con->state = CON_STATE_ERROR;
 				break;
 			}
@@ -2013,6 +2052,7 @@ void network_mysqld_con_handle(int event_fd, short events, void *user_data) {
 						network_mysqld_con_state_get_name(ostate),
 						call_ret);
 
+                con->prev_state = con->state;
 				con->state = CON_STATE_ERROR;
 				break;
 			}
@@ -2026,6 +2066,7 @@ void network_mysqld_con_handle(int event_fd, short events, void *user_data) {
 			recv_sock = con->server;
 
             if  (recv_sock == NULL) {
+                con->prev_state = con->state;
 				con->state = CON_STATE_ERROR;
                 break;
             }
@@ -2048,6 +2089,7 @@ void network_mysqld_con_handle(int event_fd, short events, void *user_data) {
 						G_STRLOC,
 						network_mysqld_con_state_get_name(ostate));
 
+                con->prev_state = con->state;
 				con->state = CON_STATE_ERROR;
 				break;
 			}
@@ -2063,6 +2105,7 @@ void network_mysqld_con_handle(int event_fd, short events, void *user_data) {
 						network_mysqld_con_state_get_name(ostate),
 						call_ret);
 
+                con->prev_state = con->state;
 				con->state = CON_STATE_ERROR;
 				break;
 			}
@@ -2086,7 +2129,7 @@ void network_mysqld_con_handle(int event_fd, short events, void *user_data) {
 				/**
 				 * writing failed, closing connection
 				 */
-                con->state_bef_clt_close = con->state;
+                con->prev_state = con->state;
 				con->state = CON_STATE_ERROR;
 				break;
 			}
@@ -2102,6 +2145,7 @@ void network_mysqld_con_handle(int event_fd, short events, void *user_data) {
 						network_mysqld_con_state_get_name(ostate),
 						call_ret);
 
+                con->prev_state = con->state;
 				con->state = CON_STATE_ERROR;
 				break;
 			}
@@ -2125,11 +2169,12 @@ void network_mysqld_con_handle(int event_fd, short events, void *user_data) {
 			case NETWORK_SOCKET_ERROR:
 				g_critical("%s.%d: network_mysqld_write(CON_STATE_SEND_ERROR) returned an error", __FILE__, __LINE__);
 
+                con->prev_state = con->state;
 				con->state = CON_STATE_ERROR;
 				break;
 			}
 				
-            con->state_bef_clt_close = con->state;
+            con->prev_state = con->state;
 			con->state = CON_STATE_CLOSE_CLIENT;
 
 			break;

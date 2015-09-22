@@ -261,17 +261,17 @@ int network_connection_pool_lua_add_connection(network_mysqld_con *con, int is_s
             con->state != CON_STATE_READ_AUTH_RESULT)
     {
         if (con->pool_conn_used) {
-            if (con->state_bef_clt_close <= CON_STATE_READ_QUERY) 
+            if (con->prev_state <= CON_STATE_READ_QUERY) 
             {
                 g_message("%s: client exit before using pool connection, con:%p, prev state:%s", 
-                        G_STRLOC, con, network_mysqld_con_state_get_name(con->state_bef_clt_close));
+                        G_STRLOC, con, network_mysqld_con_state_get_name(con->prev_state));
             } else {
                 to_be_put_to_pool = FALSE;
             } 
         } else {
             if (con->state == CON_STATE_CLOSE_CLIENT) {
-                if (con->state_bef_clt_close != CON_STATE_READ_QUERY && 
-                        con->state_bef_clt_close != CON_STATE_READ_AUTH_RESULT) {
+                if (con->prev_state != CON_STATE_READ_QUERY && 
+                        con->prev_state != CON_STATE_READ_AUTH_RESULT) {
                     to_be_put_to_pool = FALSE;
                 }
             } else {
@@ -281,16 +281,11 @@ int network_connection_pool_lua_add_connection(network_mysqld_con *con, int is_s
     }
  
     if (to_be_put_to_pool == FALSE) {
-	    g_critical("%s: try to add state:%s to connect pool", G_STRLOC, network_mysqld_con_state_get_name(con->state));
-	    if (con->server->recv_queue->chunks->length > 0) {
-		    g_critical("%s.%d: recv queue length :%d, state:%s",
-				    __FILE__, __LINE__, con->server->recv_queue->chunks->length, 
-				    network_mysqld_con_state_get_name(con->state));
-	    } else {
-		    g_debug("%s.%d: recv queue length:%d, state:%s",
-				    __FILE__, __LINE__, con->server->recv_queue->chunks->length,
-				    network_mysqld_con_state_get_name(con->state));
-	    }
+        if (con->server->recv_queue->chunks->length > 0) {
+            g_critical("%s.%d: recv queue length :%d, state:%s",
+                    __FILE__, __LINE__, con->server->recv_queue->chunks->length, 
+                    network_mysqld_con_state_get_name(con->state));
+        }
 
         GString *packet;
         while ((packet = g_queue_pop_head(con->server->recv_queue->chunks))) g_string_free(packet, TRUE);

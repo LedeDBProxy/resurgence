@@ -264,6 +264,7 @@ NETWORK_MYSQLD_PLUGIN_PROTO(proxy_timeout) {
                                 G_STRLOC, con);
                     } else {
                         if (con->state == CON_STATE_READ_QUERY_RESULT) {
+                            con->prev_state = con->state;
                             con->state = CON_STATE_ERROR;
                             con->server_is_closed = TRUE;
                             g_critical("%s, con:%p, state:%s:server state error",
@@ -274,6 +275,7 @@ NETWORK_MYSQLD_PLUGIN_PROTO(proxy_timeout) {
             }
         } else {
             /* the client timed out, close the connection */
+            con->prev_state = con->state;
             con->state = CON_STATE_ERROR;
         }
 		return NETWORK_SOCKET_SUCCESS;
@@ -1510,6 +1512,7 @@ NETWORK_MYSQLD_PLUGIN_PROTO(proxy_send_query_result) {
 	recv_sock = con->client;
 
 	if (st->connection_close) {
+        con->prev_state = con->state;
 		con->state = CON_STATE_ERROR;
 
 		return NETWORK_SOCKET_SUCCESS;
@@ -2176,16 +2179,18 @@ NETWORK_MYSQLD_PLUGIN_PROTO(proxy_disconnect_client) {
 		break;
 	}
 
-	if ((con->state == CON_STATE_CLOSE_CLIENT && !con->server_is_closed) ||
-            (con->pool_conn_used && con->state_bef_clt_close <= CON_STATE_READ_QUERY))
-    {
-		/* move the connection to the connection pool
-		 *
-		 * this disconnects con->server and safes it from getting free()ed later
-		 */
+    if (!con->server_is_closed) {
+        if (con->state == CON_STATE_CLOSE_CLIENT ||
+                (con->pool_conn_used && con->prev_state <= CON_STATE_READ_QUERY))
+        {
+            /* move the connection to the connection pool
+             *
+             * this disconnects con->server and safes it from getting free()ed later
+             */
 
-		network_connection_pool_lua_add_connection(con, 0);
-	}
+            network_connection_pool_lua_add_connection(con, 0);
+        } 
+    }
 
 #ifdef HAVE_LUA_H
 	/* remove this cached script from registry */

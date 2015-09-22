@@ -263,16 +263,20 @@ int network_connection_pool_lua_add_connection(network_mysqld_con *con, int is_s
             con->state != CON_STATE_READ_QUERY && 
             con->state != CON_STATE_READ_AUTH_RESULT)
     {
-        if (con->state == CON_STATE_CLOSE_CLIENT) {
-            if (con->state_bef_clt_close != CON_STATE_READ_QUERY && 
-                    con->state_bef_clt_close != CON_STATE_READ_AUTH_RESULT) {
-                to_be_put_to_pool = FALSE;
-            }
-        } else {
-            if (con->state == CON_STATE_ERROR &&
-                    con->pool_conn_used && con->state_bef_clt_close == CON_STATE_SEND_HANDSHAKE) 
+        if (con->pool_conn_used) {
+            if (con->state_bef_clt_close <= CON_STATE_READ_QUERY) 
             {
-                g_message("%s: client exit before sending handshake, con:%p", G_STRLOC, con);
+                g_message("%s: client exit before using pool connection, con:%p, prev state:%s", 
+                        G_STRLOC, con, network_mysqld_con_state_get_name(con->state_bef_clt_close));
+            } else {
+                to_be_put_to_pool = FALSE;
+            } 
+        } else {
+            if (con->state == CON_STATE_CLOSE_CLIENT) {
+                if (con->state_bef_clt_close != CON_STATE_READ_QUERY && 
+                        con->state_bef_clt_close != CON_STATE_READ_AUTH_RESULT) {
+                    to_be_put_to_pool = FALSE;
+                }
             } else {
                 to_be_put_to_pool = FALSE;
             }

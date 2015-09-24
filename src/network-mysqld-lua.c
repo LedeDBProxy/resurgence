@@ -60,8 +60,6 @@ void network_mysqld_con_lua_free(network_mysqld_con *con, network_mysqld_con_lua
     /* If con still has server list, then all are closed */
     if (con->server_list != NULL) {
         int i, checked = 0;
-        network_socket *server;
-        network_backend_t *backend;
         server_list_t *server_list = con->server_list;
 	    network_mysqld_con_lua_t *st = con->plugin_con_state;
 
@@ -72,8 +70,8 @@ void network_mysqld_con_lua_free(network_mysqld_con *con, network_mysqld_con_lua
             }
 
             int index = st->backend_ndx_array[i] - 1;
-            server = server_list->server[index];
-            backend = st->backend_array[i];
+            network_socket *server = server_list->server[index];
+            network_backend_t *backend = st->backend_array[i];
 
             int pending = event_pending(&(server->event), EV_READ|EV_WRITE|EV_TIMEOUT, NULL);
             if (pending) { 
@@ -212,15 +210,15 @@ static int proxy_connection_set(lua_State *L) {
 			
         g_debug("proxy_connection_set:%p, origin back ndx:%d", con, st->backend_ndx);
 		if (backend_ndx == -1) {
-			/** drop the backend for now
-			 */
-            if (con->state < CON_STATE_READ_AUTH_RESULT) {
-                g_debug("%s, con:%p, state:%d:server connection returned to pool",
-                        G_STRLOC, con, con->state);
+            if (con->server != NULL) {
+                if (network_connection_pool_lua_add_connection(con, 0) != 0) {
+                    g_message("%s, con:%p:server connection returned to pool failed",
+                            G_STRLOC, con);
+                } else {
+                    g_debug("session dropped the backend :%p, server:%p, back ndx:%d", 
+                            con, con->server, st->backend_ndx);
+                }
             }
-			network_connection_pool_lua_add_connection(con, 0); 
-            g_debug("session dropped the backend :%p, server:%p, back ndx:%d", 
-                    con, con->server, st->backend_ndx);
 		} else if (NULL != (send_sock = network_connection_pool_lua_swap(con, backend_ndx))) {
 			con->server = send_sock;
 		} else {

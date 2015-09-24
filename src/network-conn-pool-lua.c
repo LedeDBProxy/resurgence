@@ -250,13 +250,13 @@ int network_connection_pool_lua_add_connection(network_mysqld_con *con, int is_s
             st->to_be_closed_after_serve_req) 
     {
         g_debug("%s: to_be_closed_after_serve_req true for con:%p", G_STRLOC, con);
-        return 0;
+        return -1;
     }
 
 	/* con-server is already disconnected, got out */
-	if (!con->server) return 0;
+	if (!con->server) return -1;
 
-    if (!con->server->response) return 0;
+    if (!con->server->response) return -1;
 
     /* Only valid for non conn swap */  
     if (!is_swap && con->state != CON_STATE_CLIENT_QUIT && 
@@ -295,7 +295,7 @@ int network_connection_pool_lua_add_connection(network_mysqld_con *con, int is_s
 
         con->server_is_closed = TRUE;
 
-        return 0;
+        return -1;
     }
 
 	/* the server connection is still authed */
@@ -375,7 +375,7 @@ int network_connection_pool_lua_add_connection(network_mysqld_con *con, int is_s
 
     con->server = NULL;
 
-	return 1;
+	return 0;
 }
 
 /**
@@ -486,7 +486,9 @@ network_socket *network_connection_pool_lua_swap(network_mysqld_con *con, int ba
     } else {
 
         if (con->server) {
-            if (network_connection_pool_lua_add_connection(con, 1) > 0) {
+            if (network_connection_pool_lua_add_connection(con, 1) != 0) {
+                g_message("%s: (swap) take and move the current backend into the pool failed", G_STRLOC);
+            } else {
                 g_debug("%s: (swap) take and move the current backend into the pool", G_STRLOC);
             }
         }

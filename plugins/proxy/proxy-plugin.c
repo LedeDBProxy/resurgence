@@ -259,9 +259,13 @@ NETWORK_MYSQLD_PLUGIN_PROTO(proxy_timeout) {
                     if (con->state == CON_STATE_READ_AUTH_RESULT || 
                             con->state == CON_STATE_READ_QUERY) 
                     {
-                        network_connection_pool_lua_add_connection(con, 0);
-                        g_debug("%s, con:%p:server connection returned to pool",
-                                G_STRLOC, con);
+                        if (network_connection_pool_lua_add_connection(con, 0) != 0) {
+                            g_message("%s, con:%p:server connection returned to pool failed",
+                                    G_STRLOC, con);
+                        } else {
+                            g_debug("%s, con:%p:server connection returned to pool",
+                                    G_STRLOC, con);
+                        }
                     } else {
                         if (con->state == CON_STATE_READ_QUERY_RESULT) {
                             con->prev_state = con->state;
@@ -1835,11 +1839,14 @@ NETWORK_MYSQLD_PLUGIN_PROTO(proxy_connect_server) {
 	gboolean use_pooled_connection = FALSE;
 	network_backend_t *cur;
 
-	if (con->server && (st->backend->state == BACKEND_STATE_MAINTAINING ||
-            st->backend->state == BACKEND_STATE_DELETED)) {
-		con->server = NULL;
-		return NETWORK_SOCKET_ERROR_RETRY;	
-	}
+    if (con->server && (st->backend->state == BACKEND_STATE_MAINTAINING ||
+                st->backend->state == BACKEND_STATE_DELETED)) {
+        g_message("%s.%d: backend state:%d, con server:%p",
+                __FILE__, __LINE__, st->backend->state, con->server);
+        network_socket_free(con->server);
+        con->server = NULL;
+        return NETWORK_SOCKET_ERROR_RETRY;	
+    }
 
 	if (con->server) {
 		switch (network_socket_connect_finish(con->server)) {
@@ -1920,21 +1927,24 @@ NETWORK_MYSQLD_PLUGIN_PROTO(proxy_connect_server) {
 		}
 	}
 
-	if (con->server && !use_pooled_connection) {
-		gint bndx = st->backend_ndx;
-		/* we already have a connection assigned, 
-		 * but the script said we don't want to use it
-		 */
+    if (con->server && !use_pooled_connection) {
+        gint bndx = st->backend_ndx;
+        /* we already have a connection assigned, 
+         * but the script said we don't want to use it
+         */
 
         if (con->state < CON_STATE_READ_AUTH_RESULT) {
             g_debug("%s, con:%p, state:%d:server connection returned to pool",
                     G_STRLOC, con, con->state);
         }
 
-		network_connection_pool_lua_add_connection(con, 0);
+        if (network_connection_pool_lua_add_connection(con, 0) != 0) {
+            g_message("%s, con:%p:server connection returned to pool failed",
+                    G_STRLOC, con);
+        }
 
-		st->backend_ndx = bndx;
-	}
+        st->backend_ndx = bndx;
+    }
 
 	if (st->backend_ndx < 0) {
 		/**
@@ -2190,7 +2200,7 @@ NETWORK_MYSQLD_PLUGIN_PROTO(proxy_disconnect_client) {
 		break;
 	}
 
-    if (!con->server_is_closed) {
+    if (con->server && !con->server_is_closed) {
         if (con->state == CON_STATE_CLOSE_CLIENT ||
                 (con->pool_conn_used && con->prev_state <= CON_STATE_READ_QUERY))
         {
@@ -2199,7 +2209,10 @@ NETWORK_MYSQLD_PLUGIN_PROTO(proxy_disconnect_client) {
              * this disconnects con->server and safes it from getting free()ed later
              */
 
-            network_connection_pool_lua_add_connection(con, 0);
+            if (network_connection_pool_lua_add_connection(con, 0) != 0) {
+                g_message("%s, con:%p:server connection returned to pool failed",
+                        G_STRLOC, con);
+            }
         } 
     }
 

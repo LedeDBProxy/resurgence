@@ -529,14 +529,15 @@ function read_query( packet )
 
     -- read/write splitting 
 
+    local tokens_name = {}
+    local tokens_text = {}
+    local token_len
+    local first_token_name
     -- Set all tokens info in local table
     if cmd.type == proxy.COM_QUERY or cmd.type == proxy.COM_STMT_PREPARE then
         tokens = tokens or assert(tokenizer.tokenize(cmd.query))
-        local tokens_name = {}
-        local tokens_text = {}
-        local token_len = #tokens
-        local first_token_name
-        for i = 1, #tokens do
+        token_len = #tokens
+        for i = 1, token_len do
             local token = tokens[i]
             local token_name = token.token_name
             if first_token_name == nil and token_name ~= "TK_COMMENT" then

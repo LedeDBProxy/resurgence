@@ -200,9 +200,35 @@ void network_mysqld_priv_finally_free_shared(chassis *chas, chassis_private *pri
 	if (!priv) return;
 
     len = priv->cons->len;
+
+#ifdef NETWORK_CONN_DEBUG
+    int j, num;
+    network_backends_t *backends = priv->backends;
+    num = backends->backends->len;
+    GString *username;
+    GString empty_username = { "", 0, 0 };
+
+    for (i = 0; i < num; i++) {
+        network_backend_t *backend = backends->backends->pdata[i];
+        network_connection_pool *pool =backend->pool;
+        for (j = 0; j < len; j++) {
+            network_mysqld_con *con = priv->cons->pdata[j];
+            if (con->client) {
+                username = con->client->response ? con->client->response->username:&empty_username;
+                if (con->client->response != NULL) {
+                    g_message("%s: con:%p, username:%s", G_STRLOC, con, username->str);
+                    GQueue *queue = network_connection_pool_get_conns(pool, username, NULL);
+                    g_message("%s.%d finally release, queue:%p, len:%d", __FILE__, __LINE__,
+                            queue, g_queue_get_length(queue));
+                }
+            }
+        }
+    }
+#endif
+
     for (i = 0; i < len; i++) {
 		network_mysqld_con *con = priv->cons->pdata[i];
-        g_debug("%s.%d: %p finally release", __FILE__, __LINE__, con);
+        g_debug("%s.%d: %p finally release, total:%d", __FILE__, __LINE__, con, len);
         network_mysqld_con_free(con);
 	}
 }
@@ -252,7 +278,7 @@ network_mysqld_con *network_mysqld_con_new() {
 
 	con->auth_switch_to_method = g_string_new(NULL);
 	con->auth_switch_to_round  = 0;
-	con->auth_switch_to_data   = g_string_new(NULL);;
+	con->auth_switch_to_data   = g_string_new(NULL);
 
 	/* some tiny helper macros */
 #define SECONDS ( 1 )
@@ -1807,11 +1833,10 @@ void network_mysqld_con_handle(int event_fd, short events, void *user_data) {
                     if (!con->is_still_in_trans) {
                         g_debug("%s: try to add prepare server connection returned to pool",
                                 G_STRLOC);
-                        if (con->state < CON_STATE_READ_AUTH_RESULT) {
-                            g_debug("%s, con:%p, state:%d:server connection returned to pool",
-                                    G_STRLOC, con, con->state);
+                        if (network_connection_pool_lua_add_connection(con, 0) != 0) {
+                            g_message("%s, con:%p:server connection returned to pool failed",
+                                    G_STRLOC, con);
                         }
-                        network_connection_pool_lua_add_connection(con, 0);
                     } else {
                         con->state = CON_STATE_CLOSE_SERVER;
                     }

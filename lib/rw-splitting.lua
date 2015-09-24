@@ -70,7 +70,7 @@ end
 --stat
 if not proxy.global.stats then
     proxy.global.stats = {
-       	query_info = {
+        query_info = {
             ro = 0,
             rw = 0,
         },
@@ -527,26 +527,138 @@ function read_query( packet )
         proxy.connection.wait_clt_next_sql = 100
     end
 
+    -- read/write splitting 
+
     -- Set all tokens info in local table
-    tokens = tokens or assert(tokenizer.tokenize(cmd.query))
-    local tokens_name = {}
-    local tokens_text = {}
-    local token_len = #tokens
-    local first_token_name
-    for i = 1, #tokens do
-        local token = tokens[i]
-        local token_name = token.token_name
-        if first_token == nil and token_name ~= "TK_COMMENT" then
-            first_token_name = token_name
+    if cmd.type == proxy.COM_QUERY or cmd.type == proxy.COM_STMT_PREPARE then
+        tokens = tokens or assert(tokenizer.tokenize(cmd.query))
+        local tokens_name = {}
+        local tokens_text = {}
+        local token_len = #tokens
+        local first_token_name
+        for i = 1, #tokens do
+            local token = tokens[i]
+            local token_name = token.token_name
+            if first_token_name == nil and token_name ~= "TK_COMMENT" then
+                first_token_name = token_name
+            end
+            tokens_name[#tokens_name + 1] = token_name
+            tokens_text[#tokens_text + 1] = token.text
         end
-        tokens_name[#tokens_name + 1] = token_name
-        tokens_text[#tokens_text + 1] = token.text
+
+        -- comment issues
+        if not is_in_transaction then
+            -- find comment token
+            -- "master" set m; "slave" set s; "backend(%d)" set $1
+            -- Priority: master > slave > backendN(last one)
+            for i = 1, token_len do
+                local token_name = tokens_name[i]
+                local token_text = tokens_text[i]
+                if token_name == "TK_COMMENT" then
+                    if string.find(string.lower(token_text), "master") ~= nil then
+                        backend_comment = "m"
+                        break
+                    elseif string.find(string.lower(token_text), "slave") ~= nil then
+                        backend_comment = "s"
+                    elseif backend_comment ~= "s" then
+                        _, _, backend_ndx_comment = string.find(string.lower(token_text), "backend(%d)")
+                        if backend_ndx_comment ~= nil then
+                            backend_comment = backend_ndx_comment
+                        end
+                    end
+                end
+            end
+
+            if is_debug then
+                if backend_comment then
+                    print("[comment]" .. backend_comment)
+                else
+                    print("[comment]None")
+                end
+            end
+
+            -- Set backend_ndx based on comment
+            -- return ERROR when no idle connections
+            if not backend_comment then
+            elseif backend_comment == "m" then
+                local rw_backend_ndx = lb.idle_failsafe_rw()
+                if is_debug then
+                    print("[backend by comment]" .. rw_backend_ndx)
+                end
+                if rw_backend_ndx > 0 then
+                    rw_op = true
+                    if backend_ndx ~= rw_backend_ndx then
+                        backend_ndx = rw_backend_ndx
+                        proxy.connection.backend_ndx = backend_ndx
+                    end
+                else
+                    proxy.response = {
+                        type = proxy.MYSQLD_PACKET_ERR,
+                        errmsg = "rw backends have no idle connections"
+                    }
+                    return proxy.PROXY_SEND_RESULT
+                end
+            elseif backend_comment == "s" then
+                local ro_backend_ndx = lb.idle_ro()
+                if is_debug then
+                    print("[backend by comment]" .. ro_backend_ndx)
+                end
+                if ro_backend_ndx > 0 then
+                    rw_op = false
+                    if backend_ndx ~= ro_backend_ndx  then
+                        backend_ndx = ro_backend_ndx
+                        proxy.connection.backend_ndx = backend_ndx
+                    end
+                else
+                    proxy.response = {
+                        type = proxy.MYSQLD_PACKET_ERR,
+                        errmsg = "ro backends have no idle connections"
+                    }
+                    return proxy.PROXY_SEND_RESULT
+                end
+            else
+                local backend_comment_num = tonumber(backend_comment)
+                if backend_comment_num ~= nil and
+                        backend_comment_num <= #proxy.global.backends and
+                        backend_comment_num > 0 then
+                    if backend_ndx ~= backend_comment_num then
+                        if lb.idle_ndx(backend_comment_num) then
+                            backend_ndx = backend_comment_num
+                            proxy.connection.backend_ndx = backend_ndx
+                        else
+                            proxy.response = {
+                                type = proxy.MYSQLD_PACKET_ERR,
+                                errmsg = "backend [" .. backend_comment .. "] has no idle connections"
+                            }
+                            return proxy.PROXY_SEND_RESULT
+                        end
+                    end
+                    if proxy.global.backends[backend_comment_num].type == "rw" then
+                        rw_op = true
+                    else
+                        rw_op = false
+                    end
+                else
+                    proxy.response = {
+                        type = proxy.MYSQLD_PACKET_ERR,
+                        errmsg = "backend [" .. tostring(backend_comment) .. "] is out of range"
+                    }
+                    return proxy.PROXY_SEND_RESULT
+                end
+            end
+
+            if cmd.type == proxy.COM_STMT_PREPARE then
+                is_prepared = true
+                conn_reserved = true
+            end
+        end
     end
 
-    -- read/write splitting 
-    --
+    -- if comment is set, pass
+    if backend_comment then
+
     -- send all non-transactional SELECTs to a slave
-    if not is_in_transaction and cmd.type == proxy.COM_QUERY then
+    elseif not is_in_transaction and cmd.type == proxy.COM_QUERY then
         if proxy.global.warm_up_pipe_handle and proxy.global.warm_up_pid then
             if proxy.global.warm_up_pid == cmd.query then
                 print('setup warm_up_conn to ', proxy.connection,'for query', cmd.query)
@@ -555,266 +667,165 @@ function read_query( packet )
             end
         end
 
-        -- find comment token
-        -- "master" set m; "slave" set s; "backend(%d)" set $1
-        -- Priority: master > slave > backendN(last one)
-        for i = 1, token_len do
-            local token_name = tokens_name[i]
-            local token_text = tokens_text[i]
-            if token_name == "TK_COMMENT" then
-                if string.find(string.lower(token_text), "master") ~= nil then
-                    backend_comment = "m"
+        if first_token_name == "TK_SQL_SELECT" then
+            is_in_select_calc_found_rows = false
+            local is_insert_id = false
+            local last_insert_id_name = nil
+
+            for i = 2, token_len do
+                local token_name = tokens_name[i]
+                local token_text = tokens_text[i]
+                -- SQL_CALC_FOUND_ROWS + FOUND_ROWS() have to be executed
+                -- on the same connection
+                -- print("token: " .. token.token_name)
+                -- print("  val: " .. token.text)
+
+                if not is_in_select_calc_found_rows and token_name == "TK_SQL_SQL_CALC_FOUND_ROWS" then
+                    is_in_select_calc_found_rows = true
+                elseif not is_insert_id and token_name == "TK_LITERAL" then
+                    local utext = token_text:upper()
+
+                    if utext == "@@LAST_INSERT_ID" then
+                        is_insert_id = true
+                        last_insert_id_name = token_text
+                    end
+                elseif not is_insert_id and token_name == "TK_FUNCTION" then
+                    local utext = token_text:upper()
+                    if utext == "LAST_INSERT_ID" then
+                        is_insert_id = true
+                        last_insert_id_name = token_text .. "()"
+                    end
+                end
+
+                -- we found the two special token, we can't find more
+                if is_insert_id and is_in_select_calc_found_rows then
                     break
-                elseif string.find(string.lower(token_text), "slave") ~= nil then
-                    backend_comment = "s"
-                elseif backend_comment ~= "s" then
-                    _, _, backend_ndx_comment = string.find(string.lower(token_text), "backend(%d)")
-                    if backend_ndx_comment ~= nil then
-                        backend_comment = backend_ndx_comment
-                    end
                 end
             end
-        end
 
-        if is_debug then
-            if backend_comment then 
-                print("[comment]" .. backend_comment)
-            else
-                print("[comment]None")
-            end
-        end
-
-        -- Set backend_ndx based on comment
-        -- return ERROR when no idle connections
-        if not backend_comment then
-        elseif backend_comment == "m" then
-            local rw_backend_ndx = lb.idle_failsafe_rw()
-            if is_debug then
-                print("[backend by comment]" .. rw_backend_ndx)
-            end
-            if rw_backend_ndx > 0 then
-                rw_op = true
-                if backend_ndx ~= rw_backend_ndx then
-                    backend_ndx = rw_backend_ndx
-                    proxy.connection.backend_ndx = backend_ndx
-                end
-            else
-                proxy.response = {
-                    type = proxy.MYSQLD_PACKET_ERR,
-                    errmsg = "rw backends have no idle connections"
-                }
-                return proxy.PROXY_SEND_RESULT
-            end
-        elseif backend_comment == "s" then
-            local ro_backend_ndx = lb.idle_ro()
-            if is_debug then
-                print("[backend by comment]" .. ro_backend_ndx)
-            end
-            if ro_backend_ndx > 0 then
-                rw_op = false
-                if backend_ndx ~= ro_backend_ndx  then
-                    backend_ndx = ro_backend_ndx
-                    proxy.connection.backend_ndx = backend_ndx
-                end
-            else
-                proxy.response = {
-                    type = proxy.MYSQLD_PACKET_ERR,
-                    errmsg = "ro backends have no idle connections"
-                }
-                return proxy.PROXY_SEND_RESULT
-            end
-        else
-            local backend_comment_num = tonumber(backend_comment)
-            if backend_comment_num ~= nil and
-                    backend_comment_num <= #proxy.global.backends and
-                    backend_comment_num > 0 then
-                if backend_ndx ~= backend_comment_num then
-                    if lb.idle_ndx(backend_comment_num) then
-                        backend_ndx = backend_comment_num
-                        proxy.connection.backend_ndx = backend_ndx
-                    else
-                        proxy.response = {
-                            type = proxy.MYSQLD_PACKET_ERR,
-                            errmsg = "backend [" .. backend_comment .. "] has no idle connections"
-                        }
-                        return proxy.PROXY_SEND_RESULT
-                    end
-                end
-                if proxy.global.backends[backend_comment_num].type == "rw" then
-                    rw_op = true
-                else
-                    rw_op = false
-                end
-            else
-                proxy.response = {
-                    type = proxy.MYSQLD_PACKET_ERR,
-                    errmsg = "backend [" .. tostring(backend_comment) .. "] is out of range"
-                }
-                return proxy.PROXY_SEND_RESULT
-            end
-        end
-
-        if not backend_comment then
-            if first_token_name == "TK_SQL_SELECT" then
-                is_in_select_calc_found_rows = false
-                local is_insert_id = false
-                local last_insert_id_name = nil
-
-                for i = 2, token_len do
-                    local token_name = tokens_name[i]
-                    local token_text = tokens_text[i]
-                    -- SQL_CALC_FOUND_ROWS + FOUND_ROWS() have to be executed
-                    -- on the same connection
-                    -- print("token: " .. token.token_name)
-                    -- print("  val: " .. token.text)
-
-                    if not is_in_select_calc_found_rows and token_name == "TK_SQL_SQL_CALC_FOUND_ROWS" then
-                        is_in_select_calc_found_rows = true
-                    elseif not is_insert_id and token_name == "TK_LITERAL" then
-                        local utext = token_text:upper()
-
-                        if utext == "@@LAST_INSERT_ID" then
-                            is_insert_id = true
-                            last_insert_id_name = token_text
-                        end
-                    elseif not is_insert_id and token_name == "TK_FUNCTION" then
-                        local utext = token_text:upper()
-                        if utext == "LAST_INSERT_ID" then
-                            is_insert_id = true
-                            last_insert_id_name = token_text .. "()"
-                        end
-                    end
-
-                    -- we found the two special token, we can't find more
-                    if is_insert_id and is_in_select_calc_found_rows then
-                        break
-                    end
-                end
-
-                if not is_insert_id then
-                    if is_backend_conn_keepalive then
-                        rw_op = false
-                        local ro_backend_ndx = lb.idle_ro()
-                        if backend_ndx ~= ro_backend_ndx and ro_backend_ndx > 0 then
-                            backend_ndx = ro_backend_ndx
-                            proxy.connection.backend_ndx = backend_ndx
-
-                            if is_debug then
-                                print("  [use ro server: " .. backend_ndx .. "]")
-                            end
-                        end
-                    end
-                else
-                    -- only support last insert id in non transaction environment
-                    local last_insert_id = proxy.connection.last_insert_id
-                    return return_insert_id(last_insert_id_name, last_insert_id)
-                end
-
-            else 
-
-                -- We assume charset set will happen before transaction
-                if first_token_name == "TK_SQL_SET" then
-                    if token_len  > 2 then
-                        local token_name = tokens_name[2]
-                        local token_text = tokens_text[2]
-                        if token_name == "TK_LITERAL" then
-                            if token_text == "NAMES" then
-                                local charset_text = tokens_text[3]
-                                is_charset_set = true
-                                is_charset_client = true
-                                is_charset_connection = true
-                                is_charset_results = true
-                                proxy.connection.client.charset = charset_text
-                                charset_client = charset_text
-                                charset_connection = charset_text
-                                charset_results = charset_text
-                            else
-                                if token_len > 3 then
-                                    local nxt_token = tokens_name[3]
-                                    if nxt_token == "TK_EQ" then
-                                        local nxt_nxt_token = tokens_text[4]
-                                        if token_text == "character_set_client" then
-                                            proxy.connection.client.character_set_client = nxt_nxt_token
-                                            charset_client = nxt_nxt_token
-                                            is_charset_client = true
-                                        elseif token_text == "character_set_connection" then
-                                            proxy.connection.client.character_set_connection = nxt_nxt_token
-                                            charset_connection = nxt_nxt_token
-                                            is_charset_connection = true
-                                        elseif token_text == "character_set_results" then
-                                            proxy.connection.client.character_set_results = nxt_nxt_token
-                                            charset_results = nxt_nxt_token
-                                            is_charset_results = true
-                                        elseif token_text == "autocommit" then
-                                            if nxt_nxt_token then
-                                                is_auto_commit = false
-                                                if is_debug then
-                                                    print("  [set is_auto_commit false]" )
-                                                end
-                                                rw_op = true
-                                            else
-                                                is_auto_commit = true
-                                            end
-                                        elseif token_text == "sql_mode" then
-                                            if is_debug then
-                                                print("   sql mode:" .. nxt_nxt_token)
-                                            end
-                                            proxy.connection.client.sql_mode = nxt_nxt_token
-                                            sql_mode_set = true
-                                        end
-                                    end
-                                end
-                            end
-                        end
-                    end
-                end
-
-                if is_backend_conn_keepalive and is_auto_commit and 
-                    (first_token_name == "TK_SQL_USE" or first_token_name == "TK_SQL_SET" or
-                    first_token_name == "TK_SQL_SHOW" or first_token_name == "TK_SQL_DESC"
-                    or first_token_name == "TK_SQL_EXPLAIN") then
+            if not is_insert_id then
+                if is_backend_conn_keepalive then
                     rw_op = false
                     local ro_backend_ndx = lb.idle_ro()
                     if backend_ndx ~= ro_backend_ndx and ro_backend_ndx > 0 then
                         backend_ndx = ro_backend_ndx
                         proxy.connection.backend_ndx = backend_ndx
 
-                        if first_token_name == "TK_SQL_USE" then
-                            if token_len  > 1 then
-                                c.default_db = tokens_text[2]
-                            end
-                        end
                         if is_debug then
                             print("  [use ro server: " .. backend_ndx .. "]")
                         end
                     end
                 end
+            else
+                -- only support last insert id in non transaction environment
+                local last_insert_id = proxy.connection.last_insert_id
+                return return_insert_id(last_insert_id_name, last_insert_id)
             end
 
-            if ro_server == true and rw_op == true then
-                local rw_backend_ndx = lb.idle_failsafe_rw()
-                if rw_backend_ndx > 0 then
-                    backend_ndx = rw_backend_ndx
-                    proxy.connection.backend_ndx = backend_ndx
-                    if is_debug then
-                        print("  [use rw server:" .. backend_ndx .."]")
-                    end
-                    if ps_cnt > 0 then 
-                        multiple_server_mode = true
-                        if is_debug then
-                            print("  [set multiple_server_mode true in complex env]")
+        else 
+
+            -- We assume charset set will happen before transaction
+            if first_token_name == "TK_SQL_SET" then
+                if token_len  > 2 then
+                    local token_name = tokens_name[2]
+                    local token_text = tokens_text[2]
+                    if token_name == "TK_LITERAL" then
+                        if token_text == "NAMES" then
+                            local charset_text = tokens_text[3]
+                            is_charset_set = true
+                            is_charset_client = true
+                            is_charset_connection = true
+                            is_charset_results = true
+                            proxy.connection.client.charset = charset_text
+                            charset_client = charset_text
+                            charset_connection = charset_text
+                            charset_results = charset_text
+                        else
+                            if token_len > 3 then
+                                local nxt_token = tokens_name[3]
+                                if nxt_token == "TK_EQ" then
+                                    local nxt_nxt_token = tokens_text[4]
+                                    if token_text == "character_set_client" then
+                                        proxy.connection.client.character_set_client = nxt_nxt_token
+                                        charset_client = nxt_nxt_token
+                                        is_charset_client = true
+                                    elseif token_text == "character_set_connection" then
+                                        proxy.connection.client.character_set_connection = nxt_nxt_token
+                                        charset_connection = nxt_nxt_token
+                                        is_charset_connection = true
+                                    elseif token_text == "character_set_results" then
+                                        proxy.connection.client.character_set_results = nxt_nxt_token
+                                        charset_results = nxt_nxt_token
+                                        is_charset_results = true
+                                    elseif token_text == "autocommit" then
+                                        if nxt_nxt_token then
+                                            is_auto_commit = false
+                                            if is_debug then
+                                                print("  [set is_auto_commit false]" )
+                                            end
+                                            rw_op = true
+                                        else
+                                            is_auto_commit = true
+                                        end
+                                    elseif token_text == "sql_mode" then
+                                        if is_debug then
+                                            print("   sql mode:" .. nxt_nxt_token)
+                                        end
+                                        proxy.connection.client.sql_mode = nxt_nxt_token
+                                        sql_mode_set = true
+                                    end
+                                end
+                            end
                         end
                     end
-                else
-                    if is_debug then
-                        print("2, master have no idle connection")
-                    end
-                    proxy.response = {
-                        type = proxy.MYSQLD_PACKET_ERR,
-                        errmsg = "2, master connections are too small"
-                    }
-                    return proxy.PROXY_SEND_RESULT
                 end
+            end
+
+            if is_backend_conn_keepalive and is_auto_commit and 
+                (first_token_name == "TK_SQL_USE" or first_token_name == "TK_SQL_SET" or
+                first_token_name == "TK_SQL_SHOW" or first_token_name == "TK_SQL_DESC"
+                or first_token_name == "TK_SQL_EXPLAIN") then
+                rw_op = false
+                local ro_backend_ndx = lb.idle_ro()
+                if backend_ndx ~= ro_backend_ndx and ro_backend_ndx > 0 then
+                    backend_ndx = ro_backend_ndx
+                    proxy.connection.backend_ndx = backend_ndx
+
+                    if first_token_name == "TK_SQL_USE" then
+                        if token_len  > 1 then
+                            c.default_db = tokens_text[2]
+                        end
+                    end
+                    if is_debug then
+                        print("  [use ro server: " .. backend_ndx .. "]")
+                    end
+                end
+            end
+        end
+
+        if ro_server == true and rw_op == true then
+            local rw_backend_ndx = lb.idle_failsafe_rw()
+            if rw_backend_ndx > 0 then
+                backend_ndx = rw_backend_ndx
+                proxy.connection.backend_ndx = backend_ndx
+                if is_debug then
+                    print("  [use rw server:" .. backend_ndx .."]")
+                end
+                if ps_cnt > 0 then 
+                    multiple_server_mode = true
+                    if is_debug then
+                        print("  [set multiple_server_mode true in complex env]")
+                    end
+                end
+            else
+                if is_debug then
+                    print("2, master have no idle connection")
+                end
+                proxy.response = {
+                    type = proxy.MYSQLD_PACKET_ERR,
+                    errmsg = "2, master connections are too small"
+                }
+                return proxy.PROXY_SEND_RESULT
             end
         end
 

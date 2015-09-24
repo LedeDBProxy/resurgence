@@ -22,11 +22,13 @@
 module("proxy.balance", package.seeall)
 
 
-local function add_new_connection()
+local function add_new_connection(max_warn_up)
     local global = proxy.global
     local rwsplit = global.config.rwsplit
     if rwsplit.auto_warm_up then
-        rwsplit.warm_up = rwsplit.warm_up + 1
+        if rwsplit.warm_up < max_warn_up then
+            rwsplit.warm_up = rwsplit.warm_up + 1
+        end
         if rwsplit.auto_warm_up_connect then
             print('now warm_up value is ', rwsplit.warm_up)
             if not global.warm_up_port then
@@ -55,14 +57,15 @@ function idle_failsafe_rw()
         if s.type == proxy.BACKEND_TYPE_RW then
             if s.state == proxy.BACKEND_STATE_UP or s.state == proxy.BACKEND_STATE_UNKNOWN then
                 local conns = s.pool.users[proxy.connection.client.username]
+                local min_idle_connections = s.pool.min_idle_connections
                 if conns.cur_idle_connections > 0 then
                     backend_ndx = i
-                    if conns.cur_idle_connections <= s.pool.min_idle_connections then
-                        add_new_connection()
+                    if conns.cur_idle_connections <= min_idle_connections then
+                        add_new_connection(min_idle_connections)
                     end
                     break
                 else
-                    add_new_connection()
+                    add_new_connection(min_idle_connections)
                 end
             end
         end

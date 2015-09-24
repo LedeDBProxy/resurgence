@@ -246,9 +246,11 @@ function read_query(packet)
 		end
 
 		name = string.gsub(name, '([^%.]+)', '[%1]', 1)
+		name = string.gsub(name, '%[([^%d]+)%]', '["%1"]', 1)
 		name = string.gsub(name, '%.(%d+)', '[%1]')
 
         local command = "proxy.global."..key.."."..parameters..name.." = ".. values .."; return 0"
+        if admin.log_debug_mode then print(command) end
 		local ret
 		local status, func = pcall(loadstring, command)
 		if func then

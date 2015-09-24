@@ -147,7 +147,7 @@ GQueue *network_connection_pool_get_conns(network_connection_pool *pool, GString
 		 * if we know this use, return a authed connection 
 		 */
 		g_debug("%s: (get_conns) get user-specific idling connection for '%s' -> %p", G_STRLOC, username->str, conns);
-		if (conns) return conns;
+		if (conns && conns->length > 0) return conns; 
 	}
 
 	/**

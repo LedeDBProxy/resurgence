@@ -559,17 +559,15 @@ function read_query( packet )
                 elseif not is_insert_id and token.token_name == "TK_LITERAL" then
                     local utext = token.text:upper()
 
-                    if utext == "LAST_INSERT_ID" or
-                        utext == "@@INSERT_ID" then
+                    if utext == "@@LAST_INSERT_ID" then
                         is_insert_id = true
-                        last_insert_id_name = utext
+                        last_insert_id_name = token.text
                     end
                 elseif not is_insert_id and token.token_name == "TK_FUNCTION" then
                     local utext = token.text:upper()
                     if utext == "LAST_INSERT_ID" then
                         is_insert_id = true
-                        utext = utext ..  "()"
-                        last_insert_id_name = utext
+                        last_insert_id_name = token.text .. "()"
                     end
                 end
 

@@ -56,17 +56,31 @@ function idle_failsafe_rw()
         local s = proxy.global.backends[i]
         if s.type == proxy.BACKEND_TYPE_RW then
             if s.state == proxy.BACKEND_STATE_UP or s.state == proxy.BACKEND_STATE_UNKNOWN then
-                local conns = s.pool.users[proxy.connection.client.username]
-                local min_idle_connections = s.pool.min_idle_connections
-                if conns.cur_idle_connections > 0 then
-                    backend_ndx = i
-                    if conns.cur_idle_connections <= min_idle_connections then
-                        add_new_connection(min_idle_connections)
+                local username = proxy.connection.client.username
+                local cur_user_idle_conns = s.pool.users[username].cur_idle_connections
+                local need_add_conn = false
+                if cur_user_idle_conns > 0 then
+                    if cur_user_idle_conns < s.pool.min_idle_connections then
+                        need_add_conn = true
                     end
-                    break
+                    backend_ndx = i
                 else
-                    add_new_connection(min_idle_connections)
+                    local other_idle_conns = s.pool.users[""].cur_idle_connections
+                    if other_idle_conns > 0 then
+                        backend_ndx = i
+                    end
+                    need_add_conn = true
                 end
+
+                if need_add_conn then
+                    local cur_time = os.time()
+                    if cur_time ~= proxy.global.last_generate_time then
+                        add_new_connection(s.pool.min_idle_connections)
+                        proxy.global.last_generate_time = cur_time
+                    end
+                end
+
+                break
             end
         end
     end

@@ -296,7 +296,14 @@ static int proxy_connection_set(lua_State *L) {
 		int timeout = luaL_checkinteger(L, 3);
         con->wait_clt_next_sql.tv_sec = timeout / 1000;
         con->wait_clt_next_sql.tv_usec =1000 * (timeout - con->wait_clt_next_sql.tv_sec * 1000);
-	}else {
+    } else if (strleq(key, keysize, C("set_only_backend_ndx"))) {
+        if (con->server == NULL) {
+		    int backend_ndx = luaL_checkinteger(L, 3) - 1;
+            if (backend_ndx >= 0) {
+                st->backend_ndx = backend_ndx;
+            }
+        }
+	} else {
 		return luaL_error(L, "proxy.connection.%s is not writable", key);
 	}
 

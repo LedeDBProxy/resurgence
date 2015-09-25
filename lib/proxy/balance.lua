@@ -69,7 +69,9 @@ function idle_failsafe_rw()
                     if other_idle_conns > 0 then
                         backend_ndx = i
                     end
-                    need_add_conn = true
+                    if other_idle_conns <= (1 + s.pool.min_idle_connections) then
+                        need_add_conn = true
+                    end
                 end
 
                 if need_add_conn then

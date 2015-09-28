@@ -71,7 +71,26 @@ static int proxy_backend_get(lua_State *L) {
 		*pool_p = backend->pool;
 
 		network_connection_pool_getmetatable(L);
-		lua_setmetatable(L, -2);
+        lua_setmetatable(L, -2);
+    } else if (strleq(key, keysize, C("connections"))) {
+        guint total = backend->connected_clients;
+
+        GHashTable *users = backend->pool->users;
+
+        if (users != NULL) {
+
+            GHashTableIter iter;
+            GString *key;
+            GQueue *queue;
+
+            g_hash_table_iter_init(&iter, users);
+            while (g_hash_table_iter_next(&iter, (void **)&key, (void **)&queue)) {
+                total += queue->length;
+            }
+        }
+
+        lua_pushinteger(L, total);
+
 	} else {
 		lua_pushnil(L);
 	}

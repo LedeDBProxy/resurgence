@@ -62,6 +62,7 @@ typedef struct {
 	network_connection_pool *pool; /**< the pool of open connections */
 
 	guint connected_clients; /**< number of open connections to this backend for SQF */
+	guint connections; 
 
 	GString *uuid;           /**< the UUID of the backend */
 } network_backend_t;

@@ -160,6 +160,7 @@ function read_query(packet)
 		rows[#rows + 1] = { "CONFIG GET modulenames", "display the module config/show modules can be configed." }
 		rows[#rows + 1] = { "CONFIG SET module.parameter value", "set the parameters with value" }
 		rows[#rows + 1] = { "STATS GET modulenames", "display the stats of modulenames." }
+		rows[#rows + 1] = { "select conn_details from backend", "display the idle conns" }
 	elseif string.find(query_lower, "select conn_num from backends where") then
 		local parameters = string.match(query_lower, 
 								"select conn_num from backends where (.+)$")
@@ -189,6 +190,27 @@ function read_query(packet)
 				0
 			}
 		end
+    elseif string.find(query_lower, "select conn_details from backend") then
+        fields = {
+			{ name = "backend_ndx",
+			  type = proxy.MYSQL_TYPE_LONG },
+			{ name = "username",
+			  type = proxy.MYSQL_TYPE_STRING },
+			{ name = "idle_conns",
+			  type = proxy.MYSQL_TYPE_LONG },
+			{ name = "used_conns",
+			  type = proxy.MYSQL_TYPE_LONG },
+			{ name = "total_conns",
+			  type = proxy.MYSQL_TYPE_LONG },
+        }
+
+        for i = 1, #proxy.global.backends do
+            local b = proxy.global.backends[i]
+            local xxx = b.pool.details
+            for k,v in pairs(xxx) do
+                rows[#rows+1] = {i, k, v, 0, b.connected_clients}
+            end
+        end
 
 	elseif string.find(query_lower, "config get") or 
 			string.find(query_lower, "stats get") then

@@ -116,6 +116,18 @@ int network_connection_pool_users_getmetatable(lua_State *L) {
 	return proxy_getmetatable(L, methods);
 }
 
+static void proxy_pool_get_user_conn_info(gpointer key, gpointer value, gpointer Lp) 
+{
+    GString * username = (GString *)key;
+    GQueue * conns = (GQueue *)value;
+    lua_State * L = *(lua_State**)Lp;
+    
+    //g_message("%s, %s, %d, %p", __func__, username->str, conns->length, L);
+	lua_pushstring(L, username->str);
+    lua_pushnumber(L, (double)conns->length);
+    lua_settable(L, -3);
+}
+
 static int proxy_pool_get(lua_State *L) {
 	network_connection_pool *pool = *(network_connection_pool **)luaL_checkself(L); 
 	gsize keysize = 0;
@@ -150,6 +162,10 @@ static int proxy_pool_get(lua_State *L) {
 
 		network_connection_pool_users_getmetatable(L);
 		lua_setmetatable(L, -2);
+    } else if (strleq(key, keysize, C("details"))) {
+        //g_message("%s:%d, %p", __func__, __LINE__, L);
+        lua_newtable(L);
+        g_hash_table_foreach(pool->users, proxy_pool_get_user_conn_info, &L);
 	} else {
 		lua_pushnil(L);
 	}

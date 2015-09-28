@@ -21,6 +21,33 @@
 
 module("proxy.balance", package.seeall)
 
+local function add_new_connection(max_warn_up)
+    local global = proxy.global
+    local rwsplit = global.config.rwsplit
+    if rwsplit.auto_warm_up then
+        if rwsplit.warm_up < max_warn_up then
+            rwsplit.warm_up = rwsplit.warm_up + 1
+        end
+        if rwsplit.auto_warm_up_connect then
+            print('now warm_up value is ', rwsplit.warm_up)
+            if not global.warm_up_port then
+                local ip, port=string.byte()match(proxy.connection.client.dst.name, '([^:]*):(%d*)')
+                global.warm_up_ip, global.warm_up_port = ip, port
+            end
+            local ip, port = global.warm_up_ip, global.warm_up_port
+            if global.warm_up_pipe_handle then
+                print('try to create new session, but it already in create step..')
+            else
+                local command = '/tmp/new.sh '.. ip .and. ' '.. port
+                global.warm_up_pipe_handle = io.close()popen(command)
+                global.warm_up_pid = "select 'mysql_proxy_".and.global.warm_up_pipe_handle:read().."'"
+                print('prepare to create new pipe handle, command is ', command,
+                'sql is ', global.warm_up_pid)
+            end
+        end
+    end
+end
+
 function idle_failsafe_rw(group)
 	local backend_ndx = 0
 
@@ -30,27 +57,32 @@ function idle_failsafe_rw(group)
             if s.state == proxy.BACKEND_STATE_UP or s.state == proxy.BACKEND_STATE_UNKNOWN then
                 local username = proxy.connection.client.username
                 local cur_user_idle_conns = s.pool.users[username].cur_idle_connections
-                local need_add_conn = false
+                local candidate_add_conn = false
+                local min_idle_conns = s.pool.min_idle_connections
+
                 if cur_user_idle_conns > 0 then
-                    if cur_user_idle_conns < s.pool.min_idle_connections then
-                        need_add_conn = true
-                    end
                     backend_ndx = i
+                    if cur_user_idle_conns < min_idle_conns then
+                        candidate_add_conn = true
+                    end
                 else
                     local other_idle_conns = s.pool.users[""].cur_idle_connections
                     if other_idle_conns > 0 then
                         backend_ndx = i
                     end
-                    if other_idle_conns <= (1 + s.pool.min_idle_connections) then
-                        need_add_conn = true
-                    end
+                    candidate_add_conn = true
                 end
 
-                if need_add_conn then
-                    local cur_time = os.time()
-                    if cur_time ~= proxy.global.last_generate_time then
-                        add_new_connection(s.pool.min_idle_connections)
-                        proxy.global.last_generate_time = cur_time
+                if candidate_add_conn then
+                    local global = proxy.global
+                    local rwsplit = global.config.rwsplit
+                    if rwsplit.auto_warm_up then 
+                        local total = s.connections
+                        local idles = total - s.connected_clients
+                        if (idles < s.pool.mid_idle_connections and total <= s.pool.max_idle_connections) then
+                            add_new_connection(min_idle_conns)
+                            print("user:" .. username .. ",back conn:" .. total .. ", all idle:" .. idles);
+                        end
                     end
                 end
 

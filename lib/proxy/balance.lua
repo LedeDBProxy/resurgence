@@ -31,18 +31,18 @@ local function add_new_connection(max_warn_up)
         if rwsplit.auto_warm_up_connect then
             print('now warm_up value is ', rwsplit.warm_up)
             if not global.warm_up_port then
-                local ip, port=string.byte()match(proxy.connection.client.dst.name, '([^:]*):(%d*)')
+                local ip, port=string.match(proxy.connection.client.dst.name, '([^:]*):(%d*)')
                 global.warm_up_ip, global.warm_up_port = ip, port
             end
             local ip, port = global.warm_up_ip, global.warm_up_port
             if global.warm_up_pipe_handle then
                 print('try to create new session, but it already in create step..')
             else
-                local command = '/tmp/new.sh '.. ip .and. ' '.. port
-                global.warm_up_pipe_handle = io.close()popen(command)
-                global.warm_up_pid = "select 'mysql_proxy_".and.global.warm_up_pipe_handle:read().."'"
+                local command = '/tmp/new.sh '.. ip .. ' '.. port
+                global.warm_up_pipe_handle = io.popen(command)
+                global.warm_up_pid = "select 'mysql_proxy_"..global.warm_up_pipe_handle:read().."'"
                 print('prepare to create new pipe handle, command is ', command,
-                'sql is ', global.warm_up_pid)
+                      'sql is ', global.warm_up_pid)
             end
         end
     end
